@@ -1,0 +1,14 @@
+.svg {
+	fill: oklch(0.556 0 0);
+	width: 16px;
+	height: 16px;
+}
+
+.center {
+	margin: auto;
+}
+
+.root {
+	width: fill;
+	height: fill;
+}

@@ -50,10 +50,10 @@ public:
                        open_ = declared_open_ = state.get();
                        open_explicit_ = true; open_binding_ = state;)
   VOIDUI_FLUENT_METHOD(extent, (float value),
-                       extent_ = declared_extent_ = finite_nonnegative_(value);
+                       extent_ = declared_extent_ = elastic_open_extent_ = finite_nonnegative_(value);
                        extent_explicit_ = true;)
   VOIDUI_FLUENT_METHOD(extent, (State<float> state),
-                       extent_ = declared_extent_ = finite_nonnegative_(state.get());
+                       extent_ = declared_extent_ = elastic_open_extent_ = finite_nonnegative_(state.get());
                        extent_explicit_ = true; extent_binding_ = state;)
   VOIDUI_FLUENT_METHOD(limits, (float minimum, float maximum),
                        min_extent_ = finite_nonnegative_(minimum);
@@ -117,6 +117,9 @@ private:
   bool edge_visible_ = false;
   bool open_ = true, declared_open_ = true, open_explicit_ = false;
   float extent_ = 280.0f, declared_extent_ = 280.0f;
+  // Elastic reveals use the configured size, never a previous drag's memory.
+  // Binding echoes preserve this baseline; external extent changes replace it.
+  float elastic_open_extent_ = 280.0f;
   bool extent_explicit_ = false;
   float min_extent_ = 160.0f, max_extent_ = 560.0f;
   float collapsed_extent_ = 0.0f, handle_size_ = 8.0f;

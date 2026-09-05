@@ -101,7 +101,7 @@ int main() {
     release(tree, {closed.x + (horizontal ? sign * 50 : 0),
                    closed.y + (horizontal ? 0 : sign * 50)});
     tree.layout({800, 600});
-    assert(s->is_open() && near(s->visible_extent(), 260));
+    assert(s->is_open() && near(s->visible_extent(), 200));
 
     // Snapping open consumes the opening threshold. The cursor must catch
     // the new edge before it can load another expansion threshold.
@@ -117,7 +117,7 @@ int main() {
       snapped.layout({800, 600});
     };
     press(snapped, snap_start);
-    sample(40); // Exactly the threshold opens to the remembered size.
+    sample(40); // Exactly the threshold opens to the configured size.
     assert(view(snapped)->is_open() && near(view(snapped)->visible_extent(), 200));
     sample(40); // A duplicate sample must not undo the snap or resize.
     sample(100);
@@ -237,12 +237,72 @@ int main() {
       press(hybrid, grip(hybrid));
       release(hybrid, snap_point(40));
       hybrid.layout({800, 600});
-      assert(view(hybrid)->is_open() && near(view(hybrid)->visible_extent(), 205));
+      assert(view(hybrid)->is_open() && near(view(hybrid)->visible_extent(), 200));
       const auto fresh = grip(hybrid);
       press(hybrid, fresh);
       release(hybrid, {fresh.x + (horizontal ? sign * 5 : 0),
                       fresh.y + (horizontal ? 0 : sign * 5)});
-      assert(near(view(hybrid)->expanded_extent(), 210));
+      assert(near(view(hybrid)->expanded_extent(), 205));
+    }
+
+    // Elastic reveals always use 240, even after resizing to 360 and closing
+    // without releasing. Exercise both local declarations and binding echoes.
+    for (bool bound_size : {false, true}) {
+      std::optional<State<float>> size;
+      std::optional<State<bool>> open;
+      std::optional<State<int>> unrelated;
+      WidgetTree reveal(transfer_widget(component([&] {
+        size = use_state(240.0f); open = use_state(false); unrelated = use_state(0);
+        auto panel = make_view().placement(edge).extent(240).open(*open)
+            .drag_threshold(240).drag_mode(SidebarDragMode::ElasticOpenClose);
+        if (bound_size) panel.extent(*size);
+        return panel;
+      })));
+      reveal.layout({800, 600});
+      const auto reveal_sample = [&](float distance) {
+        move(reveal, snap_point(distance));
+        reveal.layout({800, 600});
+      };
+      press(reveal, grip(reveal));
+      reveal_sample(240);
+      reveal_sample(360);
+      assert(near(view(reveal)->visible_extent(), 360));
+      reveal_sample(70);
+      assert(!view(reveal)->is_open() && near(view(reveal)->expanded_extent(), 360));
+      unrelated->set(1); reveal.layout({800, 600});
+      reveal_sample(309);
+      assert(!view(reveal)->is_open());
+      reveal_sample(310);
+      assert(view(reveal)->is_open() && near(view(reveal)->visible_extent(), 240));
+      if (bound_size) assert(near(size->get(), 240));
+      reveal_sample(310);
+      reveal_sample(320);
+      assert(near(view(reveal)->visible_extent(), 250));
+      key(reveal, Keycode::Escape); reveal.layout({800, 600});
+      assert(!view(reveal)->is_open() && near(view(reveal)->expanded_extent(), 240));
+
+      // The baseline also survives separate gestures and keyboard reopening.
+      press(reveal, grip(reveal));
+      reveal_sample(240); reveal_sample(360); reveal_sample(70);
+      release(reveal, snap_point(70));
+      key(reveal, Keycode::Return); reveal.layout({800, 600});
+      assert(view(reveal)->is_open() && near(view(reveal)->visible_extent(), 360));
+      key(reveal, Keycode::Return); reveal.layout({800, 600});
+      press(reveal, grip(reveal));
+      release(reveal, snap_point(240)); reveal.layout({800, 600});
+      assert(view(reveal)->is_open() && near(view(reveal)->visible_extent(), 240));
+
+      if (bound_size) {
+        // An intentional external size change establishes a new baseline.
+        open->set(false); size->set(280); reveal.layout({800, 600});
+        press(reveal, grip(reveal));
+        reveal_sample(240); reveal_sample(360); reveal_sample(70);
+        assert(!view(reveal)->is_open());
+        release(reveal, snap_point(70));
+        press(reveal, grip(reveal));
+        release(reveal, snap_point(240)); reveal.layout({800, 600});
+        assert(view(reveal)->is_open() && near(view(reveal)->visible_extent(), 280));
+      }
     }
 
     // Immediate means no resistance when opening, resizing, or collapsing.

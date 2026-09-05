@@ -113,6 +113,7 @@ std::unique_ptr<Widget> Sidebar::clone() const {
   copy->open_explicit_ = open_explicit_;
   copy->extent_ = extent_;
   copy->declared_extent_ = declared_extent_;
+  copy->elastic_open_extent_ = elastic_open_extent_;
   copy->extent_explicit_ = extent_explicit_;
   copy->min_extent_ = min_extent_;
   copy->max_extent_ = max_extent_;
@@ -129,6 +130,11 @@ std::unique_ptr<Widget> Sidebar::clone() const {
 
 void Sidebar::inherit_runtime(const Widget &previous) {
   const auto &old = static_cast<const Sidebar &>(previous);
+  // A two-way binding re-declares each interactive size. Those echoes must
+  // not turn the elastic reveal baseline into resize/collapse memory.
+  if (extent_binding_ ? extent_ == old.extent_
+                      : (!extent_explicit_ || declared_extent_ == old.declared_extent_))
+    elastic_open_extent_ = old.elastic_open_extent_;
   if (!open_binding_ && (!open_explicit_ || declared_open_ == old.declared_open_))
     open_ = old.open_;
   if (!extent_binding_ && (!extent_explicit_ || declared_extent_ == old.declared_extent_))
@@ -322,7 +328,8 @@ void Sidebar::move_drag_(Point<float> point, Event &event) {
       return;
     }
     if (!open_) {
-      const float restored = std::clamp(extent_, min_extent_, max_extent_);
+      const float restored = std::clamp(elastic_(open_behavior_) ? elastic_open_extent_ : extent_,
+                                        min_extent_, max_extent_);
       arm_drag_(pointer, std::min(restored, available_extent_));
       // Opening consumes this sample, including any overshoot. Never turn a
       // single coarse mouse event into opening followed by an unwanted resize.

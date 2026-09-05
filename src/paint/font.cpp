@@ -493,38 +493,120 @@ std::vector<GlyphRun> FontStack::shape(std::string_view utf8) const {
   if (utf8.empty() || !base_)
     return runs;
 
+  const auto missing_glyphs = [](const GlyphRun &run) {
+    return std::count_if(run.glyphs.begin(), run.glyphs.end(),
+                         [](const auto &glyph) { return glyph.id == 0; });
+  };
+  GlyphRun base_run = base_->shape(utf8);
   FontProvider &provider = FontProvider::system();
-  if (!provider.available()) {
-    runs.push_back(base_->shape(utf8));
+  if (missing_glyphs(base_run) == 0 || !provider.available()) {
+    runs.push_back(std::move(base_run));
     return runs;
   }
 
-  // Walk the string, asking the platform which face covers each stretch. Every
-  // run's offsets are biased by the pen so far, so all of them share one origin
-  // and the caller draws them at a single point.
-  float pen = 0.0f;
-  std::size_t offset = 0;
+  // Use the supplied face's shaped clusters, not individual codepoints: a
+  // missing mark must travel with its base, as must an entire emoji sequence.
+  // Sort by source offset because HarfBuzz emits RTL clusters in reverse order.
+  std::vector<std::size_t> edges{0, utf8.size()};
+  for (const auto &glyph : base_run.glyphs)
+    edges.push_back(glyph.cluster);
+  std::sort(edges.begin(), edges.end());
+  edges.erase(std::unique(edges.begin(), edges.end()), edges.end());
+  std::vector<bool> missing(edges.size() - 1, false);
+  for (const auto &glyph : base_run.glyphs)
+    if (glyph.id == 0)
+      missing[std::lower_bound(edges.begin(), edges.end(), glyph.cluster) -
+              edges.begin()] = true;
 
-  while (offset < utf8.size()) {
-    const std::optional<FontRun> piece =
-        provider.fallback(utf8.substr(offset), family_, locale_, weight_);
-    if (!piece || piece->length == 0)
-      break;
+  struct Span {
+    std::shared_ptr<Font> font;
+    std::size_t begin;
+    std::size_t end;
+  };
+  std::vector<Span> spans;
+  const auto append = [&](std::shared_ptr<Font> font, std::size_t begin,
+                          std::size_t end) {
+    if (!spans.empty() && spans.back().font == font)
+      spans.back().end = end;
+    else
+      spans.push_back({std::move(font), begin, end});
+  };
 
-    const std::size_t length = std::min(piece->length, utf8.size() - offset);
-    if (std::shared_ptr<Font> font = face_for_(piece->file)) {
-      GlyphRun run = font->shape(utf8.substr(offset, length));
-      // Clusters come back relative to the piece; rebase them onto the whole
-      // string so a caller can map any glyph to its source byte.
-      for (PositionedGlyph &glyph : run.glyphs) {
-        glyph.offset.x += pen;
-        glyph.cluster += static_cast<std::uint32_t>(offset);
-      }
-      pen += run.advance;
-      runs.push_back(std::move(run));
+  for (std::size_t cluster = 0; cluster < missing.size();) {
+    if (!missing[cluster]) {
+      append(base_, edges[cluster], edges[cluster + 1]);
+      ++cluster;
+      continue;
     }
 
-    offset += length;
+    std::size_t limit = cluster + 1;
+    while (limit < missing.size() && missing[limit])
+      ++limit;
+    const std::size_t begin = edges[cluster];
+    const auto piece = provider.fallback(
+        utf8.substr(begin, edges[limit] - begin), family_, locale_, weight_);
+    std::shared_ptr<Font> candidate;
+    if (piece && piece->length > 0) {
+      candidate = face_for_(piece->file);
+      const std::size_t mapped_end =
+          begin + std::min(piece->length, edges[limit] - begin);
+      // A platform mapping can stop inside a shaping cluster. Never split it;
+      // instead test whether the proposed face covers that whole cluster.
+      const std::size_t end_cluster = std::max(
+          cluster + 1,
+          static_cast<std::size_t>(std::upper_bound(
+              edges.begin(), edges.end(), mapped_end) - edges.begin() - 1));
+      if (candidate && missing_glyphs(candidate->shape(
+                           utf8.substr(begin, edges[end_cluster] - begin))) == 0) {
+        append(candidate, begin, edges[end_cluster]);
+        cluster = end_cluster;
+        continue;
+      }
+    }
+
+    // Mapping the base character can pick a face that lacks its combining
+    // mark. Ask at each codepoint of this cluster and validate each candidate
+    // against the whole cluster, retaining the least-missing result if none
+    // covers it. A failed lookup must not truncate the rest of the paragraph.
+    const std::size_t end = edges[cluster + 1];
+    const auto text = utf8.substr(begin, end - begin);
+    auto selected = base_;
+    auto best = missing_glyphs(base_->shape(text));
+    std::vector<std::shared_ptr<Font>> tried{base_};
+    const auto consider = [&](const std::shared_ptr<Font> &font) {
+      if (!font || std::find(tried.begin(), tried.end(), font) != tried.end())
+        return;
+      tried.push_back(font);
+      const auto count = missing_glyphs(font->shape(text));
+      if (count < best) {
+        selected = font;
+        best = count;
+      }
+    };
+    consider(candidate);
+    for (std::size_t at = begin + 1; best > 0 && at < end; ++at) {
+      if ((static_cast<unsigned char>(utf8[at]) & 0xc0) == 0x80)
+        continue;
+      const auto alternative = provider.fallback(
+          utf8.substr(at, end - at), family_, locale_, weight_);
+      if (alternative && alternative->length > 0)
+        consider(face_for_(alternative->file));
+    }
+    append(selected, begin, end);
+    ++cluster;
+  }
+
+  // Coalescing adjacent spans before shaping preserves ligatures and kerning.
+  // All runs share an origin and retain offsets into the original UTF-8 text.
+  float pen = 0.0f;
+  for (const auto &span : spans) {
+    GlyphRun run = span.font->shape(utf8.substr(span.begin, span.end - span.begin));
+    for (PositionedGlyph &glyph : run.glyphs) {
+      glyph.offset.x += pen;
+      glyph.cluster += static_cast<std::uint32_t>(span.begin);
+    }
+    pen += run.advance;
+    runs.push_back(std::move(run));
   }
 
   return runs;

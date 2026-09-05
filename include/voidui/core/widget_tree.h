@@ -105,7 +105,10 @@ public:
 
   /// The earliest armed deadline, or infinity when nothing is waiting. The
   /// window scheduler waits on this instead of blocking indefinitely.
-  double next_wake_time() const { return next_wake_; }
+  double next_wake_time() const {
+    return selection_dragging_ ? std::min(next_wake_, selection_scroll_next_)
+                               : next_wake_;
+  }
 
   /// The timestamp `advance_animations` was last given. Widgets read it while
   /// painting so that time enters the tree at exactly one point.
@@ -127,6 +130,9 @@ public:
   /// display while the renderer projects for another.
   void set_device_scale(float scale);
   void process_event(Event &e);
+  /// Selected UTF-8 text in declaration order, with line breaks between rows.
+  /// Uses the same range as painting and the Copy/Ctrl+C shortcut.
+  std::string selected_text();
   bool wants_text_input() const;
   const Node *text_input_client() const;
   std::optional<TextInputArea> text_input_area() const;
@@ -179,6 +185,13 @@ private:
   void dispatch_event_(Event &event);
   Node *selectable_text_(Node *target) const;
   void set_selection_(Node *node, std::uint32_t anchor, std::uint32_t focus);
+  void extend_selection_(Point<float> point);
+  Node *selection_scroll_owner_(Node *pointer_node) const;
+  Rect<float> selection_scroll_bounds_(Node *node) const;
+  void advance_selection_scroll_(double now_seconds);
+  void collect_selection_nodes_();
+  void refresh_selection_();
+  std::pair<std::uint32_t, std::uint32_t> selection_range_(Node *node) const;
   void clear_selection_();
   bool handle_selection_key_(KeyPressedEvent &event);
   void sync_focused_selection_();
@@ -200,9 +213,23 @@ private:
   // Restoring a modal's opener keeps keyboard focus without reopening its hint.
   bool focus_triggers_hints_ = true;
   Node *selection_node_ = nullptr;
+  Node *selection_focus_node_ = nullptr;
   std::uint32_t selection_anchor_ = 0;
   std::uint32_t selection_focus_ = 0;
   bool selection_dragging_ = false;
+  Point<float> selection_pointer_{};
+  double selection_scroll_next_ = std::numeric_limits<double>::infinity();
+  double selection_scroll_last_ = 0.0;
+  bool selection_by_word_ = false;
+  std::uint32_t selection_word_begin_ = 0;
+  std::uint32_t selection_word_end_ = 0;
+  // Reused buffers keep document traversal out of individual widget draws.
+  std::vector<Node *> selection_nodes_;
+  struct SelectionRange {
+    Node *node;
+    std::uint32_t begin, end;
+  };
+  std::vector<SelectionRange> selection_ranges_;
   std::unordered_map<MouseButton, Node *> mouse_down_widgets_;
   std::vector<Node *> dirty_components_;
   StyleResolver resolver_;

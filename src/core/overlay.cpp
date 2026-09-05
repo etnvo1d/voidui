@@ -124,7 +124,8 @@ void WidgetTree::deactivate_overlay_(Node *node) {
     set_hovered_(nullptr);
   if (focused_node_ && is_inside_(focused_node_, node))
     set_focus_(nullptr);
-  if (selection_node_ && is_inside_(selection_node_, node))
+  if ((selection_node_ && is_inside_(selection_node_, node)) ||
+      (selection_focus_node_ && is_inside_(selection_focus_node_, node)))
     clear_selection_();
   if (active_node_ && is_inside_(active_node_, node)) {
     active_node_->status.set_active(false);

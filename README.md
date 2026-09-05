@@ -2,6 +2,8 @@
 
 组件文档：[通用侧边栏](docs/sidebar.md)（四方向布局、弹性拖动、状态绑定与键盘控制）。
 
+交互文档：[文本选择](docs/selection.md)（跨元素拖拽、复制、全选与 `user-select`）。
+
 C++23 UI 库，项目与第三方库均使用原生 xmake 构建，无需 CMake。Windows 使用 D3D11，macOS 使用 Metal，Linux 使用 Vulkan。
 
 ## 准备环境

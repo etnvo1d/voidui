@@ -564,6 +564,24 @@ void TextControl::selection_changed(std::uint32_t anchor, std::uint32_t focus) {
   caret_moved_();
 }
 
+std::optional<Rect<float>>
+TextControl::selection_scroll_viewport(Rect<float> bounds) const {
+  return global_editor_bounds_(bounds.origin);
+}
+
+Invalidation TextControl::selection_scroll_by(Point<float> delta) {
+  if (!layout_ || value_.empty() || has_composition_())
+    return Invalidation::None;
+  float &offset = multiline_ ? vertical_scroll_ : horizontal_scroll_;
+  const float before = offset;
+  const float limit = multiline_
+      ? layout_->size().height - editor_bounds_.size.height
+      : layout_->size().width + caret_width_() - editor_bounds_.size.width;
+  offset = std::clamp(offset + (multiline_ ? delta.y : delta.x),
+                      0.0f, std::max(limit, 0.0f));
+  return offset != before ? Invalidation::Paint : Invalidation::None;
+}
+
 std::size_t TextControl::previous_codepoint_(std::string_view text,
                                              std::size_t offset) {
   if (offset == 0)

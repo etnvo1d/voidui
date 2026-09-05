@@ -17,7 +17,7 @@ rule("voidui.shaders")
         local outdir = path.join(target:autogendir(), "include", "voidui", "shaders")
         os.mkdir(outdir)
         for _, name in ipairs({"quad", "mask"}) do
-            local source = path.absolute(path.join("shaders", name .. ".slang"))
+            local source = path.join(target:scriptdir(), "shaders", name .. ".slang")
             local header = path.join(outdir, name .. ".h")
             depend.on_changed(function ()
                 print("compiling shader %s (%s)", name, variant)
@@ -51,7 +51,7 @@ rule("voidui.shaders")
                 table.insert(body, "}\n")
                 io.writefile(header, table.concat(body))
             end, {dependfile = target:dependfile(header),
-                  files = {source, path.absolute("shaders/common.slang"), path.absolute("xmake/shaders.lua"), slangc},
+                  files = {source, path.join(target:scriptdir(), "shaders/common.slang"), path.join(target:scriptdir(), "xmake/shaders.lua"), slangc},
                   values = {variant, slangc}, changed = target:is_rebuilt() or not os.isfile(header)})
         end
     end)

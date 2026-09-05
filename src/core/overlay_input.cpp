@@ -170,7 +170,8 @@ void WidgetTree::sync_modal_focus_() {
   modal_focus_dirty_ = false;
   if (hovered_node_ && !input_allowed_(hovered_node_))
     set_hovered_(nullptr);
-  if (selection_node_ && !input_allowed_(selection_node_))
+  if ((selection_node_ && !input_allowed_(selection_node_)) ||
+      (selection_focus_node_ && !input_allowed_(selection_focus_node_)))
     clear_selection_();
   if (active_node_ && !input_allowed_(active_node_)) {
     active_node_->status.set_active(false);

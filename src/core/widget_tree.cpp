@@ -165,11 +165,13 @@ void WidgetTree::discard_node_(Node *node) {
   paint_structure_dirty_ = true;
   paint_order_dirty_ = true;
   resolver_.forget_animations(node->style_node);
-  if (selection_node_ && is_inside_(selection_node_, node)) {
-    selection_node_ = nullptr;
-    selection_anchor_ = selection_focus_ = 0;
-    selection_dragging_ = false;
-  }
+  if ((selection_node_ && is_inside_(selection_node_, node)) ||
+      (selection_focus_node_ && is_inside_(selection_focus_node_, node)))
+    clear_selection_();
+  std::erase_if(selection_nodes_, [&](Node *n) { return is_inside_(n, node); });
+  std::erase_if(selection_ranges_, [&](const auto &range) {
+    return is_inside_(range.node, node);
+  });
   if (hovered_node_ && is_inside_(hovered_node_, node))
     hovered_node_ = nullptr;
   if (active_node_ && is_inside_(active_node_, node))
@@ -416,6 +418,20 @@ void WidgetTree::process_event(Event &e) {
   dispatch_event_(e);
   flush_overlay_notifications_();
   if (e.style_requested()) restyle();
+  if (selection_dragging_ && e.type() == EventType::MousePressed) {
+    selection_pointer_ = static_cast<MouseEvent &>(e).get_pos();
+    selection_scroll_next_ = std::numeric_limits<double>::infinity();
+  } else if (selection_dragging_ && e.type() == EventType::MouseMoved) {
+    const auto point = static_cast<MouseEvent &>(e).get_pos();
+    if ((point.x != selection_pointer_.x || point.y != selection_pointer_.y) &&
+        !std::isfinite(selection_scroll_next_)) {
+      selection_scroll_last_ = frame_time_;
+      selection_scroll_next_ = frame_time_ + 1.0 / 60.0;
+    }
+    selection_pointer_ = point;
+  } else if (!selection_dragging_) {
+    selection_scroll_next_ = std::numeric_limits<double>::infinity();
+  }
 }
 
 void WidgetTree::dispatch_event_(Event &e) {
@@ -503,16 +519,8 @@ void WidgetTree::dispatch_event_(Event &e) {
   }
 
   e.dispatch<MouseMovedEvent>([&](MouseMovedEvent &e) {
-    if (selection_dragging_ && selection_node_) {
-      Widget *target = selection_node_->widget.get();
-      Point<float> point = e.get_pos();
-      if (point_in_node_space(*selection_node_, point, device_scale_)) {
-        set_selection_(
-            selection_node_, selection_anchor_,
-            target->selection_hit_test(
-                point, {selection_node_->global_pos, selection_node_->size}));
-      }
-    }
+    if (selection_dragging_ && selection_node_)
+      extend_selection_(e.get_pos());
 
     Node *hit = hit_test_(root_.get(), e.get_pos());
 
@@ -553,11 +561,14 @@ void WidgetTree::dispatch_event_(Event &e) {
             set_selection_(
                 selection, 0,
                 static_cast<std::uint32_t>(target->selection_text().size()));
-            selection_dragging_ = false;
+            selection_dragging_ = policy == UserSelect::All;
           } else if (e.click_count() == 2) {
             const auto [begin, end] = target->selection_word_at(offset);
             set_selection_(selection, begin, end);
-            selection_dragging_ = false;
+            selection_word_begin_ = begin;
+            selection_word_end_ = end;
+            selection_by_word_ = true;
+            selection_dragging_ = true;
           } else {
             set_selection_(selection, offset, offset);
             selection_dragging_ = true;
@@ -590,14 +601,7 @@ void WidgetTree::dispatch_event_(Event &e) {
   e.dispatch<MouseReleasedEvent>([&](MouseReleasedEvent &e) {
     if (e.button() == MouseButton::Left && selection_dragging_ &&
         selection_node_) {
-      Widget *target = selection_node_->widget.get();
-      Point<float> point = e.get_pos();
-      if (point_in_node_space(*selection_node_, point, device_scale_)) {
-        set_selection_(
-            selection_node_, selection_anchor_,
-            target->selection_hit_test(
-                point, {selection_node_->global_pos, selection_node_->size}));
-      }
+      extend_selection_(e.get_pos());
       selection_dragging_ = false;
     }
     Node *hit = hit_test_(root_.get(), e.get_pos());
@@ -667,15 +671,16 @@ void WidgetTree::draw_node_(Node *node, Painter &painter, bool foreground) {
   const ComputedStyle &style = node_style(*node);
   // Built on the stack from what the node already owns: no allocation and no
   // refcount traffic on the per-frame path.
+  const auto [selection_begin, selection_end] = selection_range_(node);
   const bool has_selection =
-      node == selection_node_ && selection_anchor_ != selection_focus_ &&
+      selection_begin != selection_end &&
       style.get<styles::UserSelect>() != UserSelect::None;
   const DrawContext ctx{Rect<float>{node->global_pos, node->size},
                         node->status,
                         style,
                         *this,
-                        std::min(selection_anchor_, selection_focus_),
-                        std::max(selection_anchor_, selection_focus_),
+                        selection_begin,
+                        selection_end,
                         has_selection};
 
   if (style.get<styles::Visibility>() != Visibility::Visible)
@@ -750,18 +755,326 @@ Node *WidgetTree::selectable_text_(Node *target) const {
   return nullptr;
 }
 
+namespace {
+
+// A portal is a separate document surface; selection must not reach through a
+// dialog or popup into the page underneath it.
+Node *selection_scope(Node *node) {
+  while (node && node->parent && !node->widget->overlay_options())
+    node = node->parent;
+  return node;
+}
+
+Node *selection_all_root(Node *node) {
+  Node *result = nullptr;
+  for (; node; node = node->parent) {
+    if (node_style(*node).get<styles::UserSelect>() == UserSelect::All)
+      result = node;
+    if (node->widget->overlay_options())
+      break;
+  }
+  return result;
+}
+
+std::uint32_t selection_offset(Node *node, std::uint32_t offset) {
+  const auto text = node->widget->selection_text();
+  auto result = static_cast<std::uint32_t>(
+      std::min<std::size_t>(offset, text.size()));
+  // Reconciliation can replace the text while retaining its node and range.
+  while (result < text.size() && result > 0 &&
+         (static_cast<unsigned char>(text[result]) & 0xc0) == 0x80)
+    --result;
+  return result;
+}
+
+} // namespace
+
+void WidgetTree::collect_selection_nodes_() {
+  selection_nodes_.clear();
+  Node *origin = selection_node_   ? selection_node_
+                 : focused_node_ ? focused_node_
+                 : top_modal_    ? top_modal_ : root_.get();
+  if (!origin)
+    return;
+  if (origin->widget->accepts_text_input()) {
+    selection_nodes_.push_back(origin);
+    return;
+  }
+  Node *scope = selection_scope(origin);
+  const auto walk = [&](auto &&self, Node *node) -> void {
+    if ((node != scope && node->widget->overlay_options()) ||
+        node_style(*node).get<styles::Visibility>() != Visibility::Visible ||
+        node->widget->accepts_text_input())
+      return;
+    if (node->widget->supports_text_selection() && input_allowed_(node) &&
+        selectable_text_(node) == node &&
+        !node->widget->selection_text().empty())
+      selection_nodes_.push_back(node);
+    if (!node->widget->children_visible())
+      return;
+    // Do not prune user-select:none: descendants may opt back in with text.
+    for (auto &child : node->children)
+      self(self, child.get());
+    for (auto &child : node->internal_children)
+      self(self, child.get());
+  };
+  if (scope)
+    walk(walk, scope);
+}
+
+void WidgetTree::refresh_selection_() {
+  selection_ranges_.clear();
+  if (!selection_node_)
+    return;
+  collect_selection_nodes_();
+  auto begin = std::find(selection_nodes_.begin(), selection_nodes_.end(),
+                         selection_node_);
+  auto end = std::find(selection_nodes_.begin(), selection_nodes_.end(),
+                       selection_focus_node_);
+  if (begin == selection_nodes_.end() || end == selection_nodes_.end()) {
+    clear_selection_();
+    return;
+  }
+  selection_anchor_ = selection_offset(selection_node_, selection_anchor_);
+  selection_focus_ = selection_offset(selection_focus_node_, selection_focus_);
+  std::uint32_t first = selection_anchor_, last = selection_focus_;
+  if (begin > end || (begin == end && first > last)) {
+    std::swap(begin, end);
+    std::swap(first, last);
+  }
+  if (!selection_node_->widget->accepts_text_input()) {
+    if (Node *all = selection_all_root(*begin)) {
+      while (begin != selection_nodes_.begin() && is_inside_(*(begin - 1), all))
+        --begin;
+      first = 0;
+    }
+    if (Node *all = selection_all_root(*end)) {
+      while (end + 1 != selection_nodes_.end() && is_inside_(*(end + 1), all))
+        ++end;
+      last = static_cast<std::uint32_t>((*end)->widget->selection_text().size());
+    }
+  }
+  for (auto it = begin; it <= end; ++it) {
+    const auto size =
+        static_cast<std::uint32_t>((*it)->widget->selection_text().size());
+    selection_ranges_.push_back({*it, it == begin ? first : 0,
+                                it == end ? last : size});
+  }
+  std::sort(selection_ranges_.begin(), selection_ranges_.end(),
+            [](const auto &a, const auto &b) {
+              return std::less<Node *>{}(a.node, b.node);
+            });
+}
+
+std::pair<std::uint32_t, std::uint32_t>
+WidgetTree::selection_range_(Node *node) const {
+  const auto it = std::lower_bound(
+      selection_ranges_.begin(), selection_ranges_.end(), node,
+      [](const auto &range, Node *n) {
+        return std::less<Node *>{}(range.node, n);
+      });
+  return it != selection_ranges_.end() && it->node == node
+             ? std::pair{it->begin, it->end}
+             : std::pair{0u, 0u};
+}
+
+Node *WidgetTree::selection_scroll_owner_(Node *pointer_node) const {
+  if (!selection_node_)
+    return nullptr;
+  // Editing selections never scroll the document surrounding the editor.
+  if (selection_node_->widget->accepts_text_input())
+    return selection_node_;
+  const auto nearest = [](Node *node) {
+    for (; node; node = node->parent) {
+      if (node->widget->selection_scroll_viewport({node->global_pos, node->size}))
+        return node;
+      if (node->widget->overlay_options())
+        break;
+    }
+    return static_cast<Node *>(nullptr);
+  };
+  if (pointer_node) {
+    if (selection_scope(pointer_node) != selection_scope(selection_node_))
+      return nullptr;
+    if (Node *owner = nearest(pointer_node))
+      return owner;
+    if (selectable_text_(pointer_node))
+      return nullptr;
+  }
+  return nearest(selection_focus_node_ ? selection_focus_node_ : selection_node_);
+}
+
+Rect<float> WidgetTree::selection_scroll_bounds_(Node *node) const {
+  const auto viewport =
+      node->widget->selection_scroll_viewport({node->global_pos, node->size});
+  if (!viewport)
+    return {};
+  auto result = detail::window_transform(*node, device_scale_).map_bounds(*viewport);
+  const auto intersect = [&](Rect<float> clip) {
+    const float left = std::max(result.origin.x, clip.origin.x);
+    const float top = std::max(result.origin.y, clip.origin.y);
+    const float right = std::min(result.origin.x + result.size.width,
+                                 clip.origin.x + clip.size.width);
+    const float bottom = std::min(result.origin.y + result.size.height,
+                                  clip.origin.y + clip.size.height);
+    result = {left, top, std::max(0.0f, right - left), std::max(0.0f, bottom - top)};
+  };
+  intersect({{}, viewport_});
+  // An inner viewport can itself be partially scrolled out of its parent.
+  // Its visible edge, rather than its offscreen border, triggers scrolling.
+  for (Node *child = node; child->parent && !child->widget->overlay_options();) {
+    Node *parent = child->parent;
+    if (parent->widget->clips_children()) {
+      const auto clip = parent->widget->children_clip({parent->global_pos, parent->size});
+      intersect(detail::window_transform(*parent, device_scale_).map_bounds(clip));
+    }
+    child = parent;
+  }
+  return result;
+}
+
+void WidgetTree::advance_selection_scroll_(double now_seconds) {
+  if (!selection_dragging_ || now_seconds < selection_scroll_next_)
+    return;
+  selection_scroll_next_ = std::numeric_limits<double>::infinity();
+  refresh_selection_();
+  if (!selection_node_ || !selection_dragging_)
+    return;
+  const float elapsed = static_cast<float>(
+      std::clamp(now_seconds - selection_scroll_last_, 0.0, 0.05));
+  selection_scroll_last_ = now_seconds;
+  Node *owner = selection_scroll_owner_(hit_test_(root_.get(), selection_pointer_));
+  const auto velocity = [](float pointer, float start, float size) {
+    const float band = std::min(24.0f, size * 0.25f);
+    if (pointer < start + band)
+      return -std::min(900.0f, 60.0f + (start + band - pointer) * 15.0f);
+    if (pointer > start + size - band)
+      return std::min(900.0f, 60.0f + (pointer - start - size + band) * 15.0f);
+    return 0.0f;
+  };
+  for (Node *node = owner; node; node = node->parent) {
+    if (!input_allowed_(node) ||
+        node_style(*node).get<styles::Visibility>() != Visibility::Visible)
+      break;
+    const auto bounds = selection_scroll_bounds_(node);
+    Transform inverse;
+    if (bounds.size.width > 0 && bounds.size.height > 0 &&
+        detail::window_transform(*node, device_scale_).inverse(inverse)) {
+      const auto local_bounds = inverse.map_bounds(bounds);
+      const auto pointer = inverse.apply(selection_pointer_);
+      const Point<float> delta{
+          velocity(pointer.x, local_bounds.origin.x, local_bounds.size.width) * elapsed,
+          velocity(pointer.y, local_bounds.origin.y, local_bounds.size.height) * elapsed};
+      const auto changed = node->widget->selection_scroll_by(delta);
+      if (changed != Invalidation::None) {
+        invalidate_(changed);
+        if (changed != Invalidation::Layout)
+          extend_selection_(selection_pointer_);
+        selection_scroll_next_ = now_seconds + 1.0 / 60.0;
+        return;
+      }
+    }
+    if (node->widget->overlay_options() ||
+        selection_node_->widget->accepts_text_input())
+      break;
+  }
+}
+
+void WidgetTree::extend_selection_(Point<float> point) {
+  collect_selection_nodes_();
+  Node *target = nullptr;
+  // Exact hit testing respects transforms, clipping and stacking order.
+  Node *pointer_node = hit_test_(root_.get(), point);
+  if (Node *owner = selection_scroll_owner_(pointer_node)) {
+    const auto bounds = selection_scroll_bounds_(owner);
+    if (bounds.size.width > 0 && bounds.size.height > 0) {
+      point.x = std::clamp(point.x, bounds.origin.x,
+                           bounds.origin.x + std::max(0.0f, bounds.size.width - 0.01f));
+      point.y = std::clamp(point.y, bounds.origin.y,
+                           bounds.origin.y + std::max(0.0f, bounds.size.height - 0.01f));
+      pointer_node = hit_test_(root_.get(), point);
+    }
+  }
+  Node *hit = selectable_text_(pointer_node);
+  if (std::find(selection_nodes_.begin(), selection_nodes_.end(), hit) !=
+      selection_nodes_.end())
+    target = hit;
+  if (!target) {
+    // A button or gap has no caret. Resolve it within the closest containing
+    // subtree with selectable text, rather than jumping to another column
+    // simply because that column happens to have text on the same row.
+    Node *region = pointer_node;
+    while (region &&
+           std::none_of(selection_nodes_.begin(), selection_nodes_.end(),
+                        [&](Node *candidate) { return is_inside_(candidate, region); }))
+      region = region->parent;
+    // Within that content region, keep progressing by line even when the
+    // pointer is in right-hand padding beside a short line. Without a hit
+    // region (outside the document), use distance in both axes.
+    float best_y = std::numeric_limits<float>::infinity();
+    float best_distance = std::numeric_limits<float>::infinity();
+    for (Node *candidate : selection_nodes_) {
+      if (region && !is_inside_(candidate, region))
+        continue;
+      const auto rect = detail::window_transform(*candidate, device_scale_)
+                            .map_bounds({candidate->global_pos, candidate->size});
+      const float dy = std::max({rect.origin.y - point.y, 0.0f,
+                                point.y - rect.origin.y - rect.size.height});
+      const float dx = std::max({rect.origin.x - point.x, 0.0f,
+                                point.x - rect.origin.x - rect.size.width});
+      const float distance = dx * dx + dy * dy;
+      if ((region && dy < best_y) ||
+          ((!region || dy == best_y) && distance < best_distance)) {
+        target = candidate;
+        best_y = dy;
+        best_distance = distance;
+      }
+    }
+  }
+  if (!target || !point_in_node_space(*target, point, device_scale_))
+    return;
+  auto offset = target->widget->selection_hit_test(
+      point, {target->global_pos, target->size});
+  if (!target->widget->accepts_text_input()) {
+    if (point.y < target->global_pos.y)
+      offset = 0;
+    else if (point.y >= target->global_pos.y + target->size.height)
+      offset = static_cast<std::uint32_t>(target->widget->selection_text().size());
+  }
+  if (selection_by_word_) {
+    const auto anchor = std::find(selection_nodes_.begin(), selection_nodes_.end(),
+                                 selection_node_);
+    const auto focus =
+        std::find(selection_nodes_.begin(), selection_nodes_.end(), target);
+    const bool backward = focus < anchor ||
+                          (focus == anchor && offset < selection_word_begin_);
+    const auto [begin, end] = target->widget->selection_word_at(offset);
+    selection_anchor_ = backward ? selection_word_end_ : selection_word_begin_;
+    offset = backward ? begin : end;
+  }
+  selection_focus_node_ = target;
+  selection_focus_ = offset;
+  if (target->widget->accepts_text_input())
+    target->widget->selection_changed(selection_anchor_, selection_focus_);
+  refresh_selection_();
+  request_paint();
+}
+
 void WidgetTree::set_selection_(Node *node, std::uint32_t anchor,
                                 std::uint32_t focus) {
+  selection_by_word_ = false;
   const std::size_t size = node->widget->selection_text().size();
   anchor = static_cast<std::uint32_t>(std::min<std::size_t>(anchor, size));
   focus = static_cast<std::uint32_t>(std::min<std::size_t>(focus, size));
-  if (selection_node_ == node && selection_anchor_ == anchor &&
-      selection_focus_ == focus)
+  if (selection_node_ == node && selection_focus_node_ == node &&
+      selection_anchor_ == anchor && selection_focus_ == focus)
     return;
   selection_node_ = node;
+  selection_focus_node_ = node;
   selection_anchor_ = anchor;
   selection_focus_ = focus;
   node->widget->selection_changed(anchor, focus);
+  refresh_selection_();
   request_paint();
 }
 
@@ -772,8 +1085,13 @@ void WidgetTree::clear_selection_() {
     selection_node_->widget->selection_changed(selection_focus_,
                                                selection_focus_);
   selection_node_ = nullptr;
+  selection_focus_node_ = nullptr;
+  selection_nodes_.clear();
+  selection_ranges_.clear();
   selection_anchor_ = selection_focus_ = 0;
   selection_dragging_ = false;
+  selection_scroll_next_ = std::numeric_limits<double>::infinity();
+  selection_by_word_ = false;
   request_paint();
 }
 
@@ -830,6 +1148,29 @@ std::optional<TextInputArea> WidgetTree::text_input_area() const {
 }
 
 bool WidgetTree::handle_selection_key_(KeyPressedEvent &event) {
+  refresh_selection_();
+  if (event.keycode() == Keycode::A && event.modifiers().primary()) {
+    collect_selection_nodes_();
+    if (selection_nodes_.empty())
+      return false;
+    selection_dragging_ = false;
+    selection_by_word_ = false;
+    Node *first = selection_nodes_.front();
+    Node *last = selection_nodes_.back();
+    const auto size =
+        static_cast<std::uint32_t>(last->widget->selection_text().size());
+    if (first->widget->accepts_text_input()) {
+      set_selection_(first, 0, size);
+    } else {
+      selection_node_ = first;
+      selection_focus_node_ = last;
+      selection_anchor_ = 0;
+      selection_focus_ = size;
+      refresh_selection_();
+      request_paint();
+    }
+    return true;
+  }
   if (!selection_node_)
     return false;
 
@@ -847,29 +1188,33 @@ bool WidgetTree::handle_selection_key_(KeyPressedEvent &event) {
   if (!event.modifiers().primary() && !dedicated_copy)
     return false;
 
-  Widget *target = selection_node_->widget.get();
-  const std::string_view text = target->selection_text();
-
-  if (event.keycode() == Keycode::A) {
-    set_selection_(selection_node_, 0, static_cast<std::uint32_t>(text.size()));
-    return true;
-  }
   if (event.keycode() != Keycode::C && event.keycode() != Keycode::Copy)
     return false;
 
-  const std::size_t begin = std::min<std::size_t>(
-      std::min(selection_anchor_, selection_focus_), text.size());
-  const std::size_t end = std::min<std::size_t>(
-      std::max(selection_anchor_, selection_focus_), text.size());
-  if (begin == end)
-    return true;
-
-  // SDL requires a null-terminated string. Copying allocates only when the
-  // user explicitly copies; selection, dragging and painting remain allocation
-  // free.
-  const std::string selected(text.substr(begin, end - begin));
-  SDL_SetClipboardText(selected.c_str());
+  const std::string selected = selected_text();
+  if (!selected.empty())
+    SDL_SetClipboardText(selected.c_str());
   return true;
+}
+
+std::string WidgetTree::selected_text() {
+  assert_owner_thread_();
+  refresh_selection_();
+  std::string result;
+  Node *previous = nullptr;
+  for (Node *node : selection_nodes_) {
+    const auto [begin, end] = selection_range_(node);
+    if (begin == end)
+      continue;
+    const auto text = node->widget->selection_text().substr(begin, end - begin);
+    if (previous && result.back() != '\n' && text.front() != '\n' &&
+        (node->global_pos.y >= previous->global_pos.y + previous->size.height ||
+         previous->global_pos.y >= node->global_pos.y + node->size.height))
+      result += '\n';
+    result += text;
+    previous = node;
+  }
+  return result;
 }
 
 /// Find first ancestor that is focusable.
@@ -978,6 +1323,7 @@ bool WidgetTree::advance_animations(double now_seconds) {
     request_paint();
   }
   invalidate_(resolver_.advance_animations(now_seconds));
+  advance_selection_scroll_(now_seconds);
   return resolver_.has_active_animations();
 }
 
@@ -1008,6 +1354,7 @@ void WidgetTree::build(std::unique_ptr<Widget> root) {
 void WidgetTree::render(Painter &painter) {
   update_paint_order_();
   update_overlays_();
+  refresh_selection_();
   // Consume the current paint request before drawing. A widget can request the
   // next animation frame from DrawContext and that new request then survives.
   if (invalidation_ == Invalidation::Paint)
@@ -1070,6 +1417,10 @@ void WidgetTree::layout(Constraints constraints) {
   invalidation_ = Invalidation::Paint;
   layout_overlays_();
   flush_overlay_notifications_();
+  // Scrolling changes the text underneath a stationary pointer. Re-hit-test
+  // only after layout has applied the offset to the complete subtree.
+  if (selection_dragging_ && selection_node_)
+    extend_selection_(selection_pointer_);
 }
 
 } // namespace voidui

@@ -360,6 +360,20 @@ public:
 
   bool clips_children() const override { return true; }
 
+  std::optional<Rect<float>> selection_scroll_viewport(Rect<float> bounds) const override {
+    return children_clip(bounds);
+  }
+
+  Invalidation selection_scroll_by(Point<float> delta) override {
+    const auto before = scroll_offset_;
+    scroll_offset_.x += delta.x;
+    scroll_offset_.y += delta.y;
+    clamp_offset_();
+    update_scrollbar_geometry_();
+    return before.x != scroll_offset_.x || before.y != scroll_offset_.y
+               ? Invalidation::Layout : Invalidation::None;
+  }
+
   Rect<float> children_clip(Rect<float> bounds) const override {
     return Rect<float>(bounds.origin.x + viewport_origin_.x,
                        bounds.origin.y + viewport_origin_.y,

@@ -43,6 +43,8 @@ public:
   selection_word_at(std::uint32_t offset) const override;
   std::string_view selection_text() const override { return value_; }
   void selection_changed(std::uint32_t anchor, std::uint32_t focus) override;
+  std::optional<Rect<float>> selection_scroll_viewport(Rect<float> bounds) const override;
+  Invalidation selection_scroll_by(Point<float> delta) override;
   std::pair<std::uint32_t, std::uint32_t> text_selection() const override {
     return {anchor_, focus_};
   }

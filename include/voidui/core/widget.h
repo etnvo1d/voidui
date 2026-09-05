@@ -218,6 +218,14 @@ public:
   virtual std::pair<std::uint32_t, std::uint32_t> text_selection() const {
     return {0, 0};
   }
+  /// Optional viewport for selection auto-scroll, in untransformed tree space.
+  virtual std::optional<Rect<float>> selection_scroll_viewport(Rect<float>) const {
+    return std::nullopt;
+  }
+  /// Consume a scroll delta in logical pixels; None means an edge was reached.
+  virtual Invalidation selection_scroll_by(Point<float>) {
+    return Invalidation::None;
+  }
   virtual bool accepts_text_input() const { return false; }
   virtual std::optional<TextInputArea> text_input_area(Rect<float>) const {
     return std::nullopt;

@@ -184,6 +184,8 @@ public:
   virtual Size<float> layout(Constraints constraints, LayoutContext &ctx) = 0;
   virtual void draw(const DrawContext &ctx, Painter &painter) = 0;
   virtual void draw_foreground(const DrawContext &, Painter &) {}
+  /// Tab/Shift+Tab bubble from the focused widget before default focus traversal.
+  /// Return Handled to consume them (e.g. editor indentation) and retain focus.
   virtual EventResult on_event(Event &e) = 0;
   virtual std::unique_ptr<Widget> clone() const = 0;
   virtual bool focusable() const { return false; }

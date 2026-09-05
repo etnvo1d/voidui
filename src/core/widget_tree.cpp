@@ -496,7 +496,12 @@ void WidgetTree::dispatch_event_(Event &e) {
     auto &event = static_cast<KeyPressedEvent &>(e);
     if (event.keycode() == Keycode::Tab && !event.modifiers().control() &&
         !event.modifiers().alt() && !event.modifiers().gui()) {
-      move_focus_(event.modifiers().shift());
+      // Editors may consume Tab for indentation. Focus traversal is the
+      // default only when neither the focused widget nor an ancestor handles it.
+      if (!bubble_event_(focused_node_, event))
+        move_focus_(event.modifiers().shift());
+      sync_focused_selection_();
+      invalidate_(event.invalidation());
       update_overlays_();
       return;
     }

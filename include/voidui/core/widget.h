@@ -16,6 +16,7 @@
 #include "voidui/core/event.h"
 #include "voidui/core/layout.h"
 #include "voidui/core/selection.h"
+#include "voidui/core/style.h"
 #include "voidui/core/style/declaration.h"
 #include "voidui/paint/painter.h"
 
@@ -62,6 +63,7 @@ class Registrar;
 class LayoutContext;
 class StyleSheet;
 struct DrawContext;
+struct OverlayOptions;
 
 class WidgetKey {
 public:
@@ -130,6 +132,54 @@ public:
   Widget(Widget &&) noexcept = default;
   Widget &operator=(Widget &&) noexcept = default;
 
+  // C++23 preserves the concrete widget type and value category at every step.
+#define VOIDUI_COMMON_STYLE_SETTER(name, property)                             \
+  template <typename Self>                                                     \
+  Self &&name(this Self &&self, styles::property::Value value) {               \
+    self.template set_style<styles::property>(std::move(value));               \
+    return std::forward<Self>(self);                                           \
+  }
+  VOIDUI_COMMON_STYLE_SETTER(position, Position)
+  VOIDUI_COMMON_STYLE_SETTER(z_index, ZIndex)
+  VOIDUI_COMMON_STYLE_SETTER(left, Left)
+  VOIDUI_COMMON_STYLE_SETTER(right, Right)
+  VOIDUI_COMMON_STYLE_SETTER(top, Top)
+  VOIDUI_COMMON_STYLE_SETTER(bottom, Bottom)
+  VOIDUI_COMMON_STYLE_SETTER(visibility, Visibility)
+  VOIDUI_COMMON_STYLE_SETTER(pointer_events, PointerEvents)
+  VOIDUI_COMMON_STYLE_SETTER(white_space, WhiteSpace)
+  VOIDUI_COMMON_STYLE_SETTER(opacity, Opacity)
+  VOIDUI_COMMON_STYLE_SETTER(transform, Transform)
+  VOIDUI_COMMON_STYLE_SETTER(transition_property, TransitionProperty)
+  VOIDUI_COMMON_STYLE_SETTER(transition_duration, TransitionDuration)
+  VOIDUI_COMMON_STYLE_SETTER(transition_delay, TransitionDelay)
+  VOIDUI_COMMON_STYLE_SETTER(transition_timing_function,
+                             TransitionTimingFunction)
+#undef VOIDUI_COMMON_STYLE_SETTER
+
+  template <typename Self>
+  Self &&inset(this Self &&self, Spacing<Inset> edges) {
+    self.template set_style<styles::Top>(edges.top);
+    self.template set_style<styles::Right>(edges.right);
+    self.template set_style<styles::Bottom>(edges.bottom);
+    self.template set_style<styles::Left>(edges.left);
+    return std::forward<Self>(self);
+  }
+
+  template <typename Self>
+  Self &&transition(this Self &&self, TransitionShorthand value) {
+    self.template set_style<styles::TransitionProperty>(
+        std::move(value.properties));
+    self.template set_style<styles::TransitionDuration>(
+        std::move(value.durations));
+    self.template set_style<styles::TransitionDelay>(std::move(value.delays));
+    self.template set_style<styles::TransitionTimingFunction>(
+        std::move(value.easings));
+    self.template set_style<styles::TransitionBehavior>(
+        std::move(value.behaviors));
+    return std::forward<Self>(self);
+  }
+
   virtual void register_children(Registrar &registrar) = 0;
   virtual Size<float> layout(Constraints constraints, LayoutContext &ctx) = 0;
   virtual void draw(const DrawContext &ctx, Painter &painter) = 0;
@@ -137,7 +187,17 @@ public:
   virtual EventResult on_event(Event &e) = 0;
   virtual std::unique_ptr<Widget> clone() const = 0;
   virtual bool focusable() const { return false; }
+  /// Semantic states supplied by controls, in addition to pointer/focus state.
+  virtual std::uint8_t style_status() const { return 0; }
+  virtual bool exposes_style_descendants() const { return false; }
+  virtual void focus_lost(Event &) {}
   virtual bool clips_children() const { return false; }
+  /// Retain a collapsed viewport's children while excluding them from paint,
+  /// input, portals and keyboard focus. The viewport can still expose an opener.
+  virtual bool children_visible() const { return true; }
+  /// Opt-in portal boundary; ordinary widgets pay no per-instance storage.
+  virtual const OverlayOptions *overlay_options() const { return nullptr; }
+  virtual bool is_flex_container() const { return false; }
   virtual Rect<float> children_clip(Rect<float> bounds) const { return bounds; }
   virtual bool foreground_hit_test(Point<float>, Rect<float>) const {
     return false;

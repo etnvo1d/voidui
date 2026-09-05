@@ -1,0 +1,9 @@
+.page { background: #f5f7fb; color: #263244; }
+.card { background: white; border-radius: 14px; border-width: 1px; border-color: #e2e8f0; }
+.viewport { padding: 12px; background: #f1f5f9; border-radius: 8px; }
+select:focus { box-shadow: 0px 0px 0px 3px #2563eb20; }
+.teal:open, .teal:focus { border-color: #0d9488; }
+.teal:open::picker-icon { color: #0d9488; }
+.teal option:checked { color: #0f766e; background: #f0fdfa; }
+.teal option:checked::checkmark { color: #0d9488; }
+.teal::picker(select) { border-color: #99f6e4; }

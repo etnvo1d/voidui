@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <deque>
 #include <mutex>
 #include <string>
 #include <string_view>
@@ -85,7 +86,8 @@ private:
   PropertyRegistry() = default;
 
   mutable std::mutex mutex_;
-  std::vector<PropertyDescriptor> descriptors_;
+  // describe() returns references retained across third-party registration.
+  std::deque<PropertyDescriptor> descriptors_;
   std::unordered_map<std::string, PropertyIndex> by_name_;
 };
 

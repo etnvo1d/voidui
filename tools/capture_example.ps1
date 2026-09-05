@@ -1,6 +1,9 @@
 param(
-    [string]$Example = 'window',
-    [string]$Out = ''
+    [string]$Example = 'counter',
+    [string]$Out = '',
+    [string]$Arch = 'x64',
+    [ValidateSet('debug', 'release', 'releasedbg')]
+    [string]$Mode = 'debug'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -18,7 +21,7 @@ public class WinMove {
 '@
 
 $root = Join-Path $PSScriptRoot '..'
-$exe = Join-Path $root ('build/bin/Debug/examples/{0}.exe' -f $Example)
+$exe = Join-Path $root ('build/windows/{0}/{1}/examples/{2}.exe' -f $Arch, $Mode, $Example)
 $err = Join-Path $root ('build/{0}.stderr.txt' -f $Example)
 if ($Out -eq '') { $Out = Join-Path $root ('build/capture-{0}.png' -f $Example) }
 

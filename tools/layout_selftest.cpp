@@ -327,8 +327,8 @@ int main() {
   voidui::WidgetTree inline_margin_tree(
       voidui::transfer_widget(std::move(inline_margin_view)));
   inline_margin_tree.layout(voidui::Constraints(100.0f, 100.0f));
-  ok &= expect(close(inline_margin_tree.root()->global_pos.x, 2.0f) &&
-                   close(inline_margin_tree.root()->global_pos.y, 3.0f),
+  ok &= expect(close(inline_margin_tree.root()->global_pos.x, 3.0f) &&
+                   close(inline_margin_tree.root()->global_pos.y, 2.0f),
                "the C++ margin setter writes the same inline style edges");
 
   auto centered_box = FixedBox(20.0f, 10.0f);

@@ -157,28 +157,35 @@ Size<float> TextControl::layout(Constraints constraints, LayoutContext &ctx) {
       subtract_if_finite(available_outer_width, horizontal_chrome);
   const float infinity = std::numeric_limits<float>::infinity();
 
+  const auto block_start_index =
+      ctx.flow_index(block_start_index_).value_or(no_child);
+  const auto block_end_index =
+      ctx.flow_index(block_end_index_).value_or(no_child);
+  const auto inline_start_index =
+      ctx.flow_index(inline_start_index_).value_or(no_child);
+  const auto inline_end_index =
+      ctx.flow_index(inline_end_index_).value_or(no_child);
   std::array<Size<float>, 4> child_sizes{};
   auto measure = [&](std::size_t index) {
     if (index != no_child)
       child_sizes[index] = ctx.constrain_child(
           index, Constraints{0.0f, available_content_width, 0.0f, infinity});
   };
-  measure(block_start_index_);
-  measure(inline_start_index_);
-  measure(inline_end_index_);
-  measure(block_end_index_);
+  measure(block_start_index);
+  measure(inline_start_index);
+  measure(inline_end_index);
+  measure(block_end_index);
 
   const float inline_gap = std::max(inline_gap_(ctx.style), 0.0f);
   const float block_gap = std::max(block_gap_(ctx.style), 0.0f);
-  const float start_width = inline_start_index_ == no_child
+  const float start_width = inline_start_index == no_child
                                 ? 0.0f
-                                : child_sizes[inline_start_index_].width;
-  const float end_width = inline_end_index_ == no_child
-                              ? 0.0f
-                              : child_sizes[inline_end_index_].width;
+                                : child_sizes[inline_start_index].width;
+  const float end_width =
+      inline_end_index == no_child ? 0.0f : child_sizes[inline_end_index].width;
   const float inline_gaps =
-      (inline_start_index_ != no_child ? inline_gap : 0.0f) +
-      (inline_end_index_ != no_child ? inline_gap : 0.0f);
+      (inline_start_index != no_child ? inline_gap : 0.0f) +
+      (inline_end_index != no_child ? inline_gap : 0.0f);
   const float editor_limit = subtract_if_finite(
       available_content_width, start_width + end_width + inline_gaps);
 
@@ -189,27 +196,25 @@ Size<float> TextControl::layout(Constraints constraints, LayoutContext &ctx) {
       multiline_ ? std::max(text_size.height, line_height) : line_height;
   const float center_height = std::max(
       {editor_intrinsic_height,
-       inline_start_index_ == no_child
-           ? 0.0f
-           : child_sizes[inline_start_index_].height,
-       inline_end_index_ == no_child ? 0.0f
-                                     : child_sizes[inline_end_index_].height});
+       inline_start_index == no_child ? 0.0f
+                                      : child_sizes[inline_start_index].height,
+       inline_end_index == no_child ? 0.0f
+                                    : child_sizes[inline_end_index].height});
   const float center_width =
       start_width + end_width + inline_gaps + text_size.width;
 
   float intrinsic_content_width = center_width;
   float intrinsic_content_height = center_height;
-  if (block_start_index_ != no_child) {
-    intrinsic_content_width = std::max(intrinsic_content_width,
-                                       child_sizes[block_start_index_].width);
-    intrinsic_content_height +=
-        child_sizes[block_start_index_].height + block_gap;
-  }
-  if (block_end_index_ != no_child) {
+  if (block_start_index != no_child) {
     intrinsic_content_width =
-        std::max(intrinsic_content_width, child_sizes[block_end_index_].width);
+        std::max(intrinsic_content_width, child_sizes[block_start_index].width);
     intrinsic_content_height +=
-        child_sizes[block_end_index_].height + block_gap;
+        child_sizes[block_start_index].height + block_gap;
+  }
+  if (block_end_index != no_child) {
+    intrinsic_content_width =
+        std::max(intrinsic_content_width, child_sizes[block_end_index].width);
+    intrinsic_content_height += child_sizes[block_end_index].height + block_gap;
   }
 
   const Size<float> control_size = constraints.resolve(
@@ -224,39 +229,39 @@ Size<float> TextControl::layout(Constraints constraints, LayoutContext &ctx) {
   ensure_layout_(editor_width);
 
   float top = 0.0f;
-  if (block_start_index_ != no_child) {
-    ctx.place_child(block_start_index_, {chrome.left, chrome.top});
-    top = child_sizes[block_start_index_].height + block_gap;
+  if (block_start_index != no_child) {
+    ctx.place_child(block_start_index, {chrome.left, chrome.top});
+    top = child_sizes[block_start_index].height + block_gap;
   }
   float bottom = 0.0f;
-  if (block_end_index_ != no_child) {
-    bottom = child_sizes[block_end_index_].height + block_gap;
-    ctx.place_child(block_end_index_,
+  if (block_end_index != no_child) {
+    bottom = child_sizes[block_end_index].height + block_gap;
+    ctx.place_child(block_end_index,
                     {chrome.left, chrome.top + content_height -
-                                      child_sizes[block_end_index_].height});
+                                      child_sizes[block_end_index].height});
   }
 
   const float middle_height = std::max(content_height - top - bottom, 0.0f);
   const float middle_y = chrome.top + top;
   float x = chrome.left;
-  if (inline_start_index_ != no_child) {
+  if (inline_start_index != no_child) {
     ctx.place_child(
-        inline_start_index_,
-        {x, middle_y + std::max(middle_height -
-                                    child_sizes[inline_start_index_].height,
-                                0.0f) *
-                           0.5f});
+        inline_start_index,
+        {x, middle_y +
+                std::max(middle_height - child_sizes[inline_start_index].height,
+                         0.0f) *
+                    0.5f});
     x += start_width + inline_gap;
   }
 
   editor_bounds_ = {{x, middle_y}, {editor_width, middle_height}};
   x += editor_width;
-  if (inline_end_index_ != no_child) {
+  if (inline_end_index != no_child) {
     x += inline_gap;
     ctx.place_child(
-        inline_end_index_,
+        inline_end_index,
         {x, middle_y +
-                std::max(middle_height - child_sizes[inline_end_index_].height,
+                std::max(middle_height - child_sizes[inline_end_index].height,
                          0.0f) *
                     0.5f});
   }
@@ -890,8 +895,8 @@ input {
   border-width: 1px;
 	font-size: 14px;
 	line-height: 20px;
-	height: 36px;
-	padding: 4px 12px;
+	height: auto;
+	padding: 7px 12px;
 	color: black;
   background: white;
 	placeholder-color: oklch(0.556 0 0);

@@ -53,6 +53,14 @@ int main() {
   tree.process_event(drag);
   check(tree.get_current_cursor_shape() == CursorShape::Text,
         "cursor: auto resolves selectable text to an I-beam");
+  MouseMovedEvent outside_drag({399.0f, 99.0f});
+  tree.process_event(outside_drag);
+  check(tree.get_current_cursor_shape() == CursorShape::Text,
+        "selection capture keeps the I-beam outside the text");
+  MouseLeftEvent leave;
+  tree.process_event(leave);
+  check(tree.get_current_cursor_shape() == CursorShape::Text,
+        "selection capture keeps the I-beam when the pointer leaves the window");
   MouseReleasedEvent release(MouseButton::Left, drag.get_pos());
   tree.process_event(release);
 

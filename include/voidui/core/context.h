@@ -18,11 +18,31 @@ public:
                 std::vector<std::unique_ptr<Node>> &children,
                 std::vector<std::unique_ptr<Node>> &internal_children,
                 LayoutChildFn layout_fn, float device_scale = 1.0f,
-                Invalidator invalidator = {})
+                Invalidator invalidator = {}, bool transparent = false)
       : status(status), style(style), global_pos_(global_pos),
         children_(children), internal_children_(internal_children),
         layout_fn_(layout_fn), device_scale_(device_scale),
-        invalidator_(std::move(invalidator)) {}
+        invalidator_(std::move(invalidator)) {
+    if (transparent)
+      return;
+    const auto in_flow = [](const auto &child) {
+      const Node *box = layout_box_of(child.get());
+      return !box->widget->overlay_options() &&
+             !out_of_flow(box->style_node.computed->get<styles::Position>());
+    };
+    filtered_ = !std::all_of(children.begin(), children.end(), in_flow) ||
+                !std::all_of(internal_children.begin(), internal_children.end(),
+                             in_flow);
+    if (filtered_) {
+      flow_children_.reserve(children.size() + internal_children.size());
+      for (auto &child : children)
+        if (in_flow(child))
+          flow_children_.push_back(child.get());
+      for (auto &child : internal_children)
+        if (in_flow(child))
+          flow_children_.push_back(child.get());
+    }
+  }
 
   LayoutContext(const LayoutContext &other) = delete;
   LayoutContext &operator=(const LayoutContext &) = delete;
@@ -53,7 +73,27 @@ public:
   const Invalidator &invalidator() const { return invalidator_; }
 
   size_t child_count() const {
+    if (filtered_)
+      return flow_children_.size();
     return children_.size() + internal_children_.size();
+  }
+
+  /// Named slots keep registration indices; translate one to this pass's flow
+  /// index. Out-of-flow slots are measured and placed by the tree instead.
+  std::optional<size_t> flow_index(size_t registered_index) const {
+    if (registered_index >= children_.size() + internal_children_.size())
+      return std::nullopt;
+    if (!filtered_)
+      return registered_index;
+    const Node *node =
+        registered_index < children_.size()
+            ? children_[registered_index].get()
+            : internal_children_[registered_index - children_.size()].get();
+    const auto it =
+        std::find(flow_children_.begin(), flow_children_.end(), node);
+    if (it == flow_children_.end())
+      return std::nullopt;
+    return static_cast<size_t>(it - flow_children_.begin());
   }
 
   const Size<Length> &child_layout_size(size_t index) const {
@@ -75,7 +115,8 @@ public:
   template <typename Fn> std::vector<Size<float>> constrain_children(Fn &&fn) {
     std::vector<Size<float>> children_sizes;
 
-    for (size_t i = 0; i < children_.size(); i++) {
+    children_sizes.reserve(child_count());
+    for (size_t i = 0; i < child_count(); i++) {
       Constraints constraints = fn(i);
       Size<float> size = constrain_child(i, constraints);
       children_sizes.push_back(size);
@@ -100,7 +141,7 @@ public:
         local_pos.y + margin.top + auto_margin.top + global_pos_.y};
     const Point<float> delta{new_pos.x - child->global_pos.x,
                              new_pos.y - child->global_pos.y};
-    translate_subtree_(*child, delta);
+    translate_subtree(*child, delta);
   }
 
 private:
@@ -108,26 +149,19 @@ private:
     const Node *node = child_at_(index);
     // Function components are layout-transparent. Their rendered root owns the
     // box properties that the parent container must classify.
-    while (node->style_node.is_transparent)
-      node = node->children[0].get();
-    return node;
+    return layout_box_of(node);
   }
 
   Node *child_at_(size_t index) const {
+    if (filtered_)
+      return flow_children_[index];
     if (index < children_.size())
       return children_[index].get();
     return internal_children_[index - children_.size()].get();
   }
 
-  static void translate_subtree_(Node &node, Point<float> delta) {
-    node.global_pos.x += delta.x;
-    node.global_pos.y += delta.y;
-    for (auto &child : node.children)
-      translate_subtree_(*child, delta);
-    for (auto &child : node.internal_children)
-      translate_subtree_(*child, delta);
-  }
-
+  bool filtered_ = false;
+  std::vector<Node *> flow_children_;
   std::vector<std::unique_ptr<Node>> &children_;
   std::vector<std::unique_ptr<Node>> &internal_children_;
   LayoutChildFn layout_fn_;
@@ -173,4 +207,10 @@ struct DrawContext {
     tree.request_paint_at(when_seconds);
   }
 };
+
+namespace detail {
+Size<float> layout_linear(Constraints constraints, LayoutContext &ctx,
+                          float gap, bool vertical);
+void draw_container_box(const DrawContext &ctx, Painter &painter);
+} // namespace detail
 } // namespace voidui

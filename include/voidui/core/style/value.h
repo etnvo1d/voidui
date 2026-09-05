@@ -17,6 +17,7 @@
 #include "voidui/core/color.h"
 #include "voidui/core/geometry.h"
 #include "voidui/core/layout.h"
+#include "voidui/core/positioning.h"
 #include "voidui/core/typography.h"
 #include "voidui/render/brush.h"
 
@@ -89,7 +90,9 @@ template <class T> std::uint64_t default_hash(const T &value) {
 
 // -- Built-in value types ----------------------------------------------------
 
-inline bool style_value_equals(const Color &a, const Color &b) { return a == b; }
+inline bool style_value_equals(const Color &a, const Color &b) {
+  return a == b;
+}
 
 /// Hashed field by field rather than as bytes: Color carries a tag after four
 /// floats and therefore trailing padding, whose contents are not guaranteed to
@@ -106,12 +109,10 @@ inline std::uint64_t style_value_hash(const Color &color) {
   return style_hash_combine(seed, channel(color.a));
 }
 
-inline std::uint64_t
-style_value_hash(const ColorInterpolationMethod &method) {
+inline std::uint64_t style_value_hash(const ColorInterpolationMethod &method) {
   std::uint64_t seed = static_cast<std::uint64_t>(method.space);
   seed = style_hash_combine(seed, static_cast<std::uint64_t>(method.hue));
-  return style_hash_combine(seed,
-                            static_cast<std::uint64_t>(method.specified));
+  return style_hash_combine(seed, static_cast<std::uint64_t>(method.specified));
 }
 
 inline bool style_value_equals(const LinearGradient &a,
@@ -413,7 +414,11 @@ template <class T> bool style_equals(const T &a, const T &b) {
 }
 
 template <class T> std::uint64_t style_hash(const T &value) {
-  if constexpr (requires { style_value_hash(value); }) {
+  if constexpr (std::is_floating_point_v<T>) {
+    // Equality treats both signed zeroes as equal; cache keys must do so too.
+    const T canonical = value == T{} ? T{} : value;
+    return style_hash_bytes(&canonical, sizeof(canonical));
+  } else if constexpr (requires { style_value_hash(value); }) {
     return style_value_hash(value);
   } else {
     return style_detail::default_hash(value);

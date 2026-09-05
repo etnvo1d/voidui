@@ -282,8 +282,7 @@ void StyleAnimator::rebuild_transitions_(NodeState &state,
     const float combined = spec.combined_duration();
 
     if (!running) {
-      if (combined <= 0.0f ||
-          effective_value(before, property) == after)
+      if (combined <= 0.0f || effective_value(before, property) == after)
         continue;
       PropertyValue from = effective_value(displayed, property);
       if (from == after)
@@ -322,8 +321,8 @@ void StyleAnimator::rebuild_transitions_(NodeState &state,
     if (running->discrete)
       shown = running_progress < 0.5f ? running->from : running->to;
     else if (!running->interpolate ||
-             !running->interpolate(running->from, running->to,
-                                   running_progress, shown))
+             !running->interpolate(running->from, running->to, running_progress,
+                                   shown))
       shown = effective_value(displayed, property);
 
     if (shown == after || combined <= 0.0f)
@@ -343,10 +342,10 @@ void StyleAnimator::rebuild_transitions_(NodeState &state,
       // A reversal. The new run is given only the fraction of the duration
       // the old one had used up, so that flicking the pointer on and off a
       // button does not queue up two full-length animations.
-      const float factor = std::clamp(
-          std::abs(running_progress * running->reversing_factor +
-                   (1.0f - running->reversing_factor)),
-          0.0f, 1.0f);
+      const float factor =
+          std::clamp(std::abs(running_progress * running->reversing_factor +
+                              (1.0f - running->reversing_factor)),
+                     0.0f, 1.0f);
       run.reversed_from = running->to;
       run.reversing_factor = factor;
       run.duration = spec.duration * factor;
@@ -372,8 +371,7 @@ bool StyleAnimator::sample_(NodeState &state, double now) {
     if (run.discrete) {
       // css-transitions-1: a discrete property flips at the halfway point of
       // its eased progress rather than interpolating.
-      state.sampled->set(run.property,
-                         progress < 0.5f ? run.from : run.to);
+      state.sampled->set(run.property, progress < 0.5f ? run.from : run.to);
     } else {
       PropertyValue value;
       if (run.interpolate && run.interpolate(run.from, run.to, progress, value))
@@ -435,6 +433,12 @@ StyleAnimator::retarget(StyleResolver &resolver, StyleNode &node,
   result.invalidation =
       node.computed ? style_difference_invalidation(*node.computed, *target)
                     : Invalidation::Layout;
+  // Only descendants can acquire a different positioning containing block.
+  // Leaf transforms and motion within an existing block remain paint-only.
+  if (node.computed && !node.children.empty() &&
+      node.computed->get<styles::Transform>().establishes_containing_block() !=
+          target->get<styles::Transform>().establishes_containing_block())
+    result.invalidation = Invalidation::Layout;
 
   const AnimationList animation_list = target->get<styles::Animation>();
   const bool has_animation = !animation_list.empty();
@@ -466,9 +470,8 @@ StyleAnimator::retarget(StyleResolver &resolver, StyleNode &node,
                   !property_transitions(property, spec,
                                         registry.describe(property), discrete))
                 return;
-              starts_transition =
-                  effective_value(*node.computed, property) !=
-                  effective_value(*target, property);
+              starts_transition = effective_value(*node.computed, property) !=
+                                  effective_value(*target, property);
             });
       }
     }
@@ -530,6 +533,8 @@ Invalidation StyleAnimator::advance(StyleResolver &resolver, double now) {
   while (slot < active_nodes_.size()) {
     StyleNode *node = active_nodes_[slot];
     NodeState &state = states_.find(node)->second;
+    const bool was_containing_block =
+        node->computed->get<styles::Transform>().establishes_containing_block();
     bool changes_inherited_value = false;
 
     // Every run cached its invalidation kind when it was built, so a frame
@@ -564,6 +569,10 @@ Invalidation StyleAnimator::advance(StyleResolver &resolver, double now) {
       if (state.animations.empty() && state.transitions.empty())
         states_.erase(node);
     }
+    if (!node->children.empty() &&
+        was_containing_block != node->computed->get<styles::Transform>()
+                                    .establishes_containing_block())
+      invalidation = Invalidation::Layout;
   }
 
   // A sampled inherited property is the computed value descendants inherit.

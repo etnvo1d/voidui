@@ -279,10 +279,11 @@ int main() {
   check(painted_caret(scroll_tree, viewport, end_caret),
         "the caret at the end of an overflowing field is still painted");
 
-  // The default stylesheet gives an input 10 of horizontal padding over a
-  // border of 1, so the editor -- and the clip around it -- runs between these.
-  const float editor_left = 11.0f;
-  const float editor_right = 140.0f - 11.0f;
+  const auto &scroll_style = *scroll_tree.root()->style_node.computed;
+  const auto scroll_padding = scroll_style.get<styles::Padding>();
+  const float scroll_border = scroll_style.get<styles::BorderWidth>();
+  const float editor_left = scroll_padding.left + scroll_border;
+  const float editor_right = 140.0f - scroll_padding.right - scroll_border;
   check(end_caret.origin.x >= editor_left - 0.01f &&
             end_caret.origin.x + end_caret.size.width <= editor_right + 0.01f,
         "the caret at the end of the text is inside the clip, not on its edge");
@@ -294,7 +295,7 @@ int main() {
   KeyPressedEvent to_home(Keycode::Home);
   scroll_tree.process_event(to_home);
   Rect<float> home_caret;
-  check(painted_caret(scroll_tree, viewport, home_caret),
+  check(rendered_caret(scroll_tree, viewport, home_caret),
         "the caret is painted after Home");
   check(near(home_caret.origin.x, editor_left, 1.0f),
         "the view scrolls back with the caret on a plain repaint");
@@ -477,7 +478,7 @@ int main() {
   column_tree.layout({viewport.width, viewport.height});
   // Past the right end of the first line: a press on the padding belongs to
   // the nearest edge of the text, and used to be ignored outright.
-  focus(column_tree, {300.0f, 22.0f});
+  focus(column_tree, {column_tree.root()->size.width - 2.0f, 22.0f});
   auto *column = dynamic_cast<Textarea *>(column_tree.root()->widget.get());
   check(column && column->text_selection().second == 10,
         "a press past the end of a line puts the caret at that end");

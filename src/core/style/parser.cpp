@@ -286,32 +286,46 @@ private:
       } else if (c == ':' && peek(1) == ':') {
         position_ += 2;
         const std::string_view pseudo = read_identifier();
-        if (pseudo != "part") {
+        if (compound.part != kNoAtom) {
+          error("multiple pseudo-elements in one compound are unsupported");
+          return false;
+        }
+        std::string_view name;
+        if (pseudo == "picker-icon" || pseudo == "checkmark") {
+          name = pseudo;
+        } else if (pseudo == "part" || pseudo == "picker") {
+          if (!consume('(')) {
+            error("expected '(' after pseudo-element");
+            return false;
+          }
+          skip_trivia();
+          name = read_identifier();
+          skip_trivia();
+          if (name.empty() || !consume(')') ||
+              (pseudo == "picker" && name != "select")) {
+            error("expected a part name or ::picker(select)");
+            return false;
+          }
+          if (pseudo == "picker") name = "picker";
+        } else {
           error("unknown pseudo-element '::" + std::string(pseudo) + "'");
           return false;
         }
-        if (!consume('(')) {
-          error("expected '(' after ::part");
-          return false;
-        }
-        skip_trivia();
-        const std::string_view name = read_identifier();
-        skip_trivia();
-        if (name.empty() || !consume(')')) {
-          error("expected a part name in ::part(...)");
-          return false;
-        }
         compound.part = AtomTable::instance().intern(name);
+        compound.css_part = pseudo != "part";
         saw_anything = true;
       } else if (c == ':') {
         ++position_;
         const std::string_view pseudo = read_identifier();
-        if (pseudo == "hover")
-          compound.required_status |= StatusBits::kHovered;
-        else if (pseudo == "active")
-          compound.required_status |= StatusBits::kActive;
-        else if (pseudo == "focus" || pseudo == "focused")
-          compound.required_status |= StatusBits::kFocused;
+        auto &status = compound.part == kNoAtom ? compound.required_status
+                                                : compound.part_status;
+        if (pseudo == "hover") status |= StatusBits::kHovered;
+        else if (pseudo == "active") status |= StatusBits::kActive;
+        else if (pseudo == "focus" || pseudo == "focused") status |= StatusBits::kFocused;
+        else if (pseudo == "open") status |= StatusBits::kOpen;
+        else if (pseudo == "checked") status |= StatusBits::kChecked;
+        else if (pseudo == "disabled") status |= StatusBits::kDisabled;
+        else if (pseudo == "enabled") status |= StatusBits::kEnabled;
         else {
           error("unknown pseudo-class ':" + std::string(pseudo) + "'");
           return false;
@@ -554,6 +568,42 @@ private:
       const std::string_view value = read_value();
       consume(';');
 
+      if (name == "inset") {
+        Inset edges[4];
+        std::size_t count = 0, begin = 0;
+        int depth = 0;
+        bool valid = true;
+        for (std::size_t i = 0; i <= value.size(); ++i) {
+          if (i < value.size() && value[i] == '(')
+            ++depth;
+          if (i < value.size() && value[i] == ')')
+            --depth;
+          if (i == value.size() || (depth == 0 && is_space(value[i]))) {
+            const auto part = style_trim(value.substr(begin, i - begin));
+            if (!part.empty()) {
+              if (count == 4 || !parse_style_value(part, edges[count])) {
+                valid = false;
+                break;
+              }
+              ++count;
+            }
+            begin = i + 1;
+          }
+        }
+        if (!valid || count == 0 || depth != 0) {
+          error("could not read '" + std::string(value) +
+                "' as a value for 'inset'");
+        } else {
+          declaration.set<styles::Top>(edges[0]);
+          declaration.set<styles::Right>(count > 1 ? edges[1] : edges[0]);
+          declaration.set<styles::Bottom>(count > 2 ? edges[2] : edges[0]);
+          declaration.set<styles::Left>(count > 3   ? edges[3]
+                                        : count > 1 ? edges[1]
+                                                    : edges[0]);
+        }
+        continue;
+      }
+
       // CSS shorthands are expanded before the cascade. Keeping one property
       // per edge makes `margin` and `margin-left` obey normal declaration
       // order, specificity and origin without special work in the resolver.
@@ -765,8 +815,9 @@ private:
         }
         const ResourceResult<ResourceUri> uri = document_.resolve(reference);
         if (!uri) {
-          error("'" + reference + "' is not a reference this stylesheet can "
-                                  "make: " +
+          error("'" + reference +
+                "' is not a reference this stylesheet can "
+                "make: " +
                 std::string(to_string(uri.error())));
           return false;
         }
@@ -973,9 +1024,9 @@ StyleParser::Result StyleParser::parse_document(const ResourceUri &document,
   if (!blob) {
     Result result;
     result.sheet = std::make_shared<StyleSheet>();
-    result.diagnostics.push_back(document_error(
-        document,
-        "could not open stylesheet: " + std::string(to_string(blob.error()))));
+    result.diagnostics.push_back(
+        document_error(document, "could not open stylesheet: " +
+                                     std::string(to_string(blob.error()))));
     result.sheet->add_diagnostic(result.diagnostics.front().to_string());
     return result;
   }
@@ -1016,9 +1067,9 @@ StyleParser::parse_theme_document(const ResourceUri &document) {
   const ResourceResult<Blob> blob = Resources::global().open(document);
   if (!blob) {
     ThemeResult result;
-    result.diagnostics.push_back(document_error(
-        document,
-        "could not open theme: " + std::string(to_string(blob.error()))));
+    result.diagnostics.push_back(
+        document_error(document, "could not open theme: " +
+                                     std::string(to_string(blob.error()))));
     return result;
   }
   return parse_theme(blob->text(), document);

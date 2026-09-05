@@ -1,8 +1,8 @@
 #include "voidui/core/widget_tree.h"
 
+#include "core/widget_geometry.h"
 #include "voidui/core/component.h"
 #include "voidui/core/context.h"
-#include "voidui/core/pixel_snap.h"
 
 #include <SDL3/SDL_clipboard.h>
 
@@ -17,13 +17,8 @@
 namespace voidui {
 namespace {
 
-/// The node's resolved style, or an empty one for a tree that has not been
-/// resolved yet. Reading an unset property from the empty style still returns
-/// the property's declared default, so a widget never sees a null.
-const ComputedStyle &style_of(const Node &node) {
-  static const ComputedStyle empty;
-  return node.style_node.computed ? *node.style_node.computed : empty;
-}
+using detail::node_style;
+using detail::point_in_node_space;
 
 /// The padding box: the border box pulled in by the border it draws inside.
 /// Degenerate boxes collapse to zero rather than turning inside out.
@@ -46,57 +41,6 @@ Radius deflate_radius(const Radius &radius, float amount) {
   };
   return Radius(shrink(radius.left_top), shrink(radius.right_top),
                 shrink(radius.right_bottom), shrink(radius.left_bottom));
-}
-
-const Node *layout_box_of(const Node *node) {
-  while (node && node->style_node.is_transparent && !node->children.empty())
-    node = node->children[0].get();
-  return node;
-}
-
-void translate_subtree(Node &node, Point<float> delta) {
-  node.global_pos.x += delta.x;
-  node.global_pos.y += delta.y;
-  for (auto &child : node.children)
-    translate_subtree(*child, delta);
-  for (auto &child : node.internal_children)
-    translate_subtree(*child, delta);
-}
-
-bool untransform_point(const Node &node, Point<float> &point,
-                       float device_scale) {
-  const VisualTransform &visual = style_of(node).get<styles::Transform>();
-  // The exact matrix rendering used, snapping included, or a press would land
-  // on a different pixel than the one the user aimed at.
-  const Transform visual_transform =
-      snap_translation_to_pixel(visual.matrix(), device_scale);
-  if (visual_transform.is_identity())
-    return true;
-
-  const Rect<float> bounds{node.global_pos, node.size};
-  const Point<float> center{bounds.origin.x + bounds.size.width * 0.5f,
-                            bounds.origin.y + bounds.size.height * 0.5f};
-  // A translation already commutes with the centring, and routing it through
-  // the pair anyway computes `(c + t) - c` -- which for a one-pixel shift next
-  // to a three-figure coordinate cancels away most of the bits that mattered.
-  const Transform around_center =
-      visual_transform.is_translation()
-          ? visual_transform
-          : Transform::translate(center.x, center.y)
-                .concat(visual_transform)
-                .concat(Transform::translate(-center.x, -center.y));
-  Transform inverse;
-  if (!around_center.inverse(inverse))
-    return false;
-  point = inverse.apply(point);
-  return true;
-}
-
-bool point_in_node_space(const Node &node, Point<float> &point,
-                         float device_scale) {
-  if (node.parent && !point_in_node_space(*node.parent, point, device_scale))
-    return false;
-  return untransform_point(node, point, device_scale);
 }
 
 } // namespace
@@ -143,6 +87,7 @@ void WidgetTree::refresh_style_node_(Node *node) {
   // The style projection of this widget. Interning the names once here is what
   // lets matching compare integers instead of strings.
   StyleNode &style_node = node->style_node;
+  style_node.exposes_descendants = node->widget->exposes_style_descendants();
   style_node.type = std::type_index(typeid(*node->widget));
   style_node.id = AtomTable::instance().intern(node->widget->style_id());
   style_node.classes.clear();
@@ -154,12 +99,15 @@ void WidgetTree::refresh_style_node_(Node *node) {
       style_node.classes.end());
   resolver_.add_default_stylesheet(node->widget->default_stylesheet());
   style_node.inline_declaration = node->widget->inline_style();
-  style_node.status = node->status.bits();
+  style_node.status = node->status.bits() | node->widget->style_status();
   style_node.is_transparent =
       dynamic_cast<ComponentBase *>(node->widget.get()) != nullptr;
 }
 
 std::unique_ptr<Node> WidgetTree::build_node_(std::unique_ptr<Widget> widget) {
+  paint_structure_dirty_ = true;
+  if (!widget)
+    return nullptr;
   std::unique_ptr<Node> node = std::make_unique<Node>();
   node->widget = std::move(widget);
   refresh_style_node_(node.get());
@@ -213,6 +161,9 @@ std::unique_ptr<Node> WidgetTree::build_node_(std::unique_ptr<Widget> widget) {
 }
 
 void WidgetTree::discard_node_(Node *node) {
+  forget_overlays_(node);
+  paint_structure_dirty_ = true;
+  paint_order_dirty_ = true;
   resolver_.forget_animations(node->style_node);
   if (selection_node_ && is_inside_(selection_node_, node)) {
     selection_node_ = nullptr;
@@ -274,6 +225,8 @@ void WidgetTree::reconcile_children_(
     std::vector<std::unique_ptr<Node>> &nodes,
     std::vector<std::unique_ptr<Widget>> declarations, Node *parent,
     bool internal, const std::vector<std::string> *parts) {
+  paint_structure_dirty_ = true;
+  paint_order_dirty_ = true;
   auto attach = [&](std::unique_ptr<Node> child,
                     std::size_t declaration_index) {
     child->parent = parent;
@@ -396,16 +349,17 @@ Size<float> WidgetTree::layout_node_(Node *node, Constraints constraints) {
 
   Widget *widget = node->widget.get();
   const Spacing<float> margin =
-      resolve_fixed_margin(style_of(*node).layout_margin());
+      resolve_fixed_margin(node_style(*node).layout_margin());
   LayoutContext ctx{
       node->status,
-      style_of(*node),
+      node_style(*node),
       node->global_pos,
       node->children,
       node->internal_children,
       [this](Node *n, Constraints c) { return this->layout_node_(n, c); },
       device_scale_,
-      invalidator()};
+      invalidator(),
+      node->style_node.is_transparent};
   // Widgets own their border box. The tree owns the outer margin box so every
   // widget, including third-party ones, gets identical margin behavior.
   Size<float> size = widget->layout(constraints.shrink(margin), ctx);
@@ -414,14 +368,122 @@ Size<float> WidgetTree::layout_node_(Node *node, Constraints constraints) {
           size.height + margin.top + margin.bottom};
 }
 
+void WidgetTree::set_hovered_(Node *hit) {
+  if (hit == hovered_node_)
+    return;
+  // Clear last hit path
+  for (Node *node = hovered_node_; node; node = node->parent) {
+    node->status.set_hovered(false);
+  }
+
+  // Tag current hit path
+  for (Node *node = hit; node; node = node->parent) {
+    node->status.set_hovered(true);
+  }
+
+  // Only the two paths changed status, so everything above the node where
+  // they meet is untouched. Re-resolving from that meeting point covers
+  // every affected node in one pass -- and it must be a subtree pass, not a
+  // per-node one, because a descendant selector like `button:hover .label`
+  // can start matching further down while the hovered node itself is
+  // unchanged.
+  std::unordered_set<Node *> previous;
+  for (Node *node = hovered_node_; node; node = node->parent) {
+    node->style_node.status = node->status.bits() | node->widget->style_status();
+    previous.insert(node);
+  }
+  Node *meeting_point = nullptr;
+  for (Node *node = hit; node; node = node->parent) {
+    node->style_node.status = node->status.bits() | node->widget->style_status();
+    if (!meeting_point && previous.count(node) != 0)
+      meeting_point = node;
+  }
+  if (!meeting_point)
+    meeting_point = root_.get();
+
+  if (meeting_point) {
+    invalidate_(resolver_.resolve_subtree(meeting_point->style_node,
+                                          /*force_subtree=*/true));
+  }
+  // Widget authors may still draw directly from DrawContext::status, so a
+  // status edge needs one repaint even when its VSS only changes `cursor`.
+  request_paint();
+
+  hovered_node_ = hit;
+}
+
 void WidgetTree::process_event(Event &e) {
+  dispatch_event_(e);
+  flush_overlay_notifications_();
+  if (e.style_requested()) restyle();
+}
+
+void WidgetTree::dispatch_event_(Event &e) {
   if (!root_)
     return;
+  if (e.type() == EventType::MouseReleased) {
+    const auto mask = static_cast<std::uint8_t>(1u << static_cast<unsigned>(
+        static_cast<MouseReleasedEvent &>(e).button()));
+    if (swallowed_releases_ & mask) {
+      swallowed_releases_ &= static_cast<std::uint8_t>(~mask);
+      return;
+    }
+  }
+  if (e.type() == EventType::KeyReleased && swallowed_escape_release_ &&
+      static_cast<KeyReleasedEvent &>(e).keycode() == Keycode::Escape) {
+    swallowed_escape_release_ = false;
+    return;
+  }
+  update_paint_order_();
+  update_overlays_();
+  if (dismiss_overlays_(e)) {
+    if (e.type() == EventType::MousePressed)
+      swallowed_releases_ |= static_cast<std::uint8_t>(1u << static_cast<unsigned>(
+          static_cast<MousePressedEvent &>(e).button()));
+    if (e.type() == EventType::KeyPressed)
+      swallowed_escape_release_ = true;
+    invalidate_(e.invalidation());
+    return;
+  }
+  if (e.type() == EventType::MouseLeft ||
+      e.type() == EventType::WindowFocusLost) {
+    set_hovered_(nullptr);
+    if (e.type() == EventType::WindowFocusLost) {
+      // Let the capture owner discard its gesture before capture is cleared.
+      if (active_node_)
+        active_node_->widget->on_event(e);
+      invalidate_(e.invalidation());
+      swallowed_releases_ = 0;
+      swallowed_escape_release_ = false;
+      clear_selection_();
+      set_focus_(nullptr);
+      mouse_down_widgets_.clear();
+      if (active_node_) {
+        active_node_->status.set_active(false);
+        active_node_->style_node.status = active_node_->status.bits() | active_node_->widget->style_status();
+        invalidate_(resolver_.resolve_subtree(active_node_->style_node, true));
+        active_node_ = nullptr;
+      }
+    }
+    update_overlays_();
+    return;
+  }
+  if (focused_node_ && (!input_allowed_(focused_node_) ||
+      node_style(*focused_node_).get<styles::Visibility>() != Visibility::Visible)) {
+    clear_selection_();
+    set_focus_(nullptr);
+  }
 
   // Key events take a direct branch and leave. Pointer motion, including a
   // selection drag, therefore pays no RTTI checks for keyboard shortcuts.
   if (e.type() == EventType::KeyPressed) {
     auto &event = static_cast<KeyPressedEvent &>(e);
+    if (event.keycode() == Keycode::Tab && !event.modifiers().control() &&
+        !event.modifiers().alt() && !event.modifiers().gui()) {
+      move_focus_(event.modifiers().shift());
+      update_overlays_();
+      return;
+    }
     if (!handle_selection_key_(event))
       bubble_event_(focused_node_, event);
     sync_focused_selection_();
@@ -462,50 +524,13 @@ void WidgetTree::process_event(Event &e) {
       return EventResult::Unhandled;
     }
 
-    // Clear last hit path
-    for (Node *node = hovered_node_; node; node = node->parent) {
-      node->status.set_hovered(false);
-    }
-
-    // Tag current hit path
-    for (Node *node = hit; node; node = node->parent) {
-      node->status.set_hovered(true);
-    }
-
-    // Only the two paths changed status, so everything above the node where
-    // they meet is untouched. Re-resolving from that meeting point covers
-    // every affected node in one pass -- and it must be a subtree pass, not a
-    // per-node one, because a descendant selector like `button:hover .label`
-    // can start matching further down while the hovered node itself is
-    // unchanged.
-    std::unordered_set<Node *> previous;
-    for (Node *node = hovered_node_; node; node = node->parent) {
-      node->style_node.status = node->status.bits();
-      previous.insert(node);
-    }
-    Node *meeting_point = nullptr;
-    for (Node *node = hit; node; node = node->parent) {
-      node->style_node.status = node->status.bits();
-      if (!meeting_point && previous.count(node) != 0)
-        meeting_point = node;
-    }
-    if (!meeting_point)
-      meeting_point = root_.get();
-
-    if (meeting_point) {
-      invalidate_(resolver_.resolve_subtree(meeting_point->style_node,
-                                            /*force_subtree=*/true));
-    }
-    // Widget authors may still draw directly from DrawContext::status, so a
-    // status edge needs one repaint even when its VSS only changes `cursor`.
-    request_paint();
+    set_hovered_(hit);
 
     // A widget that handled the left press owns pointer motion until release.
     // Scrollbar thumbs depend on this when the pointer leaves the thumb (or
     // even the viewport) during a drag.
     bubble_event_(active_node_ ? active_node_ : hit, e);
 
-    hovered_node_ = hit;
     return EventResult::Unhandled;
   });
 
@@ -519,7 +544,7 @@ void WidgetTree::process_event(Event &e) {
       } else {
         Widget *target = selection->widget.get();
         const UserSelect policy =
-            style_of(*selection).get<styles::UserSelect>();
+            node_style(*selection).get<styles::UserSelect>();
         Point<float> point = e.get_pos();
         if (point_in_node_space(*selection, point, device_scale_)) {
           const std::uint32_t offset = target->selection_hit_test(
@@ -549,7 +574,7 @@ void WidgetTree::process_event(Event &e) {
     if (receiver && e.button() == MouseButton::Left) {
       active_node_ = receiver;
       active_node_->status.set_active(true);
-      receiver->style_node.status = receiver->status.bits();
+      receiver->style_node.status = receiver->status.bits() | receiver->widget->style_status();
       invalidate_(resolver_.resolve_subtree(receiver->style_node, true));
       request_paint();
     }
@@ -576,12 +601,15 @@ void WidgetTree::process_event(Event &e) {
       selection_dragging_ = false;
     }
     Node *hit = hit_test_(root_.get(), e.get_pos());
+    // Release can arrive at a new position without an intervening move.
+    // Once capture ends, the cursor must describe this actual hit target.
+    set_hovered_(hit);
     Node *pressed_target = mouse_down_widgets_[e.button()];
     Node *receiver = bubble_event_(pressed_target ? pressed_target : hit, e);
     mouse_down_widgets_[e.button()] = nullptr;
     if (active_node_ && e.button() == MouseButton::Left) {
       active_node_->status.set_active(false);
-      active_node_->style_node.status = active_node_->status.bits();
+      active_node_->style_node.status = active_node_->status.bits() | active_node_->widget->style_status();
       invalidate_(resolver_.resolve_subtree(active_node_->style_node, true));
       request_paint();
       active_node_ = nullptr;
@@ -591,6 +619,7 @@ void WidgetTree::process_event(Event &e) {
       MouseClickedEvent click_event(e.button(), e.get_pos());
       bubble_event_(pressed_target, click_event);
       invalidate_(click_event.invalidation());
+      if (click_event.style_requested()) e.request_style();
     }
     mouse_down_widgets_[e.button()] = nullptr;
     return receiver || pressed_target ? EventResult::Handled
@@ -604,68 +633,38 @@ void WidgetTree::process_event(Event &e) {
   });
 
   invalidate_(e.invalidation());
+  update_overlays_();
 }
 
 CursorShape WidgetTree::get_current_cursor_shape() const {
-  if (!hovered_node_)
+  // Cursor ownership follows pointer capture, including text's selection
+  // capture. Crossing other widgets or leaving the window must not replace
+  // the dragged widget's cursor with the current hover target's cursor.
+  const Node *target = active_node_ ? active_node_
+                      : selection_dragging_ && selection_node_ ? selection_node_
+                                                              : hovered_node_;
+  if (!target)
     return CursorShape::Default;
 
-  // Cursor is inherited during style resolution, so the deepest hovered node
-  // already carries the effective value. This replaces an ancestor walk and a
-  // virtual call per level with one compact computed-style lookup.
-  const ComputedStyle &style = style_of(*hovered_node_);
+  // Read the owner's current computed style, preserving inheritance and
+  // :active overrides rather than freezing a snapshot from the initial press.
+  const ComputedStyle &style = node_style(*target);
   const CursorShape cursor = style.get<styles::Cursor>();
   if (cursor != CursorShape::Auto)
     return cursor;
-  return hovered_node_->widget->supports_text_selection() &&
+  return target->widget->supports_text_selection() &&
                  style.get<styles::UserSelect>() != UserSelect::None
              ? CursorShape::Text
              : CursorShape::Default;
 }
 
-Node *WidgetTree::hit_test_(Node *node, Point<float> point) {
-  if (!root_)
-    return nullptr;
-
-  Rect<float> bounds{node->global_pos, node->size};
-
-  // Rendering composes the visual transform around the widget center and
-  // applies it to the whole subtree. Walk the exact inverse here and pass the
-  // mapped point down, so hit testing follows translated, scaled and rotated
-  // widgets without storing another matrix on every Node.
-  if (!untransform_point(*node, point, device_scale_))
-    return nullptr;
-
-  if (!bounds.contains(point))
-    return nullptr;
-
-  // Foreground controls drawn above clipped content, such as scrollbars, get
-  // first refusal before the child underneath them.
-  if (node->widget->foreground_hit_test(point, bounds))
-    return node;
-
-  const bool test_children =
-      !node->widget->clips_children() ||
-      node->widget->children_clip(bounds).contains(point);
-  if (test_children) {
-    for (auto it = node->internal_children.rbegin();
-         it != node->internal_children.rend(); ++it) {
-      if (Node *hit = hit_test_(it->get(), point))
-        return hit;
-    }
-    for (auto it = node->children.rbegin(); it != node->children.rend(); ++it) {
-      if (Node *hit = hit_test_(it->get(), point))
-        return hit;
-    }
-  }
-
-  return node;
-}
-
-void WidgetTree::render_node_(Node *node, Painter &painter) {
+void WidgetTree::draw_node_(Node *node, Painter &painter, bool foreground) {
   if (!node)
     return;
-  const ComputedStyle &style = style_of(*node);
+  for (const Node *parent = node->parent; parent; parent = parent->parent)
+    if (!parent->widget->children_visible())
+      return;
+  const ComputedStyle &style = node_style(*node);
   // Built on the stack from what the node already owns: no allocation and no
   // refcount traffic on the per-frame path.
   const bool has_selection =
@@ -679,31 +678,12 @@ void WidgetTree::render_node_(Node *node, Painter &painter) {
                         std::max(selection_anchor_, selection_focus_),
                         has_selection};
 
-  painter.save();
-  const VisualTransform &visual = style.get<styles::Transform>();
-  // Snapped where it enters the tree, not where each item leaves it. Every
-  // descendant rounds its own final position onto the device grid, and that
-  // rounding only carries a shift through unchanged when the shift is a whole
-  // number of device pixels -- so a fractional one takes the subtree apart.
-  const Transform transform =
-      snap_translation_to_pixel(visual.matrix(), device_scale_);
-  if (transform.is_translation()) {
-    // Applied on its own. A translation already commutes with the centring
-    // below, and routing it through the pair anyway computes `(c + t) - c`:
-    // for a one-pixel shift beside a three-figure coordinate that cancellation
-    // costs most of the bits, and what comes back out is no longer the whole
-    // device pixel that was snapped -- which was the entire point.
-    if (!transform.is_identity())
-      painter.transform(transform);
-  } else {
-    const Point<float> center{
-        ctx.bounds.origin.x + ctx.bounds.size.width * 0.5f,
-        ctx.bounds.origin.y + ctx.bounds.size.height * 0.5f};
-    painter.translate(center.x, center.y);
-    painter.transform(transform);
-    painter.translate(-center.x, -center.y);
+  if (style.get<styles::Visibility>() != Visibility::Visible)
+    return;
+  if (foreground) {
+    node->widget->draw_foreground(ctx, painter);
+    return;
   }
-  painter.opacity(style.get<styles::Opacity>());
 
   // CSS paints the first shadow in the list on top of the ones after it, so
   // the list is walked backwards. Outer shadows go under the box; inner ones
@@ -731,30 +711,16 @@ void WidgetTree::render_node_(Node *node, Painter &painter) {
         painter.draw_shadow(padding_box, padding_radius, shadows[i]);
     }
   }
-
-  if (node->widget->clips_children()) {
-    painter.save();
-    painter.clip_rect(node->widget->children_clip(ctx.bounds));
-    for (auto &child : node->children)
-      render_node_(child.get(), painter);
-    for (auto &child : node->internal_children)
-      render_node_(child.get(), painter);
-    painter.restore();
-  } else {
-    for (auto &child : node->children)
-      render_node_(child.get(), painter);
-    for (auto &child : node->internal_children)
-      render_node_(child.get(), painter);
-  }
-
-  node->widget->draw_foreground(ctx, painter);
-  painter.restore();
 }
 
 Node *WidgetTree::bubble_event_(Node *target, Event &e) {
+  if (target && !input_allowed_(target)) return nullptr;
+  if (!target) target = top_modal_;
   for (Node *node = target; node; node = node->parent) {
     if (node->widget->on_event(e) == EventResult::Handled)
       return node;
+    if (node == top_modal_) break;
+    if (top_modal_ && node->parent && !belongs_to_overlay_(node->parent, top_modal_)) break;
   }
 
   return nullptr;
@@ -776,7 +742,7 @@ Node *WidgetTree::selectable_text_(Node *target) const {
       return nullptr;
   }
   for (Node *node = target; node; node = node->parent) {
-    if (style_of(*node).get<styles::UserSelect>() == UserSelect::None)
+    if (node_style(*node).get<styles::UserSelect>() == UserSelect::None)
       return nullptr;
     if (node->widget->supports_text_selection())
       return node;
@@ -819,7 +785,9 @@ void WidgetTree::sync_focused_selection_() {
 }
 
 bool WidgetTree::wants_text_input() const {
-  return focused_node_ && focused_node_->widget->accepts_text_input();
+  return focused_node_ && focused_node_->widget->accepts_text_input() &&
+         node_style(*focused_node_).get<styles::Visibility>() ==
+             Visibility::Visible;
 }
 
 const Node *WidgetTree::text_input_client() const {
@@ -840,22 +808,16 @@ std::optional<TextInputArea> WidgetTree::text_input_area() const {
   // transform here and hand the backend the caret's visual position.
   std::vector<const Node *> path;
   for (const Node *node = focused_node_; node; node = node->parent)
+  {
     path.push_back(node);
+    if (node->widget->overlay_options())
+      break;
+  }
 
   Transform transform;
   for (auto it = path.rbegin(); it != path.rend(); ++it) {
     const Node &node = **it;
-    const Transform visual = snap_translation_to_pixel(
-        style_of(node).get<styles::Transform>().matrix(), device_scale_);
-    Transform around_center = visual;
-    if (!visual.is_translation()) {
-      const Point<float> center{node.global_pos.x + node.size.width * 0.5f,
-                                node.global_pos.y + node.size.height * 0.5f};
-      around_center = Transform::translate(center.x, center.y)
-                          .concat(visual)
-                          .concat(Transform::translate(-center.x, -center.y));
-    }
-    transform = transform.concat(around_center);
+    transform = transform.concat(detail::node_transform(node, device_scale_));
   }
 
   const Point<float> cursor{area->rect.origin.x + area->cursor,
@@ -871,7 +833,7 @@ bool WidgetTree::handle_selection_key_(KeyPressedEvent &event) {
   if (!selection_node_)
     return false;
 
-  if (style_of(*selection_node_).get<styles::UserSelect>() ==
+  if (node_style(*selection_node_).get<styles::UserSelect>() ==
       UserSelect::None) {
     clear_selection_();
     return false;
@@ -913,13 +875,19 @@ bool WidgetTree::handle_selection_key_(KeyPressedEvent &event) {
 /// Find first ancestor that is focusable.
 Node *WidgetTree::bubble_focusable_(Node *target) {
   for (; target; target = target->parent) {
+    if (!input_allowed_(target)) return nullptr;
     if (target->widget->focusable())
       return target;
   }
   return nullptr;
 }
 
-void WidgetTree::set_focus_(Node *node) {
+void WidgetTree::set_focus_(Node *node, bool trigger_hints) {
+  if (node && !input_allowed_(node)) return;
+  if (focus_triggers_hints_ != trigger_hints) {
+    focus_triggers_hints_ = trigger_hints;
+    request_paint();
+  }
   if (node == focused_node_)
     return;
 
@@ -927,15 +895,19 @@ void WidgetTree::set_focus_(Node *node) {
   focused_node_ = node;
 
   if (prev) {
+    FocusLostEvent focus_event;
+    prev->widget->focus_lost(focus_event);
+    invalidate_(focus_event.invalidation());
+    if (focus_event.style_requested()) restyle();
     prev->widget->text_input_stopped();
     prev->status.set_focused(false);
-    prev->style_node.status = prev->status.bits();
+    prev->style_node.status = prev->status.bits() | prev->widget->style_status();
     invalidate_(resolver_.resolve_subtree(prev->style_node, true));
   }
 
   if (focused_node_) {
     focused_node_->status.set_focused(true);
-    focused_node_->style_node.status = focused_node_->status.bits();
+    focused_node_->style_node.status = focused_node_->status.bits() | focused_node_->widget->style_status();
     invalidate_(resolver_.resolve_subtree(focused_node_->style_node, true));
   }
   request_layout();
@@ -962,17 +934,27 @@ void WidgetTree::link_style_tree_(Node *node) {
 void WidgetTree::restyle() {
   if (!root_)
     return;
+  const auto refresh = [&](auto &&self, Node *node) -> void {
+    refresh_style_node_(node);
+    for (auto &child : node->children)
+      self(self, child.get());
+    for (auto &child : node->internal_children)
+      self(self, child.get());
+  };
+  refresh(refresh, root_.get());
   style_rebuild_blooms(root_->style_node);
   invalidate_(resolver_.resolve_tree(root_->style_node));
 }
 
 void WidgetTree::invalidate_(Invalidation invalidation) {
+  if (invalidation != Invalidation::None)
+    paint_order_dirty_ = true;
   invalidation_ = max_invalidation(invalidation_, invalidation);
 }
 
 void WidgetTree::request_paint() {
   assert_owner_thread_();
-  invalidate_(Invalidation::Paint);
+  invalidation_ = max_invalidation(invalidation_, Invalidation::Paint);
 }
 
 void WidgetTree::request_layout() {
@@ -1010,6 +992,8 @@ void WidgetTree::set_theme(std::shared_ptr<const Theme> theme) {
 }
 
 void WidgetTree::build(std::unique_ptr<Widget> root) {
+  paint_structure_dirty_ = true;
+  paint_order_dirty_ = true;
   dirty_components_.clear();
   if (root_)
     discard_node_(root_.get());
@@ -1022,18 +1006,21 @@ void WidgetTree::build(std::unique_ptr<Widget> root) {
 }
 
 void WidgetTree::render(Painter &painter) {
-  if (!root_)
-    return;
+  update_paint_order_();
+  update_overlays_();
   // Consume the current paint request before drawing. A widget can request the
   // next animation frame from DrawContext and that new request then survives.
   if (invalidation_ == Invalidation::Paint)
     invalidation_ = Invalidation::None;
-  render_node_(root_.get(), painter);
+  if (!root_)
+    return;
+  render_ordered_(painter);
   // Keep the scheduler awake only while motion exists. The next frame samples
   // all active nodes before drawing; once the dense active list empties this
   // request disappears and SDL returns to a blocking wait.
   if (resolver_.has_active_animations())
     request_paint();
+  flush_overlay_notifications_();
 }
 
 void WidgetTree::set_device_scale(float scale) {
@@ -1045,15 +1032,21 @@ void WidgetTree::set_device_scale(float scale) {
 }
 
 void WidgetTree::layout(Constraints constraints) {
-  if (!root_)
+  if (!root_) {
+    invalidation_ = Invalidation::Paint;
     return;
+  }
   flush_component_updates_();
   const Node *box = layout_box_of(root_.get());
-  const Spacing<MarginValue> &specified_margin = style_of(*box).layout_margin();
+  const Spacing<MarginValue> &specified_margin =
+      node_style(*box).layout_margin();
   const Spacing<float> margin = resolve_fixed_margin(specified_margin);
   root_->global_pos = root_.get() == box ? Point<float>{margin.left, margin.top}
                                          : Point<float>{};
-  layout_node_(root_.get(), constraints);
+  // A root portal is also out of normal flow. It is measured on activation
+  // below, after the viewport is known, just like a portal inside a container.
+  if (!box->widget->overlay_options())
+    layout_node_(root_.get(), constraints);
 
   if (std::isfinite(constraints.max_width) &&
       (specified_margin.left.is_auto() || specified_margin.right.is_auto())) {
@@ -1067,7 +1060,16 @@ void WidgetTree::layout(Constraints constraints) {
     if (left > 0.0f)
       translate_subtree(*root_, {left, 0.0f});
   }
+  viewport_ = {std::isfinite(constraints.max_width) ? constraints.max_width
+                                                    : root_->size.width,
+               std::isfinite(constraints.max_height) ? constraints.max_height
+                                                     : root_->size.height};
+  position_subtree_(root_.get());
+  paint_order_dirty_ = true;
+  update_paint_order_();
   invalidation_ = Invalidation::Paint;
+  layout_overlays_();
+  flush_overlay_notifications_();
 }
 
 } // namespace voidui

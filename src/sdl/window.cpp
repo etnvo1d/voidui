@@ -206,6 +206,12 @@ std::unique_ptr<Event> convert_sdl_event(const SDL_Event &event,
     return std::make_unique<MouseMovedEvent>(
         window_pos_to_logical(metrics, event.motion.x, event.motion.y));
 
+  case SDL_EVENT_WINDOW_MOUSE_LEAVE:
+    return std::make_unique<MouseLeftEvent>();
+
+  case SDL_EVENT_WINDOW_FOCUS_LOST:
+    return std::make_unique<WindowFocusLostEvent>();
+
   case SDL_EVENT_MOUSE_BUTTON_DOWN: {
     const auto button = convert_mouse_button(event.button.button);
     if (!button)
@@ -677,6 +683,7 @@ void Window::run(std::unique_ptr<Widget> root) {
 
           std::unique_ptr<Event> event = convert_sdl_event(e, metrics);
           if (event) {
+            widget_tree.advance_animations(monotonic_seconds());
             if (event->type() == EventType::WindowClosed)
               running = false;
             widget_tree.process_event(*event);

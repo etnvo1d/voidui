@@ -164,8 +164,10 @@ T cycle(const StyleValueList<T> &list, std::size_t index, T fallback) {
 
 } // namespace
 
-Transform VisualTransform::matrix() const {
-  return Transform::translate(translate_x, translate_y)
+Transform VisualTransform::matrix(Size<float> reference) const {
+  return Transform::translate(
+             translate_x + reference.width * translate_x_percent / 100.0f,
+             translate_y + reference.height * translate_y_percent / 100.0f)
       .concat(Transform::rotate(rotation))
       .concat(Transform::scale(scale_x, scale_y));
 }
@@ -177,11 +179,17 @@ bool parse_style_value(std::string_view text, VisualTransform &out) {
     return true;
   }
 
+  if (text.empty())
+    return false;
   VisualTransform result;
+  result.specified = true;
+  Transform combined;
+  Point<float> width_percent{}, height_percent{};
+  float rotation_sum = 0.0f;
+  float scale_x_product = 1.0f;
   std::size_t position = 0;
   while (position < text.size()) {
-    std::string_view name;
-    std::string_view arguments;
+    std::string_view name, arguments;
     if (!read_function(text, position, name, arguments))
       return false;
     std::vector<std::string_view> values = split_top_level(arguments, ',');
@@ -190,31 +198,86 @@ bool parse_style_value(std::string_view text, VisualTransform &out) {
       if (words.size() > 1)
         values = words;
     }
-
-    float a = 0.0f;
-    float b = 0.0f;
-    if (name == "translate" && values.size() == 2 &&
-        parse_style_value(values[0], a) && parse_style_value(values[1], b)) {
-      result.translate_x = a;
-      result.translate_y = b;
+    Transform operation;
+    Inset x(0.0f), y(0.0f);
+    float a = 0.0f, b = 0.0f;
+    bool translation = false;
+    if (name == "translate" && !values.empty() && values.size() <= 2 &&
+        parse_style_value(values[0], x) && !x.is_auto() &&
+        (values.size() == 1 ||
+         (parse_style_value(values[1], y) && !y.is_auto()))) {
+      translation = true;
     } else if (name == "translateX" && values.size() == 1 &&
-               parse_style_value(values[0], a)) {
-      result.translate_x = a;
+               parse_style_value(values[0], x) && !x.is_auto()) {
+      translation = true;
     } else if (name == "translateY" && values.size() == 1 &&
-               parse_style_value(values[0], a)) {
-      result.translate_y = a;
+               parse_style_value(values[0], y) && !y.is_auto()) {
+      translation = true;
     } else if (name == "scale" && !values.empty() && values.size() <= 2 &&
-               parse_style_value(values[0], a) &&
-               (values.size() == 1 || parse_style_value(values[1], b))) {
-      result.scale_x = a;
-      result.scale_y = values.size() == 1 ? a : b;
+               parse_style_value(values[0], a) && std::isfinite(a) &&
+               (values.size() == 1 ||
+                (parse_style_value(values[1], b) && std::isfinite(b)))) {
+      operation = Transform::scale(a, values.size() == 1 ? a : b);
+      scale_x_product *= a;
+    } else if ((name == "scaleX" || name == "scaleY") && values.size() == 1 &&
+               parse_style_value(values[0], a) && std::isfinite(a)) {
+      operation =
+          name == "scaleX" ? Transform::scale(a, 1) : Transform::scale(1, a);
+      if (name == "scaleX")
+        scale_x_product *= a;
     } else if (name == "rotate" && values.size() == 1 &&
-               parse_angle(values[0], a)) {
-      result.rotation = a;
+               parse_angle(values[0], a) && std::isfinite(a)) {
+      operation = Transform::rotate(a);
+      rotation_sum += a;
     } else {
       return false;
     }
+    if (translation) {
+      operation = Transform::translate(x.pixels, y.pixels);
+      const auto wp = combined.apply_vector({x.percent, 0});
+      const auto hp = combined.apply_vector({0, y.percent});
+      width_percent.x += wp.x;
+      width_percent.y += wp.y;
+      height_percent.x += hp.x;
+      height_percent.y += hp.y;
+    }
+    combined = combined.concat(operation);
+    while (position < text.size() && is_space(text[position]))
+      ++position;
   }
+  // Keep the compact, decomposed 2D representation. A composition requiring
+  // shear or cross-axis percentage coefficients is not representable here;
+  // report it instead of silently reordering CSS functions.
+  const float sx =
+      std::copysign(std::hypot(combined.a, combined.b), scale_x_product);
+  if (std::abs(sx) > 1e-6f) {
+    result.scale_x = sx;
+    result.rotation = std::atan2(combined.b / sx, combined.a / sx);
+    result.scale_y = (combined.a * combined.d - combined.b * combined.c) / sx;
+  } else {
+    result.scale_x = 0;
+    result.scale_y = std::hypot(combined.c, combined.d);
+    result.rotation = std::atan2(-combined.c, combined.d);
+  }
+  constexpr float turn = 6.2831853071795864769f;
+  result.rotation += std::round((rotation_sum - result.rotation) / turn) * turn;
+  result.translate_x = combined.e;
+  result.translate_y = combined.f;
+  result.translate_x_percent = width_percent.x;
+  result.translate_y_percent = height_percent.y;
+  const auto resolved = result.matrix();
+  const auto close = [](float left, float right) {
+    return std::isfinite(left) && std::isfinite(right) &&
+           std::abs(left - right) <=
+               1e-5f * std::max({1.0f, std::abs(left), std::abs(right)});
+  };
+  if (!close(combined.a, resolved.a) || !close(combined.b, resolved.b) ||
+      !close(combined.c, resolved.c) || !close(combined.d, resolved.d) ||
+      !close(combined.e, resolved.e) || !close(combined.f, resolved.f) ||
+      !close(width_percent.y, 0) || !close(height_percent.x, 0) ||
+      !std::isfinite(width_percent.x) || !std::isfinite(height_percent.y))
+    return false;
+
   out = result;
   return true;
 }
@@ -317,17 +380,28 @@ bool parse_style_value(std::string_view text, ShadowList &out) {
 bool style_value_equals(const VisualTransform &a, const VisualTransform &b) {
   return a.translate_x == b.translate_x && a.translate_y == b.translate_y &&
          a.scale_x == b.scale_x && a.scale_y == b.scale_y &&
-         a.rotation == b.rotation;
+         a.rotation == b.rotation &&
+         a.translate_x_percent == b.translate_x_percent &&
+         a.translate_y_percent == b.translate_y_percent &&
+         a.specified == b.specified;
 }
 
 std::uint64_t style_value_hash(const VisualTransform &value) {
-  return style_hash_bytes(&value, sizeof(value));
+  std::uint64_t hash = value.specified;
+  for (float field :
+       {value.translate_x, value.translate_y, value.scale_x, value.scale_y,
+        value.rotation, value.translate_x_percent, value.translate_y_percent}) {
+    if (field == 0.0f)
+      field = 0.0f;
+    hash = style_hash_combine(hash, style_hash_bytes(&field, sizeof(field)));
+  }
+  return hash;
 }
 
 bool style_value_equals(const Shadow &a, const Shadow &b) {
   return style_value_equals(a.color, b.color) && a.offset.x == b.offset.x &&
-         a.offset.y == b.offset.y && a.blur == b.blur &&
-         a.spread == b.spread && a.inset == b.inset;
+         a.offset.y == b.offset.y && a.blur == b.blur && a.spread == b.spread &&
+         a.inset == b.inset;
 }
 
 std::uint64_t style_value_hash(const Shadow &value) {
@@ -353,6 +427,12 @@ VisualTransform interpolate_style_value(const VisualTransform &a,
   result.scale_x = interpolate_style_value(a.scale_x, b.scale_x, t);
   result.scale_y = interpolate_style_value(a.scale_y, b.scale_y, t);
   result.rotation = interpolate_style_value(a.rotation, b.rotation, t);
+  result.translate_x_percent =
+      interpolate_style_value(a.translate_x_percent, b.translate_x_percent, t);
+  result.translate_y_percent =
+      interpolate_style_value(a.translate_y_percent, b.translate_y_percent, t);
+  result.specified =
+      a.establishes_containing_block() || b.establishes_containing_block();
   return result;
 }
 
@@ -486,8 +566,8 @@ bool style_is_timing_property(PropertyIndex property) {
 
 TransitionSpec TransitionSettings::at(std::size_t index) const {
   TransitionSpec spec;
-  spec.property = properties.declared() ? properties[index]
-                                        : kAllTransitionProperties;
+  spec.property =
+      properties.declared() ? properties[index] : kAllTransitionProperties;
   // A negative duration is invalid CSS; treating it as zero keeps one bad
   // value in a list from taking the whole declaration down.
   spec.duration = std::max(cycle(durations, index, 0.0f), 0.0f);

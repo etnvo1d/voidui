@@ -222,5 +222,30 @@ int main() {
   ok &= expect(close(vertical_scrollable->content_size().width, 90.0f),
                "vertical-only content is constrained to the viewport width");
 
+  // A scrollbar's capture owns the cursor even over differently styled content.
+  auto cursor_content = FixedBox(300.0f, 400.0f);
+  cursor_content.set_style<voidui::styles::Cursor>(voidui::CursorShape::Text);
+  auto cursor_view = voidui::scrollable(std::move(cursor_content))
+                         .size(fixed_size(100.0f, 120.0f));
+  cursor_view.set_style<voidui::styles::Cursor>(voidui::CursorShape::VerticalResize);
+  voidui::WidgetTree cursor_tree(voidui::transfer_widget(std::move(cursor_view)));
+  cursor_tree.layout({500.0f, 500.0f});
+  voidui::MousePressedEvent cursor_press(voidui::MouseButton::Left, {95, 10});
+  cursor_tree.process_event(cursor_press);
+  ok &= expect(cursor_tree.get_current_cursor_shape() == voidui::CursorShape::VerticalResize,
+               "a captured scrollbar supplies its cursor without a prior hover event");
+  voidui::MouseMovedEvent cursor_move({10, 20});
+  cursor_tree.process_event(cursor_move);
+  ok &= expect(cursor_tree.get_current_cursor_shape() == voidui::CursorShape::VerticalResize,
+               "scrollbar dragging keeps its cursor over text-cursor content");
+  voidui::MouseLeftEvent cursor_leave;
+  cursor_tree.process_event(cursor_leave);
+  ok &= expect(cursor_tree.get_current_cursor_shape() == voidui::CursorShape::VerticalResize,
+               "scrollbar capture retains its cursor outside the window");
+  voidui::MouseReleasedEvent cursor_release(voidui::MouseButton::Left, {10, 20});
+  cursor_tree.process_event(cursor_release);
+  ok &= expect(cursor_tree.get_current_cursor_shape() == voidui::CursorShape::Text,
+               "release restores the cursor at its actual position without a new move");
+
   return ok ? 0 : 1;
 }

@@ -56,6 +56,10 @@ struct StatusBits {
   static constexpr std::uint8_t kHovered = 1 << 0;
   static constexpr std::uint8_t kActive = 1 << 1;
   static constexpr std::uint8_t kFocused = 1 << 2;
+  static constexpr std::uint8_t kOpen = 1 << 3;
+  static constexpr std::uint8_t kChecked = 1 << 4;
+  static constexpr std::uint8_t kDisabled = 1 << 5;
+  static constexpr std::uint8_t kEnabled = 1 << 6;
 };
 
 struct Specificity {
@@ -135,6 +139,8 @@ struct StyleNode {
   /// across this boundary except through ::part(), which is what stops a
   /// stray `.panel text { ... }` from rewriting the inside of every button.
   bool is_internal = false;
+  // A control may deliberately expose the contents of its picker to selectors.
+  bool exposes_descendants = false;
 
   /// Function components participate in layout and events but are invisible
   /// to selector relationships.
@@ -168,6 +174,8 @@ struct CompoundSelector {
   Atom id = kNoAtom;
   std::vector<Atom> classes;
   std::uint8_t required_status = 0;
+  std::uint8_t part_status = 0;
+  bool css_part = false;
 
   /// Set by `host::part(name)`. The compound then describes the *host*, and
   /// the subject of the match is the internal child exposed under this name.
@@ -240,6 +248,13 @@ public:
   SelectorBuilder &hovered();
   SelectorBuilder &active();
   SelectorBuilder &focused();
+  SelectorBuilder &open();
+  SelectorBuilder &checked();
+  SelectorBuilder &disabled();
+  SelectorBuilder &enabled();
+  SelectorBuilder &picker();
+  SelectorBuilder &picker_icon();
+  SelectorBuilder &checkmark();
 
   /// Selects an exposed internal child of the compound built so far.
   SelectorBuilder &part(std::string_view name);

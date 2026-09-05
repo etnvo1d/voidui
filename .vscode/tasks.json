@@ -1,0 +1,47 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "xmake: configure debug",
+            "type": "process",
+            "command": "xmake",
+            "args": ["config", "-m", "debug", "-y"],
+            "options": { "cwd": "${workspaceFolder}" },
+            "problemMatcher": []
+        },
+        {
+            "label": "xmake: build",
+            "type": "process",
+            "command": "xmake",
+            "args": ["build", "-y"],
+            "options": { "cwd": "${workspaceFolder}" },
+            "group": { "kind": "build", "isDefault": true },
+            "problemMatcher": ["$gcc"],
+            "windows": { "problemMatcher": ["$msCompile"] }
+        },
+        {
+            "label": "xmake: compile commands",
+            "type": "process",
+            "command": "xmake",
+            "args": ["project", "-k", "compile_commands", "--lsp=clangd", "-o", "."],
+            "options": { "cwd": "${workspaceFolder}" },
+            "problemMatcher": []
+        },
+        {
+            "label": "xmake: test",
+            "type": "process",
+            "command": "xmake",
+            "args": ["test", "-v"],
+            "dependsOn": "xmake: build",
+            "options": { "cwd": "${workspaceFolder}" },
+            "group": { "kind": "test", "isDefault": true },
+            "problemMatcher": []
+        },
+        {
+            "label": "xmake: build debug",
+            "dependsOrder": "sequence",
+            "dependsOn": ["xmake: configure debug", "xmake: build"],
+            "problemMatcher": []
+        }
+    ]
+}

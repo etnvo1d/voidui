@@ -46,11 +46,51 @@ namespace voidui {
 
 class FontStack;
 
+/// VoidUI renders its own controls. None hides the default picker arrow;
+/// Auto and BaseSelect both use the themeable built-in appearance.
+enum class SelectAppearance { Auto, None, BaseSelect };
+inline bool parse_style_value(std::string_view text, SelectAppearance &out) {
+  text = style_trim(text);
+  if (text == "auto")
+    out = SelectAppearance::Auto;
+  else if (text == "none")
+    out = SelectAppearance::None;
+  else if (text == "base-select")
+    out = SelectAppearance::BaseSelect;
+  else
+    return false;
+  return true;
+}
+
+
+
 /// The properties the framework itself defines. Everything else in the system
 /// treats these exactly like a third-party component's properties -- they are
 /// declared with the same macro and live in the same registry, which is the
 /// check that the extension path is a real one and not a second-class one.
 namespace styles {
+
+VOIDUI_GLOBAL_STYLE_PROPERTY(Appearance, SelectAppearance, "appearance",
+                             NotInherited, Layout, SelectAppearance::Auto);
+
+VOIDUI_GLOBAL_STYLE_PROPERTY(Position, voidui::Position, "position",
+                             NotInherited, Layout, voidui::Position::Static);
+VOIDUI_GLOBAL_STYLE_PROPERTY(ZIndex, voidui::ZIndex, "z-index", NotInherited,
+                             Paint, voidui::ZIndex{});
+VOIDUI_GLOBAL_STYLE_PROPERTY(Left, Inset, "left", NotInherited, Layout,
+                             Inset{});
+VOIDUI_GLOBAL_STYLE_PROPERTY(Right, Inset, "right", NotInherited, Layout,
+                             Inset{});
+VOIDUI_GLOBAL_STYLE_PROPERTY(Top, Inset, "top", NotInherited, Layout, Inset{});
+VOIDUI_GLOBAL_STYLE_PROPERTY(Bottom, Inset, "bottom", NotInherited, Layout,
+                             Inset{});
+VOIDUI_GLOBAL_STYLE_PROPERTY(Visibility, voidui::Visibility, "visibility",
+                             Inherited, Paint, voidui::Visibility::Visible);
+VOIDUI_GLOBAL_STYLE_PROPERTY(PointerEvents, voidui::PointerEvents,
+                             "pointer-events", Inherited, Paint,
+                             voidui::PointerEvents::Auto);
+VOIDUI_GLOBAL_STYLE_PROPERTY(WhiteSpace, voidui::WhiteSpace, "white-space",
+                             Inherited, Layout, voidui::WhiteSpace::Normal);
 
 VOIDUI_GLOBAL_STYLE_PROPERTY(Cursor, CursorShape, "cursor", Inherited, None,
                              CursorShape::Auto);
@@ -139,8 +179,8 @@ VOIDUI_GLOBAL_STYLE_PROPERTY(BorderColor, Brush, "border-color", NotInherited,
 VOIDUI_GLOBAL_STYLE_PROPERTY(BorderRadius, Radius, "border-radius",
                              NotInherited, Paint, Radius(0.0f));
 
-VOIDUI_GLOBAL_STYLE_PROPERTY(BorderWidth, float, "border-width",
-                             NotInherited, Layout, 0.0f);
+VOIDUI_GLOBAL_STYLE_PROPERTY(BorderWidth, float, "border-width", NotInherited,
+                             Layout, 0.0f);
 
 VOIDUI_GLOBAL_STYLE_PROPERTY(FontSize, float, "font-size", Inherited, Layout,
                              14.0f);

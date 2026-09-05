@@ -50,10 +50,10 @@ public:
   /// The same, taking the family off a stack that is already loaded. Only its
   /// family name is used -- the size comes from `font-size`, which is what lets
   /// one family serve every size in the application.
-  VOIDUI_FLUENT_METHOD(
-      font, (const std::shared_ptr<FontStack> &fonts),
-      set_style<styles::FontFamily>(
-          fonts ? FontFamilyList::of({fonts->family()}) : FontFamilyList{});)
+  VOIDUI_FLUENT_METHOD(font, (const std::shared_ptr<FontStack> &fonts),
+                       set_style<styles::FontFamily>(
+                           fonts ? FontFamilyList::of({fonts->family()})
+                                 : FontFamilyList{});)
 
   /// Writes the inline style rather than a field of its own. The colour is
   /// the inherited `color` property, so a colour set on an ancestor
@@ -130,7 +130,11 @@ public:
     adopt_font_(ctx.style);
     // Held for `draw`, which has no layout context of its own.
     device_scale_ = ctx.device_scale();
-    ensure_layout_(wrap_width_for_(constraints));
+    const auto whitespace = ctx.style.get<styles::WhiteSpace>();
+    ensure_layout_(whitespace == WhiteSpace::Nowrap ||
+                           whitespace == WhiteSpace::Pre
+                       ? 0.0f
+                       : wrap_width_for_(constraints));
 
     const Size<float> intrinsic =
         layout_ ? layout_->size() : Size<float>(0.0f, 0.0f);
@@ -280,7 +284,7 @@ private:
   int max_lines_ = 0;
 };
 
-[[nodiscard]] Text text(std::string content) {
+[[nodiscard]] inline Text text(std::string content) {
   return Text(std::move(content));
 }
 

@@ -25,7 +25,7 @@ std::uint32_t mix32(std::uint64_t value) {
 /// build itself out of Text. ::part() is the deliberate way through, and it
 /// jumps to the host before any walking begins.
 const StyleNode *light_parent(const StyleNode *node) {
-  if (!node || node->is_internal)
+  if (!node || (node->is_internal && !node->exposes_descendants))
     return nullptr;
   const StyleNode *parent = node->parent;
   while (parent && parent->is_transparent) {
@@ -118,12 +118,15 @@ Specificity CompoundSelector::specificity() const {
     result.ids = 1;
   result.classes = static_cast<std::uint16_t>(classes.size());
   for (int bit = 0; bit < 8; ++bit)
-    if (required_status & (1u << bit))
-      ++result.classes;
-  if (part != kNoAtom)
-    ++result.classes;
+    result.classes += static_cast<std::uint16_t>(
+        ((required_status & (1u << bit)) != 0) +
+        ((part_status & (1u << bit)) != 0));
+  if (part != kNoAtom) {
+    if (css_part) ++result.types;
+    else ++result.classes;
+  }
   if (type.has_value())
-    result.types = 1;
+    ++result.types;
   return result;
 }
 
@@ -200,7 +203,8 @@ bool Selector::matches(const StyleNode &node) const {
   if (key.part != kNoAtom) {
     // `host::part(name)`. The subject is the exposed internal child; the rest
     // of the compound describes the host, and ancestor walking resumes there.
-    if (!node.is_internal || node.part != key.part)
+    if (!node.is_internal || node.part != key.part ||
+        (node.status & key.part_status) != key.part_status)
       return false;
     const StyleNode *host = node.shadow_host();
     if (!host)
@@ -267,12 +271,28 @@ std::string Selector::to_string() const {
       result += ":active";
     if (compound.required_status & StatusBits::kFocused)
       result += ":focus";
+    if (compound.required_status & StatusBits::kOpen) result += ":open";
+    if (compound.required_status & StatusBits::kChecked) result += ":checked";
+    if (compound.required_status & StatusBits::kDisabled) result += ":disabled";
+    if (compound.required_status & StatusBits::kEnabled) result += ":enabled";
     if (compound.part != kNoAtom) {
-      result += "::part(";
-      result += AtomTable::instance().text(compound.part);
-      result += ')';
+      const auto name = AtomTable::instance().text(compound.part);
+      if (compound.css_part) {
+        result += name == "picker" ? "::picker(select)" : "::" + std::string(name);
+      } else {
+        result += "::part(";
+        result += name;
+        result += ')';
+      }
       wrote = true;
     }
+    if (compound.part_status & StatusBits::kHovered) result += ":hover";
+    if (compound.part_status & StatusBits::kActive) result += ":active";
+    if (compound.part_status & StatusBits::kFocused) result += ":focus";
+    if (compound.part_status & StatusBits::kOpen) result += ":open";
+    if (compound.part_status & StatusBits::kChecked) result += ":checked";
+    if (compound.part_status & StatusBits::kDisabled) result += ":disabled";
+    if (compound.part_status & StatusBits::kEnabled) result += ":enabled";
     if (!wrote && compound.required_status == 0)
       result += '*';
   }
@@ -316,19 +336,37 @@ SelectorBuilder &SelectorBuilder::with_class(std::string_view name) {
 }
 
 SelectorBuilder &SelectorBuilder::hovered() {
-  parts_.back().compound.required_status |= StatusBits::kHovered;
+  auto &key = parts_.back().compound;
+  (key.part == kNoAtom ? key.required_status : key.part_status) |= StatusBits::kHovered;
   return *this;
 }
 
 SelectorBuilder &SelectorBuilder::active() {
-  parts_.back().compound.required_status |= StatusBits::kActive;
+  auto &key = parts_.back().compound;
+  (key.part == kNoAtom ? key.required_status : key.part_status) |= StatusBits::kActive;
   return *this;
 }
 
 SelectorBuilder &SelectorBuilder::focused() {
-  parts_.back().compound.required_status |= StatusBits::kFocused;
+  auto &key = parts_.back().compound;
+  (key.part == kNoAtom ? key.required_status : key.part_status) |= StatusBits::kFocused;
   return *this;
 }
+
+#define VOIDUI_STATE_SELECTOR(method, bit) \
+SelectorBuilder &SelectorBuilder::method() { \
+  auto &key = parts_.back().compound; \
+  (key.part == kNoAtom ? key.required_status : key.part_status) |= StatusBits::bit; \
+  return *this; \
+}
+VOIDUI_STATE_SELECTOR(open, kOpen)
+VOIDUI_STATE_SELECTOR(checked, kChecked)
+VOIDUI_STATE_SELECTOR(disabled, kDisabled)
+VOIDUI_STATE_SELECTOR(enabled, kEnabled)
+#undef VOIDUI_STATE_SELECTOR
+SelectorBuilder &SelectorBuilder::picker() { part("picker"); parts_.back().compound.css_part = true; return *this; }
+SelectorBuilder &SelectorBuilder::picker_icon() { part("picker-icon"); parts_.back().compound.css_part = true; return *this; }
+SelectorBuilder &SelectorBuilder::checkmark() { part("checkmark"); parts_.back().compound.css_part = true; return *this; }
 
 SelectorBuilder &SelectorBuilder::part(std::string_view name) {
   parts_.back().compound.part = AtomTable::instance().intern(name);

@@ -14,6 +14,7 @@ public:
   VOIDUI_STYLE_SCOPE(Button, "button")
 
   Button() = default;
+  bool focusable() const override { return true; }
 
   template <WidgetClass T>
   Button(T &&content) : content_(transfer_widget(std::forward<T>(content))) {}
@@ -50,6 +51,7 @@ public:
             cursor: pointer;
             user-select: none;
           }
+          button:focus { border-color: #2563eb; }
         )vss",
                            "button.default.vss", StyleOrigin::WidgetDefault)
             .sheet;
@@ -178,6 +180,14 @@ public:
   }
 
   virtual EventResult on_event(Event &e) {
+    if (e.type() == EventType::KeyPressed) {
+      const auto &key = static_cast<KeyPressedEvent &>(e);
+      if (key.keycode() == Keycode::Return || key.keycode() == Keycode::Space) {
+        if (on_click_) on_click_();
+        e.request_paint();
+        return EventResult::Handled;
+      }
+    }
     auto pressed = e.dispatch<MousePressedEvent>([](MousePressedEvent &event) {
       return event.button() == MouseButton::Left ? EventResult::Handled
                                                  : EventResult::Unhandled;

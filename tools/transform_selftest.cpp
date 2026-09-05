@@ -78,6 +78,10 @@ void rows(const DisplayList &list, float scale, std::vector<float> &quads,
     else if (command.kind == CommandKind::Glyphs)
       runs.push_back(run_row(command, scale));
   }
+  // A non-none transform creates a stacking context and may change paint
+  // order. These vertically separated boxes are matched by their screen row.
+  std::sort(quads.begin(), quads.end());
+  std::sort(runs.begin(), runs.end());
 }
 
 DisplayList render(WidgetTree &tree) {
@@ -195,9 +199,9 @@ int main() {
           const float y = static_cast<float>(step) * 0.1f;
           const float moved = snap_with_shift(y, t, scale);
           const float still = snap_with_shift(y, 0.0f, scale);
-          equivariant = equivariant &&
-                        std::abs((moved - still) - static_cast<float>(shift)) <
-                            1e-3f;
+          equivariant =
+              equivariant &&
+              std::abs((moved - still) - static_cast<float>(shift)) < 1e-3f;
         }
       }
     }
@@ -231,8 +235,9 @@ int main() {
     for (const std::size_t index : {std::size_t{0}, std::size_t{2}}) {
       Node *target = stack->children[index].get();
       MousePressedEvent press(
-          MouseButton::Left, {target->global_pos.x + target->size.width * 0.5f,
-                              target->global_pos.y + target->size.height * 0.5f});
+          MouseButton::Left,
+          {target->global_pos.x + target->size.width * 0.5f,
+           target->global_pos.y + target->size.height * 0.5f});
       tree.process_event(press);
       rows(render(tree), scale, held_quads, held_runs);
 
@@ -244,12 +249,14 @@ int main() {
       if (shape_held) {
         for (std::size_t i = 0; i < held_quads.size(); ++i) {
           const float delta = held_quads[i] - idle_quads[i];
-          only_whole_steps = only_whole_steps && (delta == 0.0f || delta == 1.0f);
+          only_whole_steps =
+              only_whole_steps && (delta == 0.0f || delta == 1.0f);
           moved_quad = std::max(moved_quad, delta);
         }
         for (std::size_t i = 0; i < held_runs.size(); ++i) {
           const float delta = held_runs[i] - idle_runs[i];
-          only_whole_steps = only_whole_steps && (delta == 0.0f || delta == 1.0f);
+          only_whole_steps =
+              only_whole_steps && (delta == 0.0f || delta == 1.0f);
           moved_run = std::max(moved_run, delta);
         }
       }

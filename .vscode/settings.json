@@ -1,0 +1,19 @@
+{
+    "C_Cpp.intelliSenseEngine": "disabled",
+    "clangd.arguments": [
+        "--background-index",
+        "--completion-style=detailed",
+        "--header-insertion=never"
+    ],
+    "xmake.autoGenerateCompileCommands": "disabled",
+    "xmake.compileCommandsDirectory": ".",
+    "xmake.compileCommandsBackend": "clangd",
+    "files.associations": {
+        "*.h": "cpp"
+    },
+    "files.watcherExclude": {
+        "**/.xmake/**": true,
+        "**/build/**": true,
+        "**/out/**": true
+    }
+}

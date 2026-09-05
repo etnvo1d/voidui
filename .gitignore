@@ -1,22 +1,17 @@
-# CMake build directories and generated files
+# Build directories and generated compilation database
 /build/
 /out/
-/cmake-build-*/
-CMakeCache.txt
-CMakeFiles/
-cmake_install.cmake
-install_manifest.txt
-CTestTestfile.cmake
-Testing/
-_deps/
 compile_commands.json
-build.ninja
-.ninja_deps
-.ninja_log
 
 # Visual Studio and VS Code
 .vs/
-.vscode/
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+/.xmake/
+/.cache/
 *.sln
 *.vcxproj
 *.vcxproj.filters

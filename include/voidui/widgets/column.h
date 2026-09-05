@@ -24,6 +24,7 @@ public:
   VOIDUI_STYLE_SCOPE(Column, "column")
 
   Column() = default;
+  bool is_flex_container() const override { return true; }
 
   template <WidgetClass... Children>
     requires(sizeof...(Children) > 0)
@@ -41,11 +42,10 @@ public:
                        set_style<styles::Background>(std::move(value));)
   VOIDUI_FLUENT_METHOD(padding, (Padding value),
                        set_style<styles::Padding>(value);)
-  VOIDUI_FLUENT_METHOD(
-      border, (Border value),
-      set_style<styles::BorderRadius>(value.get_radius());
-      set_style<styles::BorderWidth>(value.get_width());
-      set_style<styles::BorderColor>(value.get_brush());)
+  VOIDUI_FLUENT_METHOD(border, (Border value),
+                       set_style<styles::BorderRadius>(value.get_radius());
+                       set_style<styles::BorderWidth>(value.get_width());
+                       set_style<styles::BorderColor>(value.get_brush());)
 
   template <WidgetClass T> Column &add(T &&child) & {
     children_.push_back(transfer_widget(std::forward<T>(child)));
@@ -89,151 +89,16 @@ public:
   }
 
   Size<float> layout(Constraints constraints, LayoutContext &ctx) override {
-    const float border_width =
-        std::max(ctx.style.get<styles::BorderWidth>(), 0.0f);
-    const Spacing<float> chrome =
-        ctx.style.get<styles::Padding>() + Spacing<float>(border_width);
-    const float horizontal_chrome = chrome.left + chrome.right;
-    const float vertical_chrome = chrome.top + chrome.bottom;
-    const Size<Length> &size = ctx.style.layout_size();
-    const float available_outer_width = available_axis_(
-        size.width, constraints.min_width, constraints.max_width);
-    const float available_outer_height = available_axis_(
-        size.height, constraints.min_height, constraints.max_height);
-    const float available_width =
-        subtract_chrome_(available_outer_width, horizontal_chrome);
-    const float available_height =
-        subtract_chrome_(available_outer_height, vertical_chrome);
-    std::vector<Size<float>> child_sizes(ctx.child_count());
-    std::vector<float> flex_weights(ctx.child_count(), 0.0f);
-
-    float occupied_height = gap_total_(ctx.child_count());
-    float total_flex = 0.0f;
-    std::size_t vertical_auto_count = 0;
-    for (size_t i = 0; i < ctx.child_count(); ++i) {
-      const Spacing<MarginValue> &margin = ctx.child_margin(i);
-      vertical_auto_count += margin.top.is_auto();
-      vertical_auto_count += margin.bottom.is_auto();
-      flex_weights[i] = flex_weight_(ctx.child_layout_size(i).height);
-      if (flex_weights[i] > 0.0f) {
-        total_flex += flex_weights[i];
-        const Spacing<float> fixed_margin = resolve_fixed_margin(margin);
-        occupied_height += fixed_margin.top + fixed_margin.bottom;
-        continue;
-      }
-
-      child_sizes[i] = ctx.constrain_child(
-          i, Constraints{0.0f, available_width, 0.0f,
-                         std::numeric_limits<float>::infinity()});
-      occupied_height += child_sizes[i].height;
-    }
-
-    if (total_flex > 0.0f) {
-      const float remaining =
-          std::isfinite(available_height)
-              ? std::max(available_height - occupied_height, 0.0f)
-              : 0.0f;
-      for (size_t i = 0; i < ctx.child_count(); ++i) {
-        if (flex_weights[i] <= 0.0f)
-          continue;
-        const float height = remaining * flex_weights[i] / total_flex;
-        const Spacing<float> margin = resolve_fixed_margin(ctx.child_margin(i));
-        const float outer_height = height + margin.top + margin.bottom;
-        child_sizes[i] = ctx.constrain_child(
-            i, Constraints{0.0f, available_width, outer_height, outer_height});
-      }
-    }
-
-    Size<float> intrinsic;
-    for (size_t i = 0; i < child_sizes.size(); ++i) {
-      intrinsic.width = std::max(intrinsic.width, child_sizes[i].width);
-      if (i > 0)
-        intrinsic.height += gap_;
-      intrinsic.height += child_sizes[i].height;
-    }
-
-    intrinsic.width += horizontal_chrome;
-    intrinsic.height += vertical_chrome;
-    const Size<float> column_size = constraints.resolve(size, intrinsic);
-    const float content_width =
-        std::max(column_size.width - horizontal_chrome, 0.0f);
-    const float content_height =
-        std::max(column_size.height - vertical_chrome, 0.0f);
-    const float vertical_auto =
-        vertical_auto_count == 0
-            ? 0.0f
-            : std::max(content_height - (intrinsic.height - vertical_chrome),
-                       0.0f) /
-                  static_cast<float>(vertical_auto_count);
-
-    float y = chrome.top;
-    for (size_t i = 0; i < child_sizes.size(); ++i) {
-      const Spacing<MarginValue> &margin = ctx.child_margin(i);
-      Spacing<float> auto_margin;
-      if (margin.top.is_auto())
-        auto_margin.top = vertical_auto;
-      if (margin.bottom.is_auto())
-        auto_margin.bottom = vertical_auto;
-
-      const std::size_t horizontal_auto_count =
-          static_cast<std::size_t>(margin.left.is_auto()) +
-          static_cast<std::size_t>(margin.right.is_auto());
-      const float horizontal_auto =
-          horizontal_auto_count == 0
-              ? 0.0f
-              : std::max(content_width - child_sizes[i].width, 0.0f) /
-                    static_cast<float>(horizontal_auto_count);
-      if (margin.left.is_auto())
-        auto_margin.left = horizontal_auto;
-      if (margin.right.is_auto())
-        auto_margin.right = horizontal_auto;
-
-      ctx.place_child(i, Point<float>(chrome.left, y), auto_margin);
-      y += child_sizes[i].height + auto_margin.top + auto_margin.bottom + gap_;
-    }
-
-    return column_size;
+    return detail::layout_linear(constraints, ctx, gap_, true);
   }
 
   void draw(const DrawContext &ctx, Painter &painter) override {
-    const Radius radius = ctx.style.get<styles::BorderRadius>();
-    painter.fill_rrect(ctx.bounds, radius,
-                       Paint(ctx.style.get<styles::Background>()));
-
-    const float border_width = ctx.style.get<styles::BorderWidth>();
-    if (border_width > 0.0f) {
-      painter.stroke_rrect(ctx.bounds, radius,
-                           Paint(ctx.style.get<styles::BorderColor>()),
-                           Pen(border_width, StrokeAlign::Inside));
-    }
+    detail::draw_container_box(ctx, painter);
   }
 
   EventResult on_event(Event &) override { return EventResult::Unhandled; }
 
 private:
-  static float available_axis_(const Length &length, float min, float max) {
-    if (const auto *fixed = std::get_if<Length::Fixed>(&length.value))
-      return std::clamp(fixed->value, min, max);
-    return max;
-  }
-
-  static float subtract_chrome_(float available, float chrome) {
-    return std::isfinite(available) ? std::max(available - chrome, 0.0f)
-                                    : available;
-  }
-
-  float gap_total_(size_t child_count) const {
-    return child_count > 1 ? gap_ * static_cast<float>(child_count - 1) : 0.0f;
-  }
-
-  static float flex_weight_(const Length &length) {
-    if (std::holds_alternative<Length::Fill>(length.value))
-      return 1.0f;
-    if (const auto *flex = std::get_if<Length::Flex>(&length.value))
-      return static_cast<float>(std::max<std::uint16_t>(flex->value, 1));
-    return 0.0f;
-  }
-
   std::vector<std::unique_ptr<Widget>> children_;
   float gap_ = 0.0f;
 };

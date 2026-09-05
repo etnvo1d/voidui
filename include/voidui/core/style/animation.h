@@ -23,9 +23,20 @@ struct VisualTransform {
   float scale_x = 1.0f;
   float scale_y = 1.0f;
   float rotation = 0.0f;
+  float translate_x_percent = 0.0f;
+  float translate_y_percent = 0.0f;
+  // transform: translate(0) still creates a CSS containing/stacking block.
+  bool specified = false;
 
-  Transform matrix() const;
+  Transform matrix(Size<float> reference = {}) const;
+  bool establishes_containing_block() const {
+    return specified || translate_x != 0 || translate_y != 0 ||
+           translate_x_percent != 0 || translate_y_percent != 0 ||
+           scale_x != 1 || scale_y != 1 || rotation != 0;
+  }
 };
+
+static_assert(sizeof(VisualTransform) <= PropertyValue::kInlineSize);
 
 bool parse_style_value(std::string_view text, VisualTransform &out);
 

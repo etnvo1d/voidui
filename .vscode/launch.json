@@ -1,0 +1,47 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "VoidUI: Windows debug",
+            "type": "cppvsdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/windows/${input:arch}/debug/examples/${input:example}.exe",
+            "cwd": "${workspaceFolder}",
+            "args": [],
+            "stopAtEntry": false,
+            "console": "integratedTerminal",
+            "preLaunchTask": "xmake: build debug"
+        },
+        {
+            "name": "VoidUI: Linux / macOS debug",
+            "type": "lldb",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/${input:unixPlatform}/${input:arch}/debug/examples/${input:example}",
+            "cwd": "${workspaceFolder}",
+            "args": [],
+            "preLaunchTask": "xmake: build debug"
+        }
+    ],
+    "inputs": [
+        {
+            "id": "example",
+            "type": "promptString",
+            "description": "Example source basename (examples/<name>.cpp)",
+            "default": "counter"
+        },
+        {
+            "id": "arch",
+            "type": "pickString",
+            "description": "Architecture selected by xmake config (Windows: x64; Linux: x86_64)",
+            "options": ["x64", "x86_64", "arm64"],
+            "default": "x64"
+        },
+        {
+            "id": "unixPlatform",
+            "type": "pickString",
+            "description": "Host platform",
+            "options": ["linux", "macosx"],
+            "default": "linux"
+        }
+    ]
+}

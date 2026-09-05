@@ -6,6 +6,7 @@
 #include "voidui/core/geometry.h"
 #include "voidui/core/invalidation.h"
 #include "voidui/core/keycode.h"
+#include "voidui/core/overlay.h"
 
 namespace voidui {
 
@@ -18,9 +19,13 @@ enum class EventType {
   MouseReleased,
   MouseClicked,
   MouseMoved,
+  MouseLeft,
   MouseScrolled,
   WindowResized,
   WindowClosed,
+  WindowFocusLost,
+  FocusLost,
+  OverlayDismissed,
 };
 
 #define VOIDUI_EVENT_TYPE_NAME(type_)                                          \
@@ -66,6 +71,8 @@ public:
     invalidation_ = max_invalidation(invalidation_, Invalidation::Paint);
   }
   void request_layout() { invalidation_ = Invalidation::Layout; }
+  void request_style() { style_requested_ = true; request_paint(); }
+  bool style_requested() const { return style_requested_; }
   Invalidation invalidation() const { return invalidation_; }
 
   template <EventClass T, typename F> EventResult dispatch(F &&dispatch_fn) {
@@ -80,6 +87,22 @@ public:
 
 private:
   Invalidation invalidation_ = Invalidation::None;
+  bool style_requested_ = false;
+};
+
+/// Sent directly to the dismissed portal, after its runtime state is closed.
+class OverlayDismissedEvent : public Event {
+public:
+  explicit OverlayDismissedEvent(OverlayDismissReason reason) : reason_(reason) {}
+  OverlayDismissReason reason() const { return reason_; }
+  VOIDUI_EVENT_TYPE_NAME(OverlayDismissed)
+private:
+  OverlayDismissReason reason_;
+};
+
+class FocusLostEvent : public Event {
+public:
+  VOIDUI_EVENT_TYPE_NAME(FocusLost)
 };
 
 class KeyEvent : public Event {
@@ -203,6 +226,16 @@ class MouseMovedEvent : public MouseEvent {
 public:
   MouseMovedEvent(Point<float> pos) : MouseEvent(pos) {}
   VOIDUI_EVENT_TYPE_NAME(MouseMoved)
+};
+
+class MouseLeftEvent : public Event {
+public:
+  VOIDUI_EVENT_TYPE_NAME(MouseLeft)
+};
+
+class WindowFocusLostEvent : public Event {
+public:
+  VOIDUI_EVENT_TYPE_NAME(WindowFocusLost)
 };
 
 class MouseScrolledEvent : public MouseEvent {

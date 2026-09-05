@@ -33,6 +33,21 @@ struct Node {
   std::string part;
 };
 
+inline const Node *layout_box_of(const Node *node) {
+  while (node && node->style_node.is_transparent && !node->children.empty())
+    node = node->children[0].get();
+  return node;
+}
+
+inline void translate_subtree(Node &node, Point<float> delta) {
+  node.global_pos.x += delta.x;
+  node.global_pos.y += delta.y;
+  for (auto &child : node.children)
+    translate_subtree(*child, delta);
+  for (auto &child : node.internal_children)
+    translate_subtree(*child, delta);
+}
+
 class WidgetTree {
 public:
   WidgetTree();
@@ -115,6 +130,8 @@ public:
   bool wants_text_input() const;
   const Node *text_input_client() const;
   std::optional<TextInputArea> text_input_area() const;
+  /// During capture, the dragged widget owns the cursor even outside its
+  /// bounds. Otherwise use the current hover target's computed cursor.
   CursorShape get_current_cursor_shape() const;
 
 private:
@@ -133,12 +150,33 @@ private:
   void refresh_style_node_(Node *node);
   void discard_node_(Node *node);
   Size<float> layout_node_(Node *node, Constraints constraints);
+  void position_subtree_(Node *node, bool positioned = false);
+  Rect<float> containing_block_(const Node *node) const;
   Node *hit_test_(Node *node, Point<float> point);
-  void render_node_(Node *node, Painter &painter);
+  void draw_node_(Node *node, Painter &painter, bool foreground);
+  void update_paint_order_();
+  void render_ordered_(Painter &painter);
+  void rebuild_overlays_();
+  void layout_overlays_();
+  void update_overlays_();
+  bool dismiss_overlays_(Event &event);
+  void deactivate_overlay_(Node *node);
+  void close_overlay_(Node *node, OverlayDismissReason reason, bool notify);
+  void rebuild_overlay_stack_();
+  void sync_modal_focus_();
+  void flush_overlay_notifications_();
+  void forget_overlays_(Node *node);
+  bool belongs_to_overlay_(const Node *node, const Node *owner) const;
+  bool input_allowed_(const Node *node) const;
+  void move_focus_(bool backward);
+  void draw_range_(Painter &painter, std::size_t begin, std::size_t end);
+  Node *hit_range_(Point<float> point, std::size_t begin, std::size_t end);
   Node *bubble_event_(Node *target, Event &e);
   bool is_inside_(Node *node, Node *ancestor) const;
   Node *bubble_focusable_(Node *target);
-  void set_focus_(Node *node);
+  void set_focus_(Node *node, bool trigger_hints = true);
+  void set_hovered_(Node *node);
+  void dispatch_event_(Event &event);
   Node *selectable_text_(Node *target) const;
   void set_selection_(Node *node, std::uint32_t anchor, std::uint32_t focus);
   void clear_selection_();
@@ -159,6 +197,8 @@ private:
   Node *hovered_node_ = nullptr;
   Node *active_node_ = nullptr;
   Node *focused_node_ = nullptr;
+  // Restoring a modal's opener keeps keyboard focus without reopening its hint.
+  bool focus_triggers_hints_ = true;
   Node *selection_node_ = nullptr;
   std::uint32_t selection_anchor_ = 0;
   std::uint32_t selection_focus_ = 0;
@@ -175,6 +215,54 @@ private:
   double frame_time_ = 0.0;
   double next_wake_ = std::numeric_limits<double>::infinity();
   float device_scale_ = 1.0f;
+  Size<float> viewport_{};
+  // Sparse storage: only portal roots need activation state. No handles,
+  // secondary ownership tree or per-Node overlay payload are required.
+  struct OverlayEntry {
+    Node *node;
+    Node *owner = nullptr;
+    Node *declared_owner = nullptr;
+    Node *return_focus = nullptr;
+    std::uint64_t sequence = 0;
+    std::size_t paint_begin = 0;
+    std::size_t paint_end = 0;
+    double show_at = std::numeric_limits<double>::infinity();
+    bool requested = false;
+    bool focused = false;
+    bool visible = false;
+    bool suppressed = false;
+    bool layout_dirty = true;
+    Size<float> measure_limit{-1, -1};
+    float measure_min_width = -1;
+  };
+  std::vector<OverlayEntry> overlays_;
+  // Indices into declaration-order entries, sorted only on activation edges.
+  std::vector<std::size_t> overlay_stack_;
+  struct OverlayNotification { Node *node; OverlayDismissReason reason; };
+  std::vector<OverlayNotification> overlay_notifications_;
+  Node *top_modal_ = nullptr;
+  Node *restore_focus_ = nullptr;
+  std::uint64_t overlay_sequence_ = 0;
+  bool overlay_stack_dirty_ = false;
+  bool modal_focus_dirty_ = false;
+  std::uint8_t swallowed_releases_ = 0;
+  bool swallowed_escape_release_ = false;
+  struct PaintEntry {
+    Node *node;
+    int level = 0;
+    bool foreground;
+    bool context = false;
+    bool participant = false;
+  };
+  std::vector<PaintEntry> paint_order_;
+  struct PaintScope {
+    const Node *node;
+    bool parent_clip;
+  };
+  std::vector<PaintScope> paint_path_;
+  std::vector<PaintScope> next_paint_path_;
+  bool paint_order_dirty_ = true;
+  bool paint_structure_dirty_ = true;
 #ifndef NDEBUG
   std::thread::id owner_thread_ = std::this_thread::get_id();
 #endif

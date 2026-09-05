@@ -7,6 +7,7 @@
 // widget rely on can be checked without one -- what reaches the GPU is a
 // DisplayList, so that is what gets inspected.
 #include "voidui/core/async/executor.h"
+#include "voidui/core/component.h"
 #include "voidui/paint/display_list.h"
 #include "voidui/paint/image.h"
 #include "voidui/paint/image_cache.h"
@@ -21,6 +22,7 @@
 #include <cstdio>
 #include <cstdint>
 #include <cstring>
+#include <optional>
 #include <span>
 #include <string>
 #include <thread>
@@ -526,6 +528,114 @@ int main() {
               ImageSource::bytes(Blob::own(std::vector<std::uint8_t>{1, 2, 3}), 8)
                   .key(),
           "byte sources key on the tag their caller supplied");
+  }
+
+  // -- resizing while UI completions are deferred ------------------------------
+  {
+    async::UiExecutor executor;
+    async::detail::UiExecutorScope scope(executor);
+    ImageCodecs::global().add(std::make_shared<FakeDecoder>("resize", '~', 64));
+    const ImageSource source = ImageSource::bytes(
+        Blob::own(std::vector<std::uint8_t>{'V', '~'}), 0x726573697a65ull);
+    ImageCache &cache = ImageCache::global();
+    const std::size_t budget = cache.byte_budget();
+    cache.set_byte_budget(0);
+
+    {
+      std::optional<State<int>> revision;
+      auto view = component([&] {
+        revision = use_state(0);
+        return image(source).fit(ObjectFit::Fill).fade(0.1f);
+      });
+      WidgetTree tree(transfer_widget(std::move(view)));
+      tree.set_stylesheet(StyleParser::parse(
+          "image { width: fill; height: fill; }", "resize.vss").sheet);
+      const auto widget = [&]() -> ImageView & {
+        return static_cast<ImageView &>(*tree.root()->children[0]->widget);
+      };
+      const auto settle = [&] {
+        for (int i = 0; i < 2000 && widget().handle().loading(); ++i) {
+          executor.drain(0.0);
+          if (widget().handle().loading())
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        return widget().handle().ready();
+      };
+      const auto draw = [&](float width, float height) {
+        tree.layout({width, height});
+        DisplayList list;
+        Painter painter(list, {width, height});
+        tree.render(painter);
+        return list;
+      };
+
+      check(!only_image(draw(200, 100)),
+            "the first load has no previous image to draw");
+      check(settle(), "the initial widget image finishes loading");
+      tree.advance_animations(1.0);
+      (void)draw(200, 100);
+      tree.advance_animations(2.0);
+      std::shared_ptr<const Image> original = widget().handle().image();
+      const std::uint64_t original_id = original ? original->id() : 0;
+      std::weak_ptr<const Image> released = original;
+
+      // Match Windows' modal resize loop: layout and paint keep running, but
+      // no executor drain publishes any of the newly requested decode sizes.
+      for (const float width : {260.0f, 390.0f, 520.0f, 150.0f}) {
+        DisplayList list = draw(width, 100);
+        const DrawCommand *command = only_image(list);
+        check(widget().handle().loading(), "a new size bucket loads asynchronously");
+        check(command && command->image == original &&
+                  close(command->rect.size.width, width) &&
+                  close(command->rect.size.height, 100),
+              "each horizontal resize paints the previous image at the new size");
+        check(close(widget().intrinsic_size().width, 64) &&
+                  close(widget().intrinsic_size().height, 64),
+              "a pending resize preserves the image's intrinsic size");
+      }
+      revision->set(1);
+      {
+        DisplayList list = draw(150, 100);
+        const DrawCommand *command = only_image(list);
+        check(command && command->image == original && close(command->opacity, 1),
+              "component reconciliation preserves the fallback and completed fade");
+      }
+      tree.set_device_scale(2.0f);
+      {
+        DisplayList list = draw(150, 180);
+        const DrawCommand *command = only_image(list);
+        check(command && command->image == original,
+              "height and display-scale changes also preserve the visible image");
+      }
+      original.reset();
+      check(!released.expired(), "the fallback stays alive with cache retention disabled");
+      check(settle(), "the final resize request finishes when UI delivery resumes");
+      {
+        DisplayList list = draw(150, 180);
+        const DrawCommand *command = only_image(list);
+        check(command && command->image == widget().handle().image() &&
+                  command->image->id() != original_id && close(command->opacity, 1),
+              "the completed resize replaces the fallback without restarting the fade");
+      }
+      check(released.expired(), "the old decode is released after replacement");
+
+      (void)draw(400, 180);
+      widget().source(ImageSource::bytes(
+          Blob::own(std::vector<std::uint8_t>{'n', 'o'}), 0x6f74686572ull));
+      check(!only_image(draw(400, 180)),
+            "changing the source clears the previous source's fallback");
+      check(!settle() && widget().handle().failed(), "the replacement source fails");
+      check(!only_image(draw(400, 180)), "a failed new source cannot show stale pixels");
+
+      widget().source(source);
+      (void)draw(400, 180);
+      check(settle(), "the original source can be loaded again");
+      (void)draw(500, 180);
+      widget().source(ImageSource());
+      check(!only_image(draw(500, 180)), "clearing the source clears the fallback too");
+    }
+    cache.clear();
+    cache.set_byte_budget(budget);
   }
 
   // -- the cache ---------------------------------------------------------------

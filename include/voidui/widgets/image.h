@@ -164,6 +164,7 @@ public:
       source, (ImageSource value), if (value.key() != source_.key()) {
         source_ = std::move(value);
         handle_ = ImageHandle();
+        fallback_ = ImageHandle();
         requested_width_ = 0;
         requested_height_ = 0;
       })
@@ -230,6 +231,7 @@ public:
       return;
 
     handle_ = other.handle_;
+    fallback_ = other.fallback_;
     requested_width_ = other.requested_width_;
     requested_height_ = other.requested_height_;
     appeared_ = other.appeared_;
@@ -259,7 +261,7 @@ public:
         painter.fill_rect(ctx.bounds, Paint(placeholder_));
     }
 
-    const std::shared_ptr<const Image> image = handle_.image();
+    const std::shared_ptr<const Image> image = display_image_();
     if (!image)
       return;
 
@@ -306,12 +308,20 @@ public:
   /// The size the picture wants, in logical units. Zero until it arrives,
   /// unless a natural size was declared.
   Size<float> intrinsic_size() const {
-    if (const std::shared_ptr<const Image> image = handle_.image())
+    if (const std::shared_ptr<const Image> image = display_image_())
       return natural_size_of_(*image);
     return natural_;
   }
 
 private:
+  std::shared_ptr<const Image> display_image_() const {
+    if (auto image = handle_.image()) {
+      fallback_ = ImageHandle();
+      return image;
+    }
+    return fallback_.image();
+  }
+
   /// The picture's own size in logical units.
   ///
   /// Read off the *source* dimensions, not the decoded ones. A thumbnail is
@@ -379,6 +389,12 @@ private:
     request.max_height = height;
     request.invalidator = invalidator;
 
+    // A new decode size must not erase pixels already on screen. In particular,
+    // Windows keeps painting inside its modal resize loop while worker results
+    // wait for the normal event loop to resume. Keep one ready handle across as
+    // many size changes as happen before a replacement is ready.
+    if (handle_.ready())
+      fallback_ = handle_;
     handle_ = ImageCache::global().acquire(source_, request);
     requested_width_ = bucket_width;
     requested_height_ = bucket_height;
@@ -414,6 +430,9 @@ private:
 
   ImageSource source_;
   ImageHandle handle_;
+  // A handle keeps these visible pixels outside the cache's eviction budget.
+  // Released as soon as measurement or drawing observes a ready replacement.
+  mutable ImageHandle fallback_;
 
   ObjectFit fit_ = ObjectFit::Contain;
   ImageAlignment alignment_;

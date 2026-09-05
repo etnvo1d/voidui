@@ -90,12 +90,23 @@ float Sidebar::direction_() const {
 }
 float Sidebar::axis_(Point<float> p) const { return horizontal_() ? p.x : p.y; }
 
+bool Sidebar::elastic_(const std::optional<SidebarDragBehavior> &behavior,
+                       bool resizing) const {
+  if (drag_mode_ == SidebarDragMode::Disabled) return false;
+  if (behavior) return *behavior == SidebarDragBehavior::Elastic;
+  return drag_mode_ == SidebarDragMode::Elastic ||
+         (drag_mode_ == SidebarDragMode::ElasticOpenClose && !resizing);
+}
+
 std::unique_ptr<Widget> Sidebar::clone() const {
   auto copy = std::make_unique<Sidebar>(panel_ ? clone_widget(*panel_) : nullptr,
                                         content_ ? clone_widget(*content_) : nullptr);
   copy->placement_ = placement_;
   copy->mode_ = mode_;
   copy->drag_mode_ = drag_mode_;
+  copy->open_behavior_ = open_behavior_;
+  copy->resize_behavior_ = resize_behavior_;
+  copy->collapse_behavior_ = collapse_behavior_;
   copy->edge_visible_ = edge_visible_;
   copy->open_ = open_;
   copy->declared_open_ = declared_open_;
@@ -132,6 +143,8 @@ void Sidebar::inherit_runtime(const Widget &previous) {
   // An external state/configuration change deliberately cancels the gesture.
   if (open_ != old.open_ || extent_ != old.extent_ || placement_ != old.placement_ ||
       mode_ != old.mode_ || drag_mode_ != old.drag_mode_ ||
+      open_behavior_ != old.open_behavior_ || resize_behavior_ != old.resize_behavior_ ||
+      collapse_behavior_ != old.collapse_behavior_ ||
       min_extent_ != old.min_extent_ || max_extent_ != old.max_extent_ ||
       collapsed_extent_ != old.collapsed_extent_ || handle_size_ != old.handle_size_ ||
       drag_threshold_ != old.drag_threshold_ || collapse_threshold_ != old.collapse_threshold_)
@@ -282,7 +295,10 @@ void Sidebar::move_drag_(Point<float> point, Event &event) {
     if (open_ && direction < 0) drag_reopen_extent_ = extent_;
   }
   drag_last_pointer_ = pointer;
-  const float threshold = drag_mode_ == SidebarDragMode::Elastic ? drag_threshold_ : 0.0f;
+  const bool elastic_resize = elastic_(resize_behavior_, true);
+  const bool elastic_collapse = elastic_(collapse_behavior_);
+  const float threshold = (open_ ? elastic_resize : elastic_(open_behavior_))
+                              ? drag_threshold_ : 0.0f;
   const float limit = std::min(max_extent_, available_extent_);
   const float minimum = std::min(min_extent_, limit);
   elastic_offset_ = 0.0f;
@@ -321,7 +337,8 @@ void Sidebar::move_drag_(Point<float> point, Event &event) {
     drag_resize_extent_ += delta;
   }
 
-  if (direction < 0 && drag_resize_extent_ <= minimum - collapse_threshold_) {
+  const float collapse_distance = elastic_collapse ? collapse_threshold_ : 0.0f;
+  if (direction < 0 && drag_resize_extent_ <= minimum - collapse_distance) {
     const float closed = std::min({collapsed_extent_, min_extent_, available_extent_});
     arm_drag_(pointer, closed);
     change_(false, drag_reopen_extent_, event);
@@ -329,8 +346,13 @@ void Sidebar::move_drag_(Point<float> point, Event &event) {
   }
   const float clamped = std::clamp(drag_resize_extent_, minimum, limit);
   // Resistance remains bounded even if the captured pointer leaves the window.
-  if (drag_mode_ == SidebarDragMode::Elastic)
+  if ((drag_resize_extent_ < minimum && elastic_collapse) ||
+      (drag_resize_extent_ > limit && elastic_resize))
     elastic_offset_ = std::clamp((drag_resize_extent_ - clamped) * 0.35f, -80.0f, 80.0f);
+  // An immediate boundary must not accumulate invisible overshoot: reversing
+  // at the maximum should resize on the very next pointer sample.
+  if (drag_resize_extent_ > limit && !elastic_resize)
+    drag_resize_extent_ = limit;
   if (!dragging_) release_offset_ = elastic_offset_;
   change_(true, std::max(clamped, min_extent_), event);
 }

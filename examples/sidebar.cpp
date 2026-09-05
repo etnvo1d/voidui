@@ -14,7 +14,7 @@ int main() {
     auto open = use_state(true);
     auto extent = use_state(260.0f);
     auto edge = use_state(SidebarPlacement::Left);
-    auto elastic = use_state(true);
+    auto drag_mode = use_state(SidebarDragMode::ElasticOpenClose);
     auto overlay = use_state(false);
     auto rail = use_state(false);
     auto placement_button = [edge](const char *label, SidebarPlacement value) {
@@ -24,20 +24,28 @@ int main() {
         text("WORKSPACE").font_size(14),
         text("Team HQ").font_size(28),
         button("Overview"), button("Projects"), button("Documents"),
-        text("Drag the panel edge.\nShort pulls keep the size."),
+        text("Drag the panel edge.\nChoose when pulls feel elastic."),
         button("Close panel").on_click([open] { open.set(false); }))
         .padding(24).gap(16).background(Color(229, 241, 241));
     auto main = column(
         text("A sidebar on any edge").font_size(30),
-        text("Pull past 48 px to reveal or resize. Pull inward past the minimum to collapse."),
+        text("Open/close elasticity: pull 48 px to reveal, then resize immediately."),
         text("After opening, catch up to the new edge to widen. Reverse to shrink."),
         row(placement_button("Left", SidebarPlacement::Left),
             placement_button("Right", SidebarPlacement::Right),
             placement_button("Top", SidebarPlacement::Top),
             placement_button("Bottom", SidebarPlacement::Bottom)).gap(8),
         row(button(open.get() ? "Close" : "Open").on_click([open] { open.set(!open.get()); }),
-            button(elastic.get() ? "Drag: elastic" : "Drag: immediate")
-                .on_click([elastic] { elastic.set(!elastic.get()); })).gap(8),
+            button(drag_mode.get() == SidebarDragMode::ElasticOpenClose ? "Drag: elastic open/close"
+                   : drag_mode.get() == SidebarDragMode::Elastic ? "Drag: all elastic"
+                                                                : "Drag: immediate")
+                .on_click([drag_mode] {
+                  drag_mode.set(drag_mode.get() == SidebarDragMode::ElasticOpenClose
+                                    ? SidebarDragMode::Immediate
+                                : drag_mode.get() == SidebarDragMode::Immediate
+                                    ? SidebarDragMode::Elastic
+                                    : SidebarDragMode::ElasticOpenClose);
+                })).gap(8),
         row(button(overlay.get() ? "Layout: overlay" : "Layout: docked")
                 .on_click([overlay] { overlay.set(!overlay.get()); }),
             button(rail.get() ? "Closed: 56 px rail" : "Closed: edge only")
@@ -50,7 +58,7 @@ int main() {
         .placement(edge.get()).open(open).extent(extent)
         .limits(150, 480).collapsed_extent(rail.get() ? 56.0f : 0.0f)
         .mode(overlay.get() ? SidebarMode::Overlay : SidebarMode::Docked)
-        .drag_mode(elastic.get() ? SidebarDragMode::Elastic : SidebarDragMode::Immediate)
+        .drag_mode(drag_mode.get())
         .drag_threshold(48).collapse_threshold(40)
 #ifndef NDEBUG
         .edge_visible(true)

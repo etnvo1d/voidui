@@ -192,6 +192,123 @@ int main() {
     assert(near(view(overshot)->visible_extent(), 50));
     release(overshot, snap_point(10));
     assert(near(view(overshot)->expanded_extent(), 50));
+
+    // Opening/closing can be elastic while all ordinary resizing follows
+    // immediately, including a fresh press and reversing inside the snap gap.
+    for (bool overrides : {false, true}) {
+      auto declaration = make_view().placement(edge).open(false)
+          .drag_mode(SidebarDragMode::ElasticOpenClose);
+      if (overrides) {
+        declaration.drag_mode(SidebarDragMode::Immediate)
+            .open_behavior(SidebarDragBehavior::Elastic)
+            .resize_behavior(SidebarDragBehavior::Immediate)
+            .collapse_behavior(SidebarDragBehavior::Elastic);
+      }
+      WidgetTree hybrid(clone_widget(declaration));
+      hybrid.layout({800, 600});
+      press(hybrid, grip(hybrid));
+      const auto hybrid_sample = [&](float distance) {
+        move(hybrid, snap_point(distance));
+        hybrid.layout({800, 600});
+      };
+      hybrid_sample(39);
+      assert(!view(hybrid)->is_open() && view(hybrid)->elastic_offset() > 0);
+      hybrid_sample(40);
+      assert(view(hybrid)->is_open() && near(view(hybrid)->visible_extent(), 200));
+      hybrid_sample(150); // Catching the moved edge adds no second resistance.
+      hybrid_sample(149); // Reversing inside the gap follows immediately.
+      assert(near(view(hybrid)->visible_extent(), 199));
+      key(hybrid, Keycode::Escape);
+      hybrid.layout({800, 600});
+      assert(!view(hybrid)->is_open() && near(view(hybrid)->expanded_extent(), 200));
+      press(hybrid, grip(hybrid));
+      hybrid_sample(40);
+      hybrid_sample(200);
+      hybrid_sample(205);
+      assert(near(view(hybrid)->visible_extent(), 205));
+      assert(near(view(hybrid)->elastic_offset(), 0));
+      hybrid_sample(90);
+      assert(view(hybrid)->is_open() && near(view(hybrid)->visible_extent(), 100));
+      assert(view(hybrid)->elastic_offset() < 0);
+      hybrid_sample(70);
+      assert(!view(hybrid)->is_open() && near(view(hybrid)->expanded_extent(), 205));
+      release(hybrid, snap_point(70));
+      assert(!view(hybrid)->is_open());
+      press(hybrid, grip(hybrid));
+      release(hybrid, snap_point(40));
+      hybrid.layout({800, 600});
+      assert(view(hybrid)->is_open() && near(view(hybrid)->visible_extent(), 205));
+      const auto fresh = grip(hybrid);
+      press(hybrid, fresh);
+      release(hybrid, {fresh.x + (horizontal ? sign * 5 : 0),
+                      fresh.y + (horizontal ? 0 : sign * 5)});
+      assert(near(view(hybrid)->expanded_extent(), 210));
+    }
+
+    // Immediate means no resistance when opening, resizing, or collapsing.
+    // Overshooting the maximum must not delay the next inward movement.
+    WidgetTree direct(transfer_widget(make_view().placement(edge).open(false)
+                                         .drag_mode(SidebarDragMode::Immediate)));
+    direct.layout({800, 600});
+    press(direct, grip(direct));
+    const auto direct_sample = [&](float distance) {
+      move(direct, snap_point(distance));
+      direct.layout({800, 600});
+      assert(near(view(direct)->elastic_offset(), 0));
+    };
+    direct_sample(1);
+    assert(view(direct)->is_open() && near(view(direct)->visible_extent(), 200));
+    direct_sample(450);
+    assert(near(view(direct)->visible_extent(), 400));
+    direct_sample(449);
+    assert(near(view(direct)->visible_extent(), 399));
+    direct_sample(150);
+    assert(!view(direct)->is_open());
+    release(direct, snap_point(150));
+  }
+
+  // Every phase can override either preset independently, in any setter order.
+  for (auto preset : {SidebarDragMode::Immediate, SidebarDragMode::Elastic}) {
+    for (bool opening : {false, true}) {
+      for (bool resizing : {false, true}) {
+        for (bool collapsing : {false, true}) {
+          const auto behavior = [](bool elastic) {
+            return elastic ? SidebarDragBehavior::Elastic : SidebarDragBehavior::Immediate;
+          };
+          auto declaration = make_view().open_behavior(behavior(opening))
+              .resize_behavior(behavior(resizing)).collapse_behavior(behavior(collapsing))
+              .drag_mode(preset);
+          WidgetTree sizing(clone_widget(declaration));
+          sizing.layout({800, 600});
+          auto start = grip(sizing);
+          press(sizing, start);
+          release(sizing, {start.x + 5, start.y});
+          assert(near(view(sizing)->expanded_extent(), resizing ? 200.0f : 205.0f));
+          assert((view(sizing)->elastic_offset() > 0) == resizing);
+
+          WidgetTree closing(clone_widget(declaration));
+          closing.layout({800, 600});
+          start = grip(closing);
+          press(closing, start);
+          const float threshold = resizing ? 40.0f : 0.0f;
+          move(closing, {start.x - 110 - threshold, start.y});
+          assert(view(closing)->is_open() == collapsing);
+          assert((view(closing)->elastic_offset() < 0) == collapsing);
+          release(closing, {start.x - 130 - threshold, start.y});
+          assert(!view(closing)->is_open());
+          assert(near(view(closing)->expanded_extent(), 200));
+
+          declaration.open(false);
+          WidgetTree revealing(clone_widget(declaration));
+          revealing.layout({800, 600});
+          start = grip(revealing);
+          press(revealing, start);
+          release(revealing, {start.x + 5, start.y});
+          assert(view(revealing)->is_open() == !opening);
+          assert((view(revealing)->elastic_offset() > 0) == opening);
+        }
+      }
+    }
   }
 
   // Short gestures do not resize; the curve relaxes on the tree's clock.
@@ -253,6 +370,27 @@ int main() {
   assert(near(width->get(), 180) && view(bound_snap)->is_dragging());
   key(bound_snap, Keycode::Escape); bound_snap.layout({800, 600});
   assert(!showing->get() && near(width->get(), 200));
+
+  // Hybrid binding echoes keep immediate resizing; a phase configuration
+  // change cancels capture without allowing a stale release to change size.
+  std::optional<State<SidebarDragBehavior>> resize_behavior;
+  WidgetTree bound_hybrid(transfer_widget(component([&] {
+    showing = use_state(false); width = use_state(200.0f);
+    resize_behavior = use_state(SidebarDragBehavior::Immediate);
+    return make_view().drag_mode(SidebarDragMode::ElasticOpenClose)
+        .resize_behavior(resize_behavior->get()).open(*showing).extent(*width);
+  })));
+  bound_hybrid.layout({800, 600});
+  p = grip(bound_hybrid); press(bound_hybrid, p);
+  move(bound_hybrid, {p.x + 40, p.y}); bound_hybrid.layout({800, 600});
+  move(bound_hybrid, {p.x + 205, p.y}); bound_hybrid.layout({800, 600});
+  assert(showing->get() && near(width->get(), 205) && view(bound_hybrid)->is_dragging());
+  move(bound_hybrid, {p.x + 210, p.y}); bound_hybrid.layout({800, 600});
+  assert(near(width->get(), 210));
+  resize_behavior->set(SidebarDragBehavior::Elastic); bound_hybrid.layout({800, 600});
+  assert(!view(bound_hybrid)->is_dragging());
+  release(bound_hybrid, {p.x + 250, p.y});
+  assert(near(width->get(), 210));
 
   // Uncontrolled declarations preserve runtime across unrelated renders.
   WidgetTree local(transfer_widget(component([&] {

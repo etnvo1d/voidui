@@ -13,7 +13,8 @@ namespace voidui {
 
 enum class SidebarPlacement { Left, Right, Top, Bottom };
 enum class SidebarMode { Docked, Overlay };
-enum class SidebarDragMode { Disabled, Immediate, Elastic };
+enum class SidebarDragMode { Disabled, Immediate, Elastic, ElasticOpenClose };
+enum class SidebarDragBehavior { Immediate, Elastic };
 
 /// A panel and a main-content viewport. Nest sidebars to combine edges.
 /// Extents are logical pixels, excluding the drag handle. State bindings are
@@ -36,6 +37,10 @@ public:
   VOIDUI_FLUENT_SETTER(placement, placement_, SidebarPlacement)
   VOIDUI_FLUENT_SETTER(mode, mode_, SidebarMode)
   VOIDUI_FLUENT_SETTER(drag_mode, drag_mode_, SidebarDragMode)
+  /// Optional per-phase overrides of drag_mode's preset. Disabled still wins.
+  VOIDUI_FLUENT_SETTER(open_behavior, open_behavior_, SidebarDragBehavior)
+  VOIDUI_FLUENT_SETTER(resize_behavior, resize_behavior_, SidebarDragBehavior)
+  VOIDUI_FLUENT_SETTER(collapse_behavior, collapse_behavior_, SidebarDragBehavior)
   /// Debug aid: show both the resting edge and the elastic curve. This only
   /// affects painting; the invisible drag target remains usable by default.
   VOIDUI_FLUENT_SETTER(edge_visible, edge_visible_, bool)
@@ -95,6 +100,8 @@ private:
   bool horizontal_() const;
   float direction_() const;
   float axis_(Point<float> point) const;
+  bool elastic_(const std::optional<SidebarDragBehavior> &behavior,
+                bool resizing = false) const;
   EventResult handle_event_(Event &event);
   void arm_drag_(float pointer, float visible_extent);
   void move_drag_(Point<float> point, Event &event);
@@ -106,6 +113,7 @@ private:
   SidebarPlacement placement_ = SidebarPlacement::Left;
   SidebarMode mode_ = SidebarMode::Docked;
   SidebarDragMode drag_mode_ = SidebarDragMode::Immediate;
+  std::optional<SidebarDragBehavior> open_behavior_, resize_behavior_, collapse_behavior_;
   bool edge_visible_ = false;
   bool open_ = true, declared_open_ = true, open_explicit_ = false;
   float extent_ = 280.0f, declared_extent_ = 280.0f;

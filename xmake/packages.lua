@@ -4,7 +4,10 @@ package("voidui-sdl3")
     set_license("zlib")
     add_urls("https://github.com/libsdl-org/SDL.git")
     add_versions("3.4.14", "release-3.4.14")
-    add_configs("buildsystem", {default = "xmake-v1", type = "string", readonly = true})
+    add_configs("buildsystem", {default = "xmake-v3", type = "string", readonly = true})
+    if is_plat("linux") then
+        add_deps("pkgconfig::dbus-1")
+    end
     on_load(function (package)
         package:add("links", "SDL3-static")
         if package:is_plat("windows") then

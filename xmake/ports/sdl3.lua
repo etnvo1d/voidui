@@ -2,6 +2,9 @@ set_xmakever("3.1.1")
 add_rules("mode.debug", "mode.release")
 set_languages("c11", "c++17")
 set_allowedplats("windows", "linux", "macosx")
+if is_plat("linux") then
+    add_requires("pkgconfig::dbus-1")
+end
 
 target("SDL3-static")
     set_kind("static")
@@ -15,14 +18,14 @@ target("SDL3-static")
                          "stdlib", "storage", "storage/generic", "thread", "time", "timer",
                          "video", "video/yuv2rgb", "libm", "video/dummy", "video/offscreen",
                          "audio/dummy", "joystick/dummy", "haptic/dummy", "sensor/dummy", "camera/dummy",
-                         "dialog/dummy", "tray/dummy"}) do
+                         "tray/dummy"}) do
         add_files("src/" .. dir .. "/*.c")
     end
     if is_plat("windows") then
         add_defines("_CRT_SECURE_NO_WARNINGS")
         for _, dir in ipairs({"core/windows", "main/windows", "io/windows", "filesystem/windows",
                              "locale/windows", "misc/windows", "loadso/windows", "process/windows",
-                             "thread/windows", "time/windows", "timer/windows", "video/windows"}) do
+                             "thread/windows", "time/windows", "timer/windows", "video/windows", "dialog/windows"}) do
             add_files("src/" .. dir .. "/*.c")
         end
         add_files("src/thread/generic/SDL_syscond.c", "src/thread/generic/SDL_sysrwlock.c")
@@ -34,7 +37,7 @@ target("SDL3-static")
         end
         add_files("src/filesystem/posix/SDL_sysfsops.c")
         if is_plat("macosx") then
-            for _, dir in ipairs({"filesystem/cocoa", "locale/macos", "misc/macos", "video/cocoa"}) do
+            for _, dir in ipairs({"filesystem/cocoa", "locale/macos", "misc/macos", "video/cocoa", "dialog/cocoa"}) do
                 add_files("src/" .. dir .. "/*.m")
             end
             add_mflags("-fobjc-arc")
@@ -42,7 +45,9 @@ target("SDL3-static")
             add_syslinks("iconv")
         else
             add_files("src/core/unix/*.c", "src/core/linux/*.c", "src/filesystem/unix/SDL_sysfilesystem.c",
-                      "src/locale/unix/*.c", "src/misc/unix/*.c", "src/video/x11/*.c")
+                      "src/locale/unix/*.c", "src/misc/unix/*.c", "src/video/x11/*.c", "src/dialog/unix/*.c")
+            -- Enable XDG Desktop Portal via D-Bus; SDL falls back to Zenity.
+            add_packages("pkgconfig::dbus-1")
             add_syslinks("X11", "Xext", "pthread", "dl", "m")
         end
     end
@@ -71,7 +76,7 @@ target("SDL3-static")
         for _, subsystem in ipairs({"AUDIO", "JOYSTICK", "HAPTIC", "HIDAPI", "SENSOR", "POWER", "CAMERA", "GPU", "RENDER"}) do
             table.insert(config, "#define SDL_" .. subsystem .. "_DISABLED 1\n")
         end
-        for _, subsystem in ipairs({"JOYSTICK", "HAPTIC", "SENSOR", "DIALOG", "TRAY"}) do
+        for _, subsystem in ipairs({"JOYSTICK", "HAPTIC", "SENSOR", "TRAY"}) do
             table.insert(config, "#define SDL_" .. subsystem .. "_DUMMY 1\n")
         end
         table.insert(config, "#define SDL_STORAGE_GENERIC 1\n#define SDL_AUDIO_DRIVER_DUMMY 1\n#define SDL_CAMERA_DRIVER_DUMMY 1\n")

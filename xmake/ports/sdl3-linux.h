@@ -2,6 +2,7 @@
 #pragma once
 #include <SDL3/SDL_platform_defines.h>
 #define HAVE_LIBC 1
+#define HAVE_DBUS_DBUS_H 1
 #define HAVE_GCC_ATOMICS 1
 #define HAVE_STDARG_H 1
 #define HAVE_STDDEF_H 1

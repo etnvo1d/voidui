@@ -1267,16 +1267,36 @@ void WidgetTree::link_style_tree_(Node *node) {
   StyleNode &style_node = node->style_node;
   style_node.children.clear();
   style_node.parent = node->parent ? &node->parent->style_node : nullptr;
+  if (!node->parent) {
+    // The root is an only child of nothing, which is what CSS calls the two
+    // structural pseudo-classes it satisfies.
+    style_node.sibling_index = 1;
+    style_node.sibling_count = 1;
+  }
+
+  // A component renders one subtree and is itself invisible to selectors, so
+  // its position among its siblings is what its rendered root must count as.
+  const bool inherits_position = style_node.is_transparent;
+  const auto count = static_cast<std::uint32_t>(node->children.size());
+  std::uint32_t index = 0;
 
   // Internal children are part of the style tree -- they inherit, and
   // ::part() reaches them -- so both lists are linked. What keeps them
   // private is the boundary check in the matcher, not their absence here.
   for (auto &child : node->children) {
     style_node.children.push_back(&child->style_node);
+    child->style_node.sibling_index =
+        inherits_position ? style_node.sibling_index : ++index;
+    child->style_node.sibling_count =
+        inherits_position ? style_node.sibling_count : count;
     link_style_tree_(child.get());
   }
   for (auto &child : node->internal_children) {
     style_node.children.push_back(&child->style_node);
+    // Zero: a structural pseudo-class must not reach across the boundary that
+    // ::part() exists to cross deliberately.
+    child->style_node.sibling_index = 0;
+    child->style_node.sibling_count = 0;
     link_style_tree_(child.get());
   }
 }

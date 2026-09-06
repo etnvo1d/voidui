@@ -74,7 +74,7 @@ public:
       align, (TextAlign align), if (align_ != align) {
         align_ = align;
         layout_.reset();
-      })
+      } set_style<styles::TextAlign>(align);)
 
   /// When false the paragraph is laid out on one line (plus any explicit
   /// newlines) and overflows its box rather than wrapping.
@@ -173,6 +173,12 @@ public:
 
   EventResult on_event(Event &) override { return EventResult::Unhandled; }
 
+  std::optional<float> first_baseline() const override {
+    if (!layout_ || layout_->lines().empty())
+      return std::nullopt;
+    return layout_->lines().front().baseline;
+  }
+
   bool supports_text_selection() const override { return true; }
 
   std::uint32_t selection_hit_test(Point<float> point,
@@ -231,6 +237,10 @@ private:
   /// resolve to one stack on a machine without Inter and to two on a machine
   /// with it.
   void adopt_font_(const ComputedStyle &style) {
+    if (align_ != style.get<styles::TextAlign>()) {
+      align_ = style.get<styles::TextAlign>();
+      layout_.reset();
+    }
     const float size = style.get<styles::FontSize>();
     const float line_height = style.get<styles::LineHeight>();
     const FontWeight weight = style.get<styles::FontWeight>();

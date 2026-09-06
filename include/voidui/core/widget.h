@@ -205,6 +205,14 @@ public:
     return false;
   }
 
+  /// Distance from the top of this widget's border box to the baseline of its
+  /// first line of text, when it has one.
+  ///
+  /// Only `vertical-align: baseline` inside a table row asks for this today,
+  /// and only text can answer it, so the default is "no baseline" and a
+  /// container that wants to forward its first child's answer overrides it.
+  virtual std::optional<float> first_baseline() const { return std::nullopt; }
+
   /// Cold-path hooks for read-only text selection. They reuse Widget's vtable
   /// instead of adding an interface pointer to every Text object.
   virtual bool supports_text_selection() const { return false; }

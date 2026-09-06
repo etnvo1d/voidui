@@ -256,6 +256,90 @@ private:
 
   // -- Selectors ------------------------------------------------------------
 
+  /// Reads the `An+B` argument of `:nth-child()` and friends, including the
+  /// `odd` and `even` keywords. The syntax is small but has more shapes than
+  /// it looks: `3`, `n`, `-n+3`, `2n + 1` and `even` all have to land on the
+  /// same two integers.
+  bool parse_nth_argument(NthTest &out) {
+    if (!consume('(')) {
+      error("expected '(' after ':nth-child'");
+      return false;
+    }
+    skip_trivia();
+    const auto fail = [&] {
+      error("expected an An+B expression, 'odd' or 'even'");
+      return false;
+    };
+    if (is_ident_start(peek())) {
+      const std::string_view keyword = read_identifier();
+      if (keyword == "odd") {
+        out.a = 2;
+        out.b = 1;
+      } else if (keyword == "even") {
+        out.a = 2;
+        out.b = 0;
+      } else if (keyword == "n") {
+        // A bare `n`, with the coefficient left implicit.
+        out.a = 1;
+        out.b = 0;
+        if (!parse_nth_offset(out))
+          return false;
+      } else {
+        return fail();
+      }
+      skip_trivia();
+      return consume(')') ? true : fail();
+    }
+
+    // A sign may stand apart from its digits: `- n + 3` is not legal CSS, but
+    // `-n+3` and `+3` both are, and the sign is read before the number either
+    // way.
+    int sign = 1;
+    if (peek() == '+' || peek() == '-')
+      sign = advance() == '-' ? -1 : 1;
+    std::int32_t value = 0;
+    bool has_digits = false;
+    while (!at_end() && peek() >= '0' && peek() <= '9') {
+      value = value * 10 + (advance() - '0');
+      has_digits = true;
+    }
+    if (peek() == 'n' || peek() == 'N') {
+      ++position_;
+      out.a = sign * (has_digits ? value : 1);
+      out.b = 0;
+      if (!parse_nth_offset(out))
+        return false;
+    } else if (has_digits) {
+      out.a = 0;
+      out.b = sign * value;
+    } else {
+      return fail();
+    }
+    skip_trivia();
+    return consume(')') ? true : fail();
+  }
+
+  /// The optional `+ B` or `- B` that follows the `n` term.
+  bool parse_nth_offset(NthTest &out) {
+    skip_trivia();
+    if (peek() != '+' && peek() != '-')
+      return true;
+    const int sign = advance() == '-' ? -1 : 1;
+    skip_trivia();
+    std::int32_t value = 0;
+    bool has_digits = false;
+    while (!at_end() && peek() >= '0' && peek() <= '9') {
+      value = value * 10 + (advance() - '0');
+      has_digits = true;
+    }
+    if (!has_digits) {
+      error("expected a number after the sign in an An+B expression");
+      return false;
+    }
+    out.b = sign * value;
+    return true;
+  }
+
   /// Returns false when the compound named something unknown; the caller then
   /// drops the whole rule but keeps reading the file.
   bool parse_compound(CompoundSelector &compound, bool &saw_anything) {
@@ -326,7 +410,18 @@ private:
         else if (pseudo == "checked") status |= StatusBits::kChecked;
         else if (pseudo == "disabled") status |= StatusBits::kDisabled;
         else if (pseudo == "enabled") status |= StatusBits::kEnabled;
-        else {
+        else if (pseudo == "first-child") compound.nth.push_back({0, 1, false});
+        else if (pseudo == "last-child") compound.nth.push_back({0, 1, true});
+        else if (pseudo == "only-child") {
+          compound.nth.push_back({0, 1, false});
+          compound.nth.push_back({0, 1, true});
+        } else if (pseudo == "nth-child" || pseudo == "nth-last-child") {
+          NthTest test;
+          test.from_end = pseudo == "nth-last-child";
+          if (!parse_nth_argument(test))
+            return false;
+          compound.nth.push_back(test);
+        } else {
           error("unknown pseudo-class ':" + std::string(pseudo) + "'");
           return false;
         }

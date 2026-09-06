@@ -1,6 +1,6 @@
-# 文本选择
+# Text Selection
 
-只读文本在同一个 WidgetTree 文档范围内连续选择，不受单个 `text()` 或嵌套容器边界限制。例如：
+Read-only text can be selected continuously across the document scope of a single `WidgetTree`, without being limited by individual `text()` widgets or nested container boundaries. For example:
 
 ```cpp
 voidui::column(
@@ -9,17 +9,17 @@ voidui::column(
 )
 ```
 
-从第一段拖到第二段会同时高亮两段；起点和终点可以落在各自文本的中间。反向拖拽、拖动中改变方向、经过元素间空白以及移出文本边界也会更新同一选区。双击选词后可继续按词跨元素拖拽。
+Dragging from the first paragraph to the second highlights both. The start and end points may fall in the middle of either text run. Reverse dragging, changing direction during a drag, crossing whitespace between elements, and moving beyond text bounds all update the same selection. After double-clicking to select a word, you can continue dragging by word across elements.
 
-拖过按钮等不可选择元素或容器留白时，会在鼠标所在的最近内容容器内寻找文本端点，避免因为旁边栏目的文字高度接近而跳到另一栏。直接拖到另一容器的可选择文本上，仍可扩展选区。
+When dragging across non-selectable elements such as buttons or across container whitespace, the framework looks for a text endpoint in the nearest content container under the pointer. This prevents selection from jumping to an adjacent column merely because its text is at a similar vertical position. Dragging directly onto selectable text in another container still extends the selection.
 
-拖拽至滚动区域边缘会自动滚动，鼠标停住后仍会持续滚动并扩展选区，越过边缘越远速度越快。纵向和横向均支持；嵌套滚动区优先滚动内层，内层到达尽头且鼠标也处于外层边缘时由外层接续。输入框和 textarea 只滚动各自的编辑内容。
+Dragging near the edge of a scrollable region starts automatic scrolling. Scrolling and selection continue even while the pointer remains still, and the speed increases with the distance beyond the edge. Both vertical and horizontal scrolling are supported. Nested scrollable regions give priority to the inner region; once it reaches its limit, the outer region takes over if the pointer is also near the outer edge. Inputs and textareas scroll only their own editable content.
 
-移回区域中间、松开鼠标、按 Escape、窗口失去焦点或选区被清理时停止自动滚动；到达滚动尽头后也不再持续唤醒窗口。只按住文字而未拖动不会启动滚动。
+Automatic scrolling stops when the pointer returns to the middle of the region, the mouse button is released, Escape is pressed, the window loses focus, or the selection is cleared. The window also stops receiving continuous wake-ups after the scroll limit is reached. Pressing text without dragging does not start scrolling.
 
-Ctrl+A（或 Command+A）选择当前文档的全部可选择文本，无需先创建选区。Ctrl+C、Command+C 和 Copy 键复制同一范围；Escape 清除选区。复制按组件声明顺序拼接，纵向分开的文本之间补一个换行，同一行的文本直接拼接，原有换行保留。`WidgetTree::selected_text()` 可读取同样的 UTF-8 文本。
+Ctrl+A (or Command+A) selects all selectable text in the current document without requiring an existing selection. Ctrl+C, Command+C, and the Copy key copy the same range; Escape clears the selection. Copied text is concatenated in component declaration order. A newline is inserted between vertically separated text runs, text on the same line is joined directly, and existing newlines are preserved. `WidgetTree::selected_text()` returns the same UTF-8 text.
 
-VSS 的 `user-select` 控制参与选择的内容：
+The VSS `user-select` property controls which content participates in selection:
 
 ```css
 .no-select { user-select: none; }
@@ -27,14 +27,14 @@ VSS 的 `user-select` 控制参与选择的内容：
 .atomic { user-select: all; }
 ```
 
-- `none` 的文本不会高亮或复制，但不阻断跨过它的选区；子元素可显式设置 `text` 恢复选择。
-- `all` 将容器内可选择的文本作为整体。点击其中一个文本或从外部拖入，都会包含整个组；也可以继续拖到组外。
-- 隐藏内容和默认不可选择的按钮标签不参与文档选区。
-- `input` / `textarea` 保留独立编辑选区，拖出输入框不会选到外部文档，Ctrl+A 也只作用于该输入框。
-- 每个浮层拥有独立的选择范围，不与底层页面拼接。浮层关闭、选区端点移除或变为不可选择时会清理选区。
+- Text with `none` is neither highlighted nor copied, but it does not block a selection that crosses it. Descendants can explicitly set `text` to restore selection.
+- `all` treats all selectable text in the container as a unit. Clicking one of its text runs or dragging into it from outside includes the entire group; the selection can still continue beyond the group.
+- Hidden content and button labels that are non-selectable by default do not participate in document selection.
+- `input` and `textarea` retain independent editing selections. Dragging out of an input does not select the surrounding document, and Ctrl+A applies only to that input.
+- Each overlay has an independent selection scope and is not joined to the underlying page. The selection is cleared when the overlay closes, a selection endpoint is removed, or an endpoint becomes non-selectable.
 
-这些行为参考 [CSS UI 的 user-select 规则](https://www.w3.org/TR/css-ui-4/#content-selection)。VoidUI 没有 HTML 的完整排版和 DOM Range 模型：复制时的元素间换行根据布局行判断，目前也未实现 Shift+点击扩展选区。
+These behaviors follow the [CSS UI `user-select` rules](https://www.w3.org/TR/css-ui-4/#content-selection). VoidUI does not implement the complete HTML layout or DOM Range model: newlines between elements are inferred from layout rows when copying, and Shift+click selection extension is not currently implemented.
 
-选择复用已经生成的文本布局，不会因拖拽重新塑形文本。运行 `xmake run voidui_selection_selftest` 可验证跨节点高亮、复制文本、UTF-8、嵌套变换、选择策略和输入框/浮层边界。
+Selection reuses the generated text layout, so dragging does not reshape text. Run `xmake run voidui_selection_selftest` to verify cross-node highlighting, copied text, UTF-8 handling, nested transforms, selection policies, and input/overlay boundaries.
 
-运行 `xmake run voidui_selection_autoscroll_selftest` 可验证自动滚动、静止指针选区更新、嵌套接续和停止条件。测试推进窗口时钟，不依赖实际等待或鼠标操作。
+Run `xmake run voidui_selection_autoscroll_selftest` to verify automatic scrolling, selection updates with a stationary pointer, handoff between nested scroll regions, and stopping conditions. The test advances the window clock and does not depend on real waiting or mouse input.

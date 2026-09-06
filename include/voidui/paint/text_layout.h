@@ -9,12 +9,6 @@
 
 namespace voidui {
 
-enum class TextAlign : std::uint8_t {
-  Left,
-  Center,
-  Right,
-};
-
 /// A shaped and wrapped paragraph.
 ///
 /// Building one is the most expensive thing this renderer does: shaping crosses

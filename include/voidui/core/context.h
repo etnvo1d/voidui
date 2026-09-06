@@ -101,6 +101,10 @@ public:
     return node->style_node.computed->layout_size();
   }
 
+  /// Composite layouts (such as tables) coordinate tracks with their direct
+  /// children. Indices use the same in-flow view as constrain_child().
+  Node &child_node(size_t index) const { return *child_at_(index); }
+
   /// Margin belongs to the rendered root of a transparent component, just as
   /// width and height do. Containers use this only when distributing flex
   /// space; ordinary measurement already returns the complete margin box.
@@ -110,6 +114,33 @@ public:
 
   Size<float> constrain_child(size_t index, Constraints constraints) {
     return layout_fn_(child_at_(index), constraints);
+  }
+
+  /// Measures a node reached through child_node(), rather than one of this
+  /// container's own children.
+  ///
+  /// A table is one layout, not three nested ones: column widths cannot be
+  /// decided by a row, and row heights cannot be decided by a cell, so the
+  /// table measures and places the whole grid itself and its sections, rows
+  /// and cells are given the geometry it worked out. This is the door that
+  /// makes that possible, and it is the reason it is spelled differently from
+  /// constrain_child -- a container that only stacks its children never needs
+  /// it.
+  Size<float> constrain_node(Node &node, Constraints constraints) {
+    return layout_fn_(&node, constraints);
+  }
+
+  /// Places a node reached through child_node(), in this container's local
+  /// coordinates.
+  ///
+  /// Unlike place_child this adds no margin: the nodes a composite layout
+  /// places itself sit where its own algorithm put them, and CSS gives a table
+  /// part no margin of its own to begin with.
+  void place_node(Node &node, Point<float> local_pos) {
+    const Point<float> target{local_pos.x + global_pos_.x,
+                              local_pos.y + global_pos_.y};
+    translate_subtree(node, {target.x - node.global_pos.x,
+                             target.y - node.global_pos.y});
   }
 
   template <typename Fn> std::vector<Size<float>> constrain_children(Fn &&fn) {

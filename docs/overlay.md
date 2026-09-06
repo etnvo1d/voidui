@@ -1,6 +1,6 @@
-# Overlay、Modal 与 Tooltip
+# Overlays, Modals, and Tooltips
 
-## 普通用户
+## Application Developers
 
 ```cpp
 #include "voidui/core/component.h"
@@ -14,70 +14,57 @@ using namespace voidui;
 auto view = component([] {
   auto showing = use_state(false);
   return column(
-      button("打开").on_click([showing] { showing.set(true); }),
+      button("Open").on_click([showing] { showing.set(true); }),
       modal(column(
-          tooltip(button("帮助"), "提示属于当前弹窗"),
-          button("关闭").on_click([showing] { showing.set(false); })))
+          tooltip(button("Help"), "This tooltip belongs to the current dialog"),
+          button("Close").on_click([showing] { showing.set(false); })))
           .open(showing)
           .width(420)
           .close_on_outside_press(true));
 });
 ```
 
-`Modal` 默认关闭、居中、有遮罩，按 Escape 关闭，默认点击遮罩只阻断输入。
-`.open(State<bool>)` 同时绑定显示值和关闭回调：Escape、点击外部或父浮层
-关闭时，自动将状态设为 false。状态控制的关闭按钮直接调用 `set(false)`。
-也可在打开时才声明 Modal，移除声明会自动完成焦点恢复和浮层清理。
+A `Modal` is closed and centered by default, has a backdrop, and closes on Escape. By default, clicking the backdrop only blocks input. `.open(State<bool>)` binds both the visible value and the close callback: when Escape, an outside click, or a parent overlay closes the modal, the state is automatically set to false. A state-controlled close button can call `set(false)` directly. A Modal may also be declared only while it is open; removing the declaration automatically restores focus and cleans up the overlay.
 
-Modal 内可继续声明 Modal、Overlay 和 Tooltip，不需要配置 z-index。
-`examples/modal.cpp` 的每个弹窗都能继续打开下一层，没有固定层数。
+Modals, Overlays, and Tooltips can be declared inside a Modal without configuring a z-index. Every dialog in `examples/modal.cpp` can open another layer, with no fixed nesting limit.
 
-Tooltip 用法：
+Tooltip usage:
 
 ```cpp
-tooltip(button("保存"), "保存当前文档")
+tooltip(button("Save"), "Save the current document")
     .placement(OverlayPlacement::Top)
     .delay(std::chrono::milliseconds{500})
     .max_width(240);
 ```
 
-默认悬停 500 ms 显示，触发控件获得焦点时立即显示。气泡不接收鼠标输入；
-离开触发区域、窗口失焦、滚动、鼠标按下和 Escape 都可以关闭。
-焦点仍在触发控件内时，离开鼠标可以继续显示。被主动关闭后须退出当前
-触发状态再进入；一次新的焦点激活也能显示。空字符串不创建气泡。
-Modal 关闭后的自动焦点恢复不会触发气泡。此时重新悬停仍按延迟显示，
-移开鼠标即隐藏；通过 Tab 再次聚焦则恢复正常的焦点提示行为。
+By default, a tooltip appears after a 500 ms hover delay and immediately when its trigger receives focus. The bubble does not accept pointer input. Leaving the trigger area, losing window focus, scrolling, pressing the mouse, or pressing Escape closes it. If focus remains within the trigger, the tooltip can stay visible after the pointer leaves. After an explicit dismissal, the current trigger state must end and begin again before it can reopen; a new focus activation can also show it. An empty string does not create a bubble.
+
+Automatic focus restoration after a Modal closes does not trigger a tooltip. Hovering again still uses the delay, and moving the pointer away hides it. Focusing it again with Tab restores normal focus-tooltip behavior.
 
 ```css
 modal { padding: 24px; border-radius: 12px; background: white; }
 tooltip::part(bubble) { background: #1d4ed8; color: white; }
 ```
 
-Modal 遮罩可用 `.backdrop(Color(0, 0, 0, 96))` 配置。
+Configure the Modal backdrop with `.backdrop(Color(0, 0, 0, 96))`.
 
-## 组件作者
+## Component Authors
 
-`Overlay` 是同一机制的非模态入口，默认打开、可交互、以最近的非透明父
-节点为锚点。放在按钮旁边或通过 `take_internal_child` 注册即可；普通
-父布局会自动排除 Overlay。函数组件可直接返回 Overlay。
+`Overlay` is the non-modal entry point to the same mechanism. It is open and interactive by default and anchors to the nearest non-transparent parent node. Place it next to a button or register it through `take_internal_child`; ordinary parent layouts automatically exclude the Overlay. A function component may return an Overlay directly.
 
 ```cpp
 auto anchor = column(
-    button("菜单"),
-    overlay(column(button("第一项"), button("第二项")))
+    button("Menu"),
+    overlay(column(button("First item"), button("Second item")))
         .open(menu_state)
         .placement(OverlayPlacement::Bottom)
         .close_on_escape(true)
         .close_on_outside_press(true));
 ```
 
-独立 Widget 可覆盖 `overlay_options()` 返回自己的 `OverlayOptions`，
-不必继承 Overlay。树会直接向浮层根发送 `OverlayDismissedEvent`，原因
-包括 `Escape`、`OutsidePress`、`Press`、`Scroll`、`OwnerClosed` 和
-`ModalOpened` 和 `WindowFocusLost`。这是通知，不是可取消的关闭请求。需要强制用户处理的
-Modal 可关闭 Escape 与点击外部策略，再通过应用按钮控制状态。
+A standalone Widget can override `overlay_options()` to return its own `OverlayOptions`; it does not need to inherit from Overlay. The tree sends an `OverlayDismissedEvent` directly to the overlay root for reasons including `Escape`, `OutsidePress`, `Press`, `Scroll`, `OwnerClosed`, `ModalOpened`, and `WindowFocusLost`. This is a notification, not a cancellable close request. A Modal that requires explicit user action can disable the Escape and outside-click policies, then control its state through application buttons.
 
-使用 Overlay / Modal 时也可以手动绑定：
+Overlay and Modal can also be bound manually:
 
 ```cpp
 modal(content)
@@ -87,74 +74,37 @@ modal(content)
     });
 ```
 
-`.on_close(...)` 替换已有回调，包括 `.open(State<bool>)` 安装的回调；
-同时使用时请在自定义回调中同步状态。程序主动设为 false 不重复通知本层，
-但会向其附属浮层发送 `OwnerClosed`，使子组件状态同步。
-回调在树完成关闭后分发，允许通过 State 更新组件。移除组件不会调用
-已被销毁的组件回调，也不会保留失效的焦点或浮层指针。
+`.on_close(...)` replaces the existing callback, including one installed by `.open(State<bool>)`. When using both, synchronize the state in the custom callback. Programmatically setting the state to false does not notify that layer again, but it sends `OwnerClosed` to attached overlays so child component state stays synchronized. Callbacks are dispatched after the tree completes the close, allowing components to update through State. Removing a component does not invoke callbacks on destroyed components or retain invalid focus and overlay pointers.
 
-未绑定状态的 `.open(true)` 被策略关闭后保持关闭；重新打开需让框架先
-观察到 false，再观察到 true。直接修改已挂载 Widget 的参数后调用树的
-`request_layout()`。推荐使用 State 声明式更新。
+An unbound `.open(true)` remains closed after a policy dismisses it. To reopen it, the framework must observe false and then true. After directly changing parameters on a mounted Widget, call the tree's `request_layout()`. Declarative updates through State are recommended.
 
-## 顺序、归属与模态范围
+## Order, Ownership, and Modal Scope
 
-三者分开管理：组件树负责所有权与样式；活动浮层栈负责绘制顺序；最上面
-的 Modal 限定允许交互的范围。
+Three concerns are managed separately: the component tree owns widgets and styles, the active overlay stack determines paint order, and the topmost Modal limits the interactive scope.
 
-- 普通内容先画，活动浮层按**打开顺序**绘制。重新打开排到顶部；一次更新
-  同时打开多层时按声明遍历顺序入栈。组件重建、key 重排和样式重算不会
-  改变已经打开的顺序。普通内容的 z-index 不能跨越浮层边界。
-- 每个 Modal 的遮罩紧贴在该 Modal 下面绘制，覆盖先前层级。嵌套弹窗关闭
-  后可见前一层，而不是共享一块永远位于所有弹窗下方的遮罩。
-- 声明在浮层中的内容自动归属它。没有声明父浮层的 Modal 若在另一 Modal
-  激活期间打开，会归属当时的 Modal；因此兄弟声明也能正确逐层关闭。
-  普通 Tooltip、菜单应声明在所属 Modal 内，不能从背景范围抢到前台。
-- 新 Modal 打开时关闭不属于它的临时浮层，也取消尚未到期的背景 Tooltip。
-  若 Modal 本来就在某个菜单中，该菜单作为所有者保留在其下方。
-- 点击和滚轮不能穿透最上面 Modal 的遮罩，键盘事件不能冒泡到范围外。
-  可交互的附属 Overlay 仍可接收输入；非交互气泡整棵子树被排除。
-- Escape 只处理最上面可关闭浮层，遇到不允许 Escape 的 Modal 即停止。
-  点击外部关闭一次至多关闭一个交互浮层，并吞掉该次按下及配对释放，
-  防止刚露出的背景控件被同一次操作触发。
-- Modal 打开时聚焦第一个可聚焦控件；Tab / Shift+Tab 在当前范围内循环。
-  没有可聚焦子控件时仍保持模态输入边界。Button 支持 Enter / Space 激活。
-  关闭 Modal 恢复打开前的焦点；目标已移除或不可交互则回退到当前 Modal。
-- 关闭所有者会一起关闭附属浮层，释放其悬停、文本选择、焦点和鼠标捕获。
-  移除任意层级同样清理运行状态和待发送通知。
+- Ordinary content is painted first, followed by active overlays in **open order**. Reopening an overlay moves it to the top. If one update opens several layers, they are pushed in declaration traversal order. Component rebuilds, key reordering, and style recalculation do not change the established open order. A z-index on ordinary content cannot cross the overlay boundary.
+- Each Modal's backdrop is painted immediately beneath that Modal, covering earlier layers. Closing a nested dialog reveals the preceding layer instead of sharing a single backdrop that always sits below every dialog.
+- Content declared inside an overlay automatically belongs to it. If a Modal with no declared overlay parent opens while another Modal is active, it belongs to the active Modal; sibling declarations therefore still close one layer at a time correctly. Ordinary Tooltips and menus should be declared inside their owning Modal and cannot move in front from a background scope.
+- Opening a new Modal closes temporary overlays that do not belong to it and cancels pending background Tooltips. If the Modal was already inside a menu, that menu remains as its owner beneath it.
+- Clicks and wheel input cannot pass through the topmost Modal backdrop, and keyboard events cannot bubble outside its scope. Interactive attached Overlays can still receive input; the entire subtree of a non-interactive bubble is excluded.
+- Escape handles only the topmost dismissible overlay and stops at a Modal that disallows Escape. An outside click closes at most one interactive overlay and consumes both the press and its paired release, preventing the newly exposed background control from being activated by the same action.
+- When a Modal opens, it focuses the first focusable control. Tab and Shift+Tab cycle within the current scope. The modal input boundary remains even if there are no focusable descendants. Button supports activation with Enter and Space. Closing a Modal restores the focus held before it opened; if that target was removed or is no longer interactive, focus falls back to the current Modal.
+- Closing an owner also closes its attached overlays and releases their hover, text selection, focus, and mouse capture. Removing any layer likewise clears runtime state and pending notifications.
 
-## 定位与裁剪
+## Positioning and Clipping
 
-浮层保留原来的样式继承、part 和组件生命周期，在窗口逻辑坐标中绘制，
-不继承外部裁剪、变换与合成透明度。自己的样式变换和透明度仍有效。
-锚点定位考虑祖先变换，随布局、窗口尺寸和绘制变换更新。
+Overlays retain their original style inheritance, parts, and component lifecycle. They paint in window logical coordinates without inheriting outer clipping, transforms, or composited opacity. Their own style transforms and opacity still apply. Anchor positioning accounts for ancestor transforms and updates with layout, window size, and paint transforms.
 
-锚点型 Overlay 优先使用指定方向，相反方向越界更少时翻转，再限制在
-窗口内。Modal 和 `Center` 定位使用窗口矩形，不因触发按钮滚出视口而
-消失。普通锚点型浮层在锚点完全不可见时关闭。旋转裁剪的可见性判断使用
-包围矩形。
+An anchored Overlay prefers the requested direction, flips when the opposite direction would overflow less, and is then constrained to the window. Modal and `Center` placement use the window rectangle and do not disappear when a trigger button scrolls out of view. An ordinary anchored overlay closes when its anchor becomes completely invisible. Visibility checks for rotated clips use their bounding rectangles.
 
-浮层内容裁剪在自己的边界内，嵌套浮层再次脱离裁剪。长菜单或长对话框
-请在内容中使用 Scrollable；窗口约束限制测量尺寸，不自动创建滚动条。
-菜单高度目前不会自动按锚点某一侧的剩余空间分配。
+Overlay content is clipped to its own bounds; nested overlays escape that clip again. Use Scrollable inside long menus or dialogs. Window constraints limit the measured size but do not create scrollbars automatically. Menu height is not currently allocated automatically from the remaining space on either side of the anchor.
 
-## 性能与验证
+## Performance and Verification
 
-没有额外原生窗口、离屏纹理或第二棵所有权树，仍输出一份 DisplayList。
-普通 Widget、Node 和 PaintEntry 不增加浮层实例字段。只有浮层节点有稀疏
-运行状态，活动栈存数组索引；入栈、出栈和结构变化时才重新排序活动索引。
-绘制与命中测试复用各浮层的缓存绘制区间，开关浮层不重建整份绘制顺序。
+The implementation creates no extra native windows, offscreen textures, or second ownership tree, and still produces a single DisplayList. Ordinary Widget, Node, and PaintEntry objects gain no per-overlay instance fields. Only overlay nodes have sparse runtime state, while the active stack stores array indices. Active indices are resorted only on push, pop, or structural changes. Painting and hit testing reuse each overlay's cached paint range, so toggling an overlay does not rebuild the complete paint order.
 
-未触发或被抑制的浮层跳过几何计算，隐藏内容首次打开前不测量。稳定显示
-复用布局，定位变化才平移内容。延迟复用单次唤醒机制，等待或稳定显示不
-请求连续帧；提前取消可能留下至多一次旧计时唤醒。默认参数无需组件作者
-管理计时器、层号或焦点恢复句柄。
+Untriggered or suppressed overlays skip geometry computation, and hidden content is not measured before it first opens. Stable visible overlays reuse layout and translate their content only when placement changes. Delays reuse a one-shot wake-up mechanism; waiting or stable visibility does not request continuous frames. Early cancellation may leave at most one stale timer wake-up. With the defaults, component authors do not need to manage timers, layer numbers, or focus-restoration handles.
 
-`overlay_selftest` 验证裁剪、变换、命中、定位、延迟与生命周期。
-`modal_selftest` 验证打开顺序、嵌套输入范围、焦点循环与恢复、状态绑定、
-遮罩点击、背景提示取消、兄弟声明、key 重排和移除后的引用清理。
+`overlay_selftest` verifies clipping, transforms, hit testing, placement, delays, and lifecycle. `modal_selftest` verifies open order, nested input scope, focus cycling and restoration, state binding, backdrop clicks, cancellation of background tooltips, sibling declarations, key reordering, and reference cleanup after removal.
 
-另有 "overlay_allocation_selftest"：32 层 Modal 同时打开，预热后复用 Painter
-和 DisplayList 生成 100 帧，验证 C++ operator new 分配次数为 0、稳定状态
-不请求重绘，并验证逐层关闭后无遗留绘制命令。该测试不涵盖 GPU 驱动内部
-分配或首次布局与打开时的分配。
+`overlay_allocation_selftest` opens 32 Modal layers simultaneously, warms up, then reuses Painter and DisplayList to generate 100 frames. It verifies zero C++ `operator new` allocations, no repaint requests in the stable state, and no leftover paint commands after closing every layer. The test does not cover allocations inside GPU drivers or allocations during initial layout and opening.

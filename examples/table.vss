@@ -1,0 +1,78 @@
+.page { background: #f5f7fb; color: #263244; }
+
+/* -- The releases table: collapsed borders, striped rows, sticky-looking head */
+
+.releases {
+  border-collapse: collapse;
+  border-width: 1px;
+  border-color: #d8e0eb;
+  border-radius: 12px;
+  background: white;
+  font-size: 14px;
+}
+.releases th, .releases td { padding: 10px 14px; border-width: 1px; border-color: #e7ecf3; }
+.releases thead th {
+  background: #f1f5f9;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: left;
+  border-color: #d8e0eb;
+}
+.releases tbody tr:nth-child(even) { background: #fafbfd; }
+.releases tbody tr:hover          { background: #eff6ff; }
+.releases tbody tr:last-child td  { border-color: #d8e0eb; }
+.releases tfoot td {
+  background: #f8fafc;
+  color: #64748b;
+  font-weight: 600;
+  border-color: #d8e0eb;
+}
+.releases .name     { font-weight: 600; }
+.releases .numeric  { text-align: right; }
+.releases .status text { font-size: 12px; }
+
+/* A class on the row reaches the cell that carries the label. */
+.releases tr.shipped  .status text { color: #15803d; }
+.releases tr.blocked  .status text { color: #b91c1c; }
+.releases tr.progress .status text { color: #b45309; }
+.releases tr.review   .status text { color: #1d4ed8; }
+
+/* -- The plan matrix: separate borders, spacing, a caption below ----------- */
+
+.plans {
+  background: white;
+  border-radius: 12px;
+  padding: 10px;
+  border-width: 1px;
+  border-color: #e2e8f0;
+  font-size: 14px;
+  empty-cells: hide;
+}
+.plans th, .plans td {
+  padding: 8px 12px;
+  background: #f8fafc;
+  border-radius: 8px;
+  vertical-align: middle;
+}
+.plans thead th { background: #eef2ff; color: #3730a3; text-align: center; }
+.plans tbody th { text-align: left; color: #475569; background: #f1f5f9; }
+.plans td       { text-align: center; }
+.plans .merged  { background: #eff6ff; color: #1d4ed8; }
+.plans .tall    { vertical-align: top; }
+.plans caption  { color: #64748b; font-size: 12px; padding: 8px 0px; }
+
+/* -- The reference table: fixed layout, two even columns ------------------- */
+
+.reference {
+  background: white;
+  border-radius: 12px;
+  border-width: 1px;
+  border-color: #e2e8f0;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+.reference th, .reference td { padding: 8px 12px; border-width: 1px; border-color: #eef2f7; }
+.reference thead th { background: #f8fafc; text-align: left; color: #475569; }
+.reference tbody td:first-child { color: #0f766e; font-weight: 600; }
+.reference tbody tr:nth-child(odd) { background: #fcfdfe; }

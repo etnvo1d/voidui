@@ -10,6 +10,18 @@
 
 namespace voidui {
 
+enum class TextAlign : std::uint8_t { Left, Center, Right };
+inline bool parse_style_value(std::string_view text, TextAlign &out) {
+  const auto begin = text.find_first_not_of(" \t\r\n");
+  if (begin == std::string_view::npos) return false;
+  text = text.substr(begin, text.find_last_not_of(" \t\r\n") - begin + 1);
+  if (text == "left") out = TextAlign::Left;
+  else if (text == "center") out = TextAlign::Center;
+  else if (text == "right") out = TextAlign::Right;
+  else return false;
+  return true;
+}
+
 /// CSS-compatible font weights. Numeric VSS values from 1 through 1000 are
 /// also accepted and are represented by casting them to this enum.
 enum class FontWeight : std::uint16_t {

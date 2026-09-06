@@ -40,6 +40,7 @@
 #include "voidui/core/style/stylesheet.h"
 #include "voidui/core/style/svg.h"
 #include "voidui/core/style/theme.h"
+#include "voidui/core/style/table.h"
 #include "voidui/core/style/value.h"
 
 namespace voidui {
@@ -69,6 +70,9 @@ inline bool parse_style_value(std::string_view text, SelectAppearance &out) {
 /// declared with the same macro and live in the same registry, which is the
 /// check that the extension path is a real one and not a second-class one.
 namespace styles {
+
+VOIDUI_GLOBAL_STYLE_PROPERTY(TextAlign, voidui::TextAlign, "text-align",
+                             Inherited, Layout, voidui::TextAlign::Left);
 
 VOIDUI_GLOBAL_STYLE_PROPERTY(Appearance, SelectAppearance, "appearance",
                              NotInherited, Layout, SelectAppearance::Auto);

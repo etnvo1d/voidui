@@ -116,7 +116,7 @@ Specificity CompoundSelector::specificity() const {
   Specificity result;
   if (id != kNoAtom)
     result.ids = 1;
-  result.classes = static_cast<std::uint16_t>(classes.size());
+  result.classes = static_cast<std::uint16_t>(classes.size() + nth.size());
   for (int bit = 0; bit < 8; ++bit)
     result.classes += static_cast<std::uint16_t>(
         ((required_status & (1u << bit)) != 0) +
@@ -141,6 +141,9 @@ bool CompoundSelector::matches(const StyleNode &node) const {
     return false;
   for (Atom klass : classes)
     if (!node.has_class(klass))
+      return false;
+  for (const NthTest &test : nth)
+    if (!test.matches(node.sibling_index, node.sibling_count))
       return false;
   return true;
 }
@@ -275,6 +278,22 @@ std::string Selector::to_string() const {
     if (compound.required_status & StatusBits::kChecked) result += ":checked";
     if (compound.required_status & StatusBits::kDisabled) result += ":disabled";
     if (compound.required_status & StatusBits::kEnabled) result += ":enabled";
+    for (const NthTest &test : compound.nth) {
+      result += test.from_end ? ":nth-last-child(" : ":nth-child(";
+      if (test.a != 0) {
+        result += std::to_string(test.a);
+        result += 'n';
+        if (test.b != 0) {
+          if (test.b > 0)
+            result += '+';
+          result += std::to_string(test.b);
+        }
+      } else {
+        result += std::to_string(test.b);
+      }
+      result += ')';
+      wrote = true;
+    }
     if (compound.part != kNoAtom) {
       const auto name = AtomTable::instance().text(compound.part);
       if (compound.css_part) {
@@ -367,6 +386,25 @@ VOIDUI_STATE_SELECTOR(enabled, kEnabled)
 SelectorBuilder &SelectorBuilder::picker() { part("picker"); parts_.back().compound.css_part = true; return *this; }
 SelectorBuilder &SelectorBuilder::picker_icon() { part("picker-icon"); parts_.back().compound.css_part = true; return *this; }
 SelectorBuilder &SelectorBuilder::checkmark() { part("checkmark"); parts_.back().compound.css_part = true; return *this; }
+
+SelectorBuilder &SelectorBuilder::nth_child(std::int32_t a, std::int32_t b) {
+  parts_.back().compound.nth.push_back(NthTest{a, b, false});
+  return *this;
+}
+
+SelectorBuilder &SelectorBuilder::nth_last_child(std::int32_t a,
+                                                 std::int32_t b) {
+  parts_.back().compound.nth.push_back(NthTest{a, b, true});
+  return *this;
+}
+
+SelectorBuilder &SelectorBuilder::first_child() { return nth_child(0, 1); }
+
+SelectorBuilder &SelectorBuilder::last_child() { return nth_last_child(0, 1); }
+
+SelectorBuilder &SelectorBuilder::only_child() {
+  return first_child().last_child();
+}
 
 SelectorBuilder &SelectorBuilder::part(std::string_view name) {
   parts_.back().compound.part = AtomTable::instance().intern(name);

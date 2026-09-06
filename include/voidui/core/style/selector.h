@@ -148,6 +148,16 @@ struct StyleNode {
 
   std::uint8_t status = 0;
 
+  /// Position among the light-tree siblings, one-based, and how many there
+  /// are. Maintained by the widget tree whenever structure changes; zero for
+  /// an internal child, which no structural pseudo-class can select.
+  ///
+  /// A transparent node hands its own pair down to what it rendered, so a row
+  /// written as a function component still counts as one row to
+  /// `:nth-child()`.
+  std::uint32_t sibling_index = 0;
+  std::uint32_t sibling_count = 0;
+
   StyleNode *parent = nullptr;
   std::vector<StyleNode *> children;
 
@@ -167,12 +177,47 @@ struct StyleNode {
   void rebuild_bloom();
 };
 
+/// One `An+B` structural test, as written by `:nth-child()` and its family.
+///
+/// `:first-child` is `An+B` with a = 0 and b = 1, `:last-child` the same
+/// counted from the end, and `:only-child` both at once -- so the four
+/// pseudo-classes a table wants for striping and edge rules are one mechanism
+/// rather than four special cases.
+struct NthTest {
+  std::int32_t a = 0;
+  std::int32_t b = 1;
+
+  /// `:nth-last-child()`: count from the last sibling instead of the first.
+  bool from_end = false;
+
+  bool matches(std::uint32_t index, std::uint32_t count) const {
+    if (index == 0)
+      return false;
+    const std::int32_t position =
+        from_end ? static_cast<std::int32_t>(count) -
+                       static_cast<std::int32_t>(index) + 1
+                 : static_cast<std::int32_t>(index);
+    // An+B matches when (position - b) / a is a non-negative integer. With
+    // a == 0 the sequence is the single value b.
+    if (a == 0)
+      return position == b;
+    const std::int32_t offset = position - b;
+    return offset % a == 0 && offset / a >= 0;
+  }
+
+  bool operator==(const NthTest &) const = default;
+};
+
 /// A simple selector: everything that applies to a single node with no
 /// combinator between the pieces, such as `button.primary:hover`.
 struct CompoundSelector {
   std::optional<std::type_index> type;
   Atom id = kNoAtom;
   std::vector<Atom> classes;
+
+  /// Usually empty. `:nth-child(2n+1):nth-last-child(3)` is legal CSS, so this
+  /// is a list rather than one slot.
+  std::vector<NthTest> nth;
   std::uint8_t required_status = 0;
   std::uint8_t part_status = 0;
   bool css_part = false;
@@ -183,7 +228,7 @@ struct CompoundSelector {
 
   bool is_universal() const {
     return !type.has_value() && id == kNoAtom && classes.empty() &&
-           required_status == 0 && part == kNoAtom;
+           nth.empty() && required_status == 0 && part == kNoAtom;
   }
 
   Specificity specificity() const;
@@ -255,6 +300,14 @@ public:
   SelectorBuilder &picker();
   SelectorBuilder &picker_icon();
   SelectorBuilder &checkmark();
+
+  /// `:nth-child(an+b)`, one-based, and its three shorthands. Striping a table
+  /// from C++ reads `Selectors::of<TableRow>().nth_child(2, 0)`.
+  SelectorBuilder &nth_child(std::int32_t a, std::int32_t b);
+  SelectorBuilder &nth_last_child(std::int32_t a, std::int32_t b);
+  SelectorBuilder &first_child();
+  SelectorBuilder &last_child();
+  SelectorBuilder &only_child();
 
   /// Selects an exposed internal child of the compound built so far.
   SelectorBuilder &part(std::string_view name);

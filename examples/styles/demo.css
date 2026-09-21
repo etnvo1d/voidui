@@ -1,0 +1,20 @@
+/* Loaded once unless hot reload is explicitly enabled. */
+#app {
+    width: 100%; height: 100%; box-sizing: border-box; padding: 32px;
+    background: #101922; color: #e55;
+    font-family: "IBM Plex Sans"; font-size: 16px; line-height: 1.6;
+}
+.title { font-size: 32px; line-height: 1.4; margin-bottom: 8px; }
+.subtitle { color: #9fb0c0; margin-bottom: 24px; }
+.cards { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+.card {
+    padding: 22px; background: #1b2a37; border: 1px solid #345064;
+    border-radius: 16px;
+}
+.card > .heading { font-size: 22px; line-height: 1.4; margin-bottom: 12px; }
+.card:hover { border-color: #70dbb0; }
+.card:active { background: #233a43; }
+.card:focus-within { border-color: #a8dfed; }
+.card + .card { background: #20342f; }
+#probe { color: #70dbb0; margin-top: 24px; }
+.footer { color: #8b9fac; font-size: 13px; margin-top: 24px; }

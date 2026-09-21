@@ -1,0 +1,79 @@
+[package]
+name = "voidui"
+version = "0.1.0"
+edition = "2024"
+
+[features]
+default = ["editing"]
+editing = ["dep:ropey"]
+
+[dependencies]
+ropey = { version = "=2.0.0-beta.1", optional = true, default-features = false, features = ["metric_lines_unicode"] }
+voidui_macros = { path = "crates/voidui_macros" }
+anyhow = "1"
+futures-channel = "0.3"
+futures-util = { version = "0.3", default-features = false, features = ["std", "async-await"] }
+tokio = { version = "1", features = ["rt-multi-thread", "sync", "time", "net", "io-util"] }
+cssparser = "0.37"
+color = "0.3.3"
+selectors = "0.40"
+precomputed-hash = "0.1"
+notify = "8.2"
+log = "0.4"
+bitflags = "2.13.1"
+slotmap = "1.1.1"
+taffy = { version = "0.14.0", default-features = false, features = ["std", "block_layout", "flexbox", "grid", "content_size", "parse", "calc"] }
+smol_str = "0.3.6"
+vector-map = "1.1.0"
+unicode-segmentation = "1.13"
+copypasta = "0.10.2"
+raw-window-handle = "0.6"
+winit = "0.30.13"
+voidui_gpui_wgpu = { path = "crates/voidui_gpui_wgpu" }
+resvg = { version = "0.48.1", default-features = false, features = ["text", "raster-images"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "gif", "webp"] }
+svgtypes = "0.16"
+
+# The reference tree is used only by layout conformance tests.
+[dev-dependencies]
+png = "0.18"
+taffy = { version = "0.14.0", default-features = false, features = ["taffy_tree"] }
+
+[workspace]
+members = ["crates/voidui_gpui_wgpu", "crates/voidui_macros"]
+resolver = "3"
+
+[[example]]
+name = "input"
+required-features = ["editing"]
+
+[[example]]
+name = "editing_bench"
+required-features = ["editing"]
+
+[[example]]
+name = "resources"
+required-features = ["editing"]
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = "0.6"
+objc2-app-kit = { version = "0.3.2", default-features = false, features = ["std", "NSWindow", "NSView", "NSButton", "NSControl", "NSResponder", "NSEvent"] }
+objc2-foundation = { version = "0.3.2", default-features = false, features = ["std", "NSGeometry", "NSString", "NSUserDefaults"] }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_UI_Shell", "Win32_UI_Controls", "Win32_UI_WindowsAndMessaging", "Win32_UI_HiDpi", "Win32_Graphics_Dwm", "Win32_Graphics_Gdi", "Win32_UI_Input_KeyboardAndMouse"] }
+
+[target.'cfg(target_os = "linux")'.dependencies]
+ashpd = { version = "0.13", default-features = false, features = ["tokio", "settings"] }
+
+[[example]]
+name = "rich_text"
+required-features = ["editing"]
+
+[[example]]
+name = "rich_text_bench"
+required-features = ["editing"]
+
+[[example]]
+name = "editor_extensions"
+required-features = ["editing"]

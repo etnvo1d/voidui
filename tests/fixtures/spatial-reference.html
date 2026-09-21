@@ -1,0 +1,31 @@
+<!doctype html><meta charset="utf-8"><title>VoidUI CSS spatial reference</title>
+<style>body {margin:0}*{box-sizing:content-box}#host{position:absolute;left:0;top:0;width:600px;height:400px}.scroller{width:200px;height:100px;overflow:auto;scrollbar-width:none}.head{width:100px;height:20px;position:sticky;top:0}.space{width:200px;height:180px}</style>
+<div id="host"></div><pre id="result"></pre>
+<script>
+// Generated from live browser layout. Run with a disposable headless profile;
+// the fixture never reads browser storage, contacts servers, or changes accounts.
+const host=document.querySelector('#host');const results={};
+const rect=el=>{let b=el.getBoundingClientRect();return [b.x,b.y,b.width,b.height]};
+const run=(name,html,action)=>{host.innerHTML=html;action?.();results[name]=Object.fromEntries([...host.querySelectorAll('[id]')].map(e=>[e.id,rect(e)]));};
+const sc=(body,style='')=>`<div id="scroll" class="scroller" style="${style}">${body}</div>`;
+const head=(style='')=>`<div id="head" class="head" style="${style}"></div>`;
+const filler='<div class="space"></div>';
+run('direct_sticky',sc(head()+filler+filler),()=>document.getElementById("scroll").scrollTop=120);
+run('section_end',sc(`<div id="section">${head()}${filler}</div>${filler}`),()=>document.getElementById("scroll").scrollTop=190);
+run('bottom',sc(`<div style="height:180px"></div>${head('top:auto;bottom:10px')}<div style="height:100px"></div>`));
+run('oversize',sc(head('height:150px;top:10px;bottom:20px')+filler),()=>document.getElementById("scroll").scrollTop=50);
+run('percentage',sc(head('top:10%')+filler),()=>document.getElementById("scroll").scrollTop=50);
+run('hidden_ancestor',sc(`<div id="hidden" style="overflow:hidden;height:200px">${head()}${filler}</div>${filler}`),()=>document.getElementById("scroll").scrollTop=60);
+run('clip_ancestor',sc(`<div id="clip" style="overflow:clip;height:200px">${head()}${filler}</div>${filler}`),()=>document.getElementById("scroll").scrollTop=60);
+run('rotated',`<div id="box" style="width:100px;height:40px;transform:translate(150px,100px) rotate(90deg);transform-origin:0 0"></div>`);
+run('nested',`<div id="parent" style="width:200px;height:100px;transform:translate(100px,50px) scale(2);transform-origin:0 0"><div id="child" style="width:40px;height:20px;transform:translate(10px,5px) rotate(90deg);transform-origin:0 0"></div></div>`);
+run('fixed',`<div id="parent" style="width:200px;height:100px;transform:translate(100px,50px)"><div id="fixed" style="position:fixed;left:10px;top:20px;width:20px;height:20px"></div></div>`);
+run('rtl_sticky',sc(`<div style="width:400px;height:200px">${head('left:0;right:10px')}</div>`,'direction:rtl'),()=>document.getElementById("scroll").scrollLeft=-80);
+run('scaled_parent_sticky',sc(`<div id="parent" style="width:200px;height:250px;transform:scale(2);transform-origin:0 0">${head()}</div>`),()=>document.getElementById("scroll").scrollTop=60);
+const overflow={};for(const [name,style] of Object.entries({translate:'translateX(100px)',scale:'scale(2)',shrink:'scale(.5)',negative:'translateX(-200px)'})) {
+ host.innerHTML=sc(`<div style="width:100px;height:100px;transform:${style};transform-origin:0 0"></div>`);
+ const el=host.firstChild;overflow[name]=[el.scrollWidth,el.scrollHeight];
+}
+results.overflow=overflow;
+document.querySelector('#result').textContent=JSON.stringify(results);
+</script>

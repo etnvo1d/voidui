@@ -1,0 +1,26 @@
+/* Ordinary CSS controls both independent inputs and composed input groups. */
+#app { padding: 30px; font-family: system-ui; font-size: 15px; line-height: 22px; color: #27323f; background: #f5f7fa; }
+.title { font-size: 28px; line-height: 36px; font-weight: 700; }
+.subtitle { color: #64748b; margin-top: 4px; margin-bottom: 22px; }
+.label { font-size: 11px; font-weight: 700; line-height: 18px; color: #64748b; margin-bottom: 7px; margin-top: 16px; }
+input, textarea { border: 1px solid #cbd5e1; border-radius: 7px; padding: 10px 12px; background: white; color: #27323f; caret-color: #2563eb; box-sizing: border-box; }
+input::placeholder { color: #8996a8; }
+input::selection, textarea::selection { color: white; background-color: #2563eb; }
+input:focus, textarea:focus { border-color: #2563eb; }
+.input-group { border: 1px solid #cbd5e1; border-radius: 7px; background: white; }
+.input-group:focus-within { border-color: #2563eb; box-shadow: 0px 0px 0px 2px #dbeafe; }
+.input-group > input, .input-group > textarea { border: none; background: transparent; }
+.search { align-items: center; }
+.search > input { flex-grow: 1; }
+.addon { padding-left: 12px; color: #64748b; user-select: none; }
+.clear { margin-right: 7px; padding: 4px 10px; border-radius: 4px; color: #475569; cursor: pointer; }
+.clear:hover, .clear:focus { background: #e8eef7; }
+.composer { flex-direction: column; }
+.composer > textarea { width: 100%; }
+.footer { border: 1px solid #e2e8f0; border-left-width: 0; border-right-width: 0; border-bottom-width: 0; padding: 7px 12px; font-size: 11px; line-height: 17px; color: #64748b; user-select: none; }
+#code { width: 100%; font-family: monospace; background: #182230; color: #dce6f4; caret-color: #93c5fd; border-color: #182230; }
+.hint { margin-top: 5px; font-size: 11px; line-height: 17px; color: #64748b; }
+.states { display: flex; gap: 12px; margin-top: 20px; }
+.states > input { flex-grow: 1; width: 45%; font-size: 12px; }
+input:read-only { background: #edf1f5; color: #64748b; }
+input:disabled { background: #e5eaf0; color: #8996a8; cursor: not-allowed; }

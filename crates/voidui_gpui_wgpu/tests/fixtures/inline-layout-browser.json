@@ -1,0 +1,439 @@
+{
+  "browser": "Codex in-app browser on macOS",
+  "measured": "2026-09-19",
+  "cases": [
+    {
+      "family": "PlexTest",
+      "size": 12,
+      "lineHeight": 9,
+      "align": "baseline",
+      "height": 14,
+      "baseline": 14,
+      "boxTop": 0
+    },
+    {
+      "family": "PlexTest",
+      "size": 12,
+      "lineHeight": 9,
+      "align": "middle",
+      "height": 14,
+      "baseline": 10.09375,
+      "boxTop": 0
+    },
+    {
+      "family": "PlexTest",
+      "size": 12,
+      "lineHeight": 9,
+      "align": "text-top",
+      "height": 14,
+      "baseline": 12.5,
+      "boxTop": 0
+    },
+    {
+      "family": "PlexTest",
+      "size": 12,
+      "lineHeight": 9,
+      "align": "text-bottom",
+      "height": 14,
+      "baseline": 10.5,
+      "boxTop": 0
+    },
+    {
+      "family": "PlexTest",
+      "size": 12,
+      "lineHeight": 19.2,
+      "align": "baseline",
+      "height": 19.203125,
+      "baseline": 14,
+      "boxTop": 0
+    },
+    {
+      "family": "PlexTest",
+      "size": 12,
+      "lineHeight": 19.2,
+      "align": "middle",
+      "height": 19.203125,
+      "baseline": 14,
+      "boxTop": 3.90625
+    },
+    {
+      "family": "PlexTest",
+      "size": 12,
+      "lineHeight": 19.2,
+      "align": "text-top",
+      "height": 19.203125,
+      "baseline": 14,
+      "boxTop": 1.5
+    },
+    {
+      "family": "PlexTest",
+      "size": 12,
+      "lineHeight": 19.2,
+      "align": "text-bottom",
+      "height": 19.203125,
+      "baseline": 14,
+      "boxTop": 3.5
+    },
+    {
+      "family": "PlexTest",
+      "size": 20,
+      "lineHeight": 15,
+      "align": "baseline",
+      "height": 15,
+      "baseline": 15,
+      "boxTop": 1
+    },
+    {
+      "family": "PlexTest",
+      "size": 20,
+      "lineHeight": 15,
+      "align": "middle",
+      "height": 16.84375,
+      "baseline": 15,
+      "boxTop": 2.84375
+    },
+    {
+      "family": "PlexTest",
+      "size": 20,
+      "lineHeight": 15,
+      "align": "text-top",
+      "height": 20.5,
+      "baseline": 20.5,
+      "boxTop": 0
+    },
+    {
+      "family": "PlexTest",
+      "size": 20,
+      "lineHeight": 15,
+      "align": "text-bottom",
+      "height": 20.5,
+      "baseline": 15,
+      "boxTop": 6.5
+    },
+    {
+      "family": "PlexTest",
+      "size": 20,
+      "lineHeight": 32,
+      "align": "baseline",
+      "height": 32,
+      "baseline": 23.5,
+      "boxTop": 9.5
+    },
+    {
+      "family": "PlexTest",
+      "size": 20,
+      "lineHeight": 32,
+      "align": "middle",
+      "height": 32,
+      "baseline": 23.5,
+      "boxTop": 11.34375
+    },
+    {
+      "family": "PlexTest",
+      "size": 20,
+      "lineHeight": 32,
+      "align": "text-top",
+      "height": 32,
+      "baseline": 23.5,
+      "boxTop": 3
+    },
+    {
+      "family": "PlexTest",
+      "size": 20,
+      "lineHeight": 32,
+      "align": "text-bottom",
+      "height": 32,
+      "baseline": 23.5,
+      "boxTop": 15
+    },
+    {
+      "family": "PlexTest",
+      "size": 32,
+      "lineHeight": 24,
+      "align": "baseline",
+      "height": 24,
+      "baseline": 24,
+      "boxTop": 10
+    },
+    {
+      "family": "PlexTest",
+      "size": 32,
+      "lineHeight": 24,
+      "align": "middle",
+      "height": 24,
+      "baseline": 24,
+      "boxTop": 8.7421875
+    },
+    {
+      "family": "PlexTest",
+      "size": 32,
+      "lineHeight": 24,
+      "align": "text-top",
+      "height": 33,
+      "baseline": 33,
+      "boxTop": 0
+    },
+    {
+      "family": "PlexTest",
+      "size": 32,
+      "lineHeight": 24,
+      "align": "text-bottom",
+      "height": 33,
+      "baseline": 24,
+      "boxTop": 19
+    },
+    {
+      "family": "PlexTest",
+      "size": 32,
+      "lineHeight": 51.2,
+      "align": "baseline",
+      "height": 51.203125,
+      "baseline": 37.5,
+      "boxTop": 23.5
+    },
+    {
+      "family": "PlexTest",
+      "size": 32,
+      "lineHeight": 51.2,
+      "align": "middle",
+      "height": 51.203125,
+      "baseline": 37.5,
+      "boxTop": 22.2421875
+    },
+    {
+      "family": "PlexTest",
+      "size": 32,
+      "lineHeight": 51.2,
+      "align": "text-top",
+      "height": 51.203125,
+      "baseline": 37.5,
+      "boxTop": 4.5
+    },
+    {
+      "family": "PlexTest",
+      "size": 32,
+      "lineHeight": 51.2,
+      "align": "text-bottom",
+      "height": 51.203125,
+      "baseline": 37.5,
+      "boxTop": 32.5
+    },
+    {
+      "family": "AhemTest",
+      "size": 12,
+      "lineHeight": 9,
+      "align": "baseline",
+      "height": 15,
+      "baseline": 14,
+      "boxTop": 0
+    },
+    {
+      "family": "AhemTest",
+      "size": 12,
+      "lineHeight": 9,
+      "align": "middle",
+      "height": 14,
+      "baseline": 11.796875,
+      "boxTop": 0
+    },
+    {
+      "family": "AhemTest",
+      "size": 12,
+      "lineHeight": 9,
+      "align": "text-top",
+      "height": 14,
+      "baseline": 9.5,
+      "boxTop": 0
+    },
+    {
+      "family": "AhemTest",
+      "size": 12,
+      "lineHeight": 9,
+      "align": "text-bottom",
+      "height": 14,
+      "baseline": 11.5,
+      "boxTop": 0
+    },
+    {
+      "family": "AhemTest",
+      "size": 12,
+      "lineHeight": 19.2,
+      "align": "baseline",
+      "height": 20.203125,
+      "baseline": 14,
+      "boxTop": 0
+    },
+    {
+      "family": "AhemTest",
+      "size": 12,
+      "lineHeight": 19.2,
+      "align": "middle",
+      "height": 19.203125,
+      "baseline": 13,
+      "boxTop": 1.203125
+    },
+    {
+      "family": "AhemTest",
+      "size": 12,
+      "lineHeight": 19.2,
+      "align": "text-top",
+      "height": 19.203125,
+      "baseline": 13,
+      "boxTop": 3.5
+    },
+    {
+      "family": "AhemTest",
+      "size": 12,
+      "lineHeight": 19.2,
+      "align": "text-bottom",
+      "height": 19.203125,
+      "baseline": 13,
+      "boxTop": 1.5
+    },
+    {
+      "family": "AhemTest",
+      "size": 20,
+      "lineHeight": 15,
+      "align": "baseline",
+      "height": 15.5,
+      "baseline": 14,
+      "boxTop": 0
+    },
+    {
+      "family": "AhemTest",
+      "size": 20,
+      "lineHeight": 15,
+      "align": "middle",
+      "height": 16.5,
+      "baseline": 15,
+      "boxTop": 0
+    },
+    {
+      "family": "AhemTest",
+      "size": 20,
+      "lineHeight": 15,
+      "align": "text-top",
+      "height": 17.5,
+      "baseline": 16,
+      "boxTop": 0
+    },
+    {
+      "family": "AhemTest",
+      "size": 20,
+      "lineHeight": 15,
+      "align": "text-bottom",
+      "height": 17.5,
+      "baseline": 13.5,
+      "boxTop": 3.5
+    },
+    {
+      "family": "AhemTest",
+      "size": 20,
+      "lineHeight": 32,
+      "align": "baseline",
+      "height": 32,
+      "baseline": 22,
+      "boxTop": 8
+    },
+    {
+      "family": "AhemTest",
+      "size": 20,
+      "lineHeight": 32,
+      "align": "middle",
+      "height": 32,
+      "baseline": 22,
+      "boxTop": 7
+    },
+    {
+      "family": "AhemTest",
+      "size": 20,
+      "lineHeight": 32,
+      "align": "text-top",
+      "height": 32,
+      "baseline": 22,
+      "boxTop": 6
+    },
+    {
+      "family": "AhemTest",
+      "size": 20,
+      "lineHeight": 32,
+      "align": "text-bottom",
+      "height": 32,
+      "baseline": 22,
+      "boxTop": 12
+    },
+    {
+      "family": "AhemTest",
+      "size": 32,
+      "lineHeight": 24,
+      "align": "baseline",
+      "height": 24,
+      "baseline": 21.5,
+      "boxTop": 7.5
+    },
+    {
+      "family": "AhemTest",
+      "size": 32,
+      "lineHeight": 24,
+      "align": "middle",
+      "height": 24,
+      "baseline": 21.5,
+      "boxTop": 1.703125
+    },
+    {
+      "family": "AhemTest",
+      "size": 32,
+      "lineHeight": 24,
+      "align": "text-top",
+      "height": 28,
+      "baseline": 25.5,
+      "boxTop": 0
+    },
+    {
+      "family": "AhemTest",
+      "size": 32,
+      "lineHeight": 24,
+      "align": "text-bottom",
+      "height": 28,
+      "baseline": 21.5,
+      "boxTop": 14
+    },
+    {
+      "family": "AhemTest",
+      "size": 32,
+      "lineHeight": 51.2,
+      "align": "baseline",
+      "height": 51.203125,
+      "baseline": 35,
+      "boxTop": 21
+    },
+    {
+      "family": "AhemTest",
+      "size": 32,
+      "lineHeight": 51.2,
+      "align": "middle",
+      "height": 51.203125,
+      "baseline": 35,
+      "boxTop": 15.203125
+    },
+    {
+      "family": "AhemTest",
+      "size": 32,
+      "lineHeight": 51.2,
+      "align": "text-top",
+      "height": 51.203125,
+      "baseline": 35,
+      "boxTop": 9.5
+    },
+    {
+      "family": "AhemTest",
+      "size": 32,
+      "lineHeight": 51.2,
+      "align": "text-bottom",
+      "height": 51.203125,
+      "baseline": 35,
+      "boxTop": 27.5
+    }
+  ],
+  "empty_typed_deleted_identical": true
+}

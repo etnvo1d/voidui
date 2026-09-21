@@ -1,0 +1,47 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Inline layout conformance</title>
+<style>
+@font-face { font-family: PlexTest; src: url(../fonts/IBMPlexSans-Regular.ttf); }
+@font-face { font-family: AhemTest; src: url(../fonts/Ahem.ttf); }
+body { margin: 20px; color: #222; background: #fafafa; }
+h1 { font: 20px system-ui; }
+.case { display: block; white-space: pre; width: 600px; padding: 0; margin: 8px 0; background: #eef; }
+.box { display: inline-block; width: 18px; height: 14px; background: #9575cd; }
+.baseline { display: inline-block; width: 0; height: 0; vertical-align: baseline; }
+pre { font: 12px monospace; white-space: pre-wrap; }
+</style>
+<h1>CSS font struts and inline alignment</h1>
+<div id="cases"></div>
+<pre id="report">Loading fonts…</pre>
+<script>
+(async () => {
+  await Promise.all(['PlexTest','AhemTest'].map(f => document.fonts.load(`20px ${f}`)));
+  const results = [];
+  for (const family of ['PlexTest','AhemTest']) {
+    for (const size of [12,20,32]) {
+      for (const height of [size * 0.75, size * 1.6]) {
+        for (const align of ['baseline','middle','text-top','text-bottom']) {
+          const line = document.createElement('div');
+          line.className = 'case';
+          Object.assign(line.style,{fontFamily:family,fontSize:`${size}px`,lineHeight:`${height}px`});
+          const box = line.appendChild(document.createElement('span'));
+          box.className='box'; box.style.verticalAlign=align;
+          const content = line.appendChild(document.createTextNode(''));
+          const baseline = line.appendChild(document.createElement('span'));
+          baseline.className='baseline';
+          document.querySelector('#cases').append(line);
+          const measure = () => {
+            const r = line.getBoundingClientRect();
+            return {height:r.height,baseline:baseline.getBoundingClientRect().top-r.top,boxTop:box.getBoundingClientRect().top-r.top};
+          };
+          const empty=measure(); content.data='a'; const typed=measure(); content.data=''; const deleted=measure();
+          results.push({family,size,lineHeight:height,align,empty,typed,deleted});
+        }
+      }
+    }
+  }
+  window.results=results;
+  document.querySelector('#report').textContent=JSON.stringify({cases:results.length,stable:results.every(r=>JSON.stringify(r.empty)===JSON.stringify(r.typed)&&JSON.stringify(r.empty)===JSON.stringify(r.deleted)),results},null,2);
+})();
+</script>

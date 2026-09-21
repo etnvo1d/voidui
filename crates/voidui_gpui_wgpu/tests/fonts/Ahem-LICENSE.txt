@@ -1,0 +1,11 @@
+Ahem is a deterministic font used by the Web Platform Tests.
+Source: https://github.com/web-platform-tests/wpt/blob/master/fonts/Ahem.ttf
+
+The embedded copyright declaration reads:
+The Ahem font belongs to the public domain. In jurisdictions that do not
+recognize public domain ownership of these files, the following Creative
+Commons Zero declaration applies:
+http://labs.creativecommons.org/licenses/zero-waive/1.0/us/legalcode
+
+The font's embedded license URL is:
+http://dev.w3.org/CSS/fonts/ahem/COPYING

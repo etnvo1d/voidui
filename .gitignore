@@ -1,3 +1,5 @@
 /target
-
 /dist
+
+# Finder metadata is not part of the source tree.
+.DS_Store

@@ -233,12 +233,12 @@ or dependency is created per input.
 
 ```sh
 cargo test --test editing --test input --test state
-cargo test --workspace --all-targets
+cargo test --workspace
 cargo test --doc -p voidui
 cargo check --no-default-features --lib
 cargo run --example input
 cargo run --example input -- --smoke target/input-smoke
-cargo run --release --example editing_bench -- 10000 1000 1000
+cargo bench --bench editing -- 10000 1000 1000
 ```
 
 The default `editing` Cargo feature enables built-in controls and the reusable

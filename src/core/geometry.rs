@@ -1,4 +1,4 @@
-use std::ops::Sub;
+use std::ops::{Add, Sub};
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Point<T> {
@@ -105,7 +105,7 @@ impl_rect_is_empty_for_numbers!(
     i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize, f32, f64
 );
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub struct Spacing<T> {
     pub top: T,
     pub right: T,
@@ -137,32 +137,28 @@ where
     }
 }
 
-impl<T> Spacing<T>
-where
-    T: Default,
-{
-    pub fn default() -> Self {
-        Self::new(T::default(), T::default(), T::default(), T::default())
-    }
-}
-
 macro_rules! impl_spacing_expand_shrink_for_numbers {
-    ($($t:ty),*) => {
+    ($add:ident, $sub:ident; $($t:ty),*) => {
         $(
             impl Spacing<$t> {
+                /// Add each edge. Integer results saturate at the type's limits;
+                /// floating-point results follow ordinary floating-point addition.
                 pub fn expand(mut self, other: Self) -> Self {
-                    self.top = self.top + other.top;
-                    self.right = self.right + other.right;
-                    self.bottom = self.bottom + other.bottom;
-                    self.left = self.left + other.left;
+                    self.top = self.top.$add(other.top);
+                    self.right = self.right.$add(other.right);
+                    self.bottom = self.bottom.$add(other.bottom);
+                    self.left = self.left.$add(other.left);
                     self
                 }
 
+                /// Subtract each edge and clamp negative results to zero.
+                /// Integer subtraction saturates before clamping, so overflow
+                /// cannot panic or wrap into a large positive spacing.
                 pub fn shrink(mut self, other: Self) -> Self {
-                    self.top = (self.top - other.top).max(0 as $t);
-                    self.right = (self.right - other.right).max(0 as $t);
-                    self.bottom = (self.bottom - other.bottom).max(0 as $t);
-                    self.left = (self.left - other.left).max(0 as $t);
+                    self.top = self.top.$sub(other.top).max(0 as $t);
+                    self.right = self.right.$sub(other.right).max(0 as $t);
+                    self.bottom = self.bottom.$sub(other.bottom).max(0 as $t);
+                    self.left = self.left.$sub(other.left).max(0 as $t);
                     self
                 }
             }
@@ -171,5 +167,7 @@ macro_rules! impl_spacing_expand_shrink_for_numbers {
 }
 
 impl_spacing_expand_shrink_for_numbers!(
-    i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize, f32, f64
+    saturating_add, saturating_sub;
+    i8, i16, i32, i64, i128, isize, u8, u16, u32, u64, u128, usize
 );
+impl_spacing_expand_shrink_for_numbers!(add, sub; f32, f64);

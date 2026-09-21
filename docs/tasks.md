@@ -339,11 +339,11 @@ Registry and queue capacities are retained for reuse until runtime destruction.
 ## Reproduce validation
 
 ```sh
-cargo test --workspace --all-targets
+cargo test --workspace
 cargo test --doc -p voidui
 cargo run --example async_tasks -- README.md
 cargo run --example async_tasks -- --smoke README.md
-cargo run --release --example tasks_bench -- 10000 50000
+cargo bench --bench tasks -- 10000 50000
 cargo check --all-targets --target x86_64-pc-windows-gnu
 cargo check --all-targets --target x86_64-unknown-linux-gnu
 ```

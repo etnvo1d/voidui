@@ -20,7 +20,7 @@ let view = div()
 ```
 
 `Application::window` accepts these descriptions directly. Run the recursive file
-tree example with `cargo run --example state`. It uses immutable List/Read inputs,
+tree example with `cargo run --example file_tree`. It uses immutable List/Read inputs,
 keyed expansion state, and per-row selection subscriptions.
 
 For optional named properties, reusable children, and scoped controllers, see
@@ -274,10 +274,10 @@ batch during unmount; a flush does not spin until convergence.
 ## Reproduce validation
 
 ```sh
-cargo test --workspace --all-targets
+cargo test --workspace
 cargo test --doc -p voidui
-cargo run --example state -- --smoke
-cargo run --release --example state_bench -- 10000 50000
+cargo test --example file_tree
+cargo bench --bench state -- 10000 50000
 ```
 
 The benchmark compares the same DOM with and without one component/usize slot per

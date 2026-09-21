@@ -203,15 +203,6 @@ impl<W> WidgetBuilder<W> {
         }
     }
 
-    /// Compatibility alias; all new event APIs accept async closures directly.
-    #[deprecated(note = "use on_click with the same async closure")]
-    pub fn on_click_async<R: crate::tasks::HandlerOutput>(
-        self,
-        callback: impl AsyncFn() -> R + 'static,
-    ) -> Self {
-        self.on_click::<super::interaction::mode::AsyncNoArgs>(callback)
-    }
-
     /// Override the CSS element name (normalized to ASCII lowercase).
     pub fn tag(mut self, tag: impl Into<SmolStr>) -> Self {
         self.props.tag = tag.into().to_ascii_lowercase().into();

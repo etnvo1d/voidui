@@ -1,10 +1,12 @@
-//! CPU-only spatial benchmark. Run with --release; arguments are rows and samples.
+//! CPU-only spatial benchmark. Arguments are rows and samples; Cargo benchmarks use release mode.
+#[path = "support/allocations.rs"]
+mod allocations;
+use allocations::{ALLOCATIONS, LIVE};
+#[path = "support/args.rs"]
+mod arguments;
+
 use std::{
-    alloc::{GlobalAlloc, Layout, System},
-    sync::{
-        Arc,
-        atomic::{AtomicUsize, Ordering::Relaxed},
-    },
+    sync::{Arc, atomic::Ordering::Relaxed},
     time::Instant,
 };
 use voidui::{
@@ -16,37 +18,8 @@ use voidui::{
     render::{ParleyTextSystem, TextLayoutCache, TextSystem},
     *,
 };
-struct Allocator;
-static ALLOCATIONS: AtomicUsize = AtomicUsize::new(0);
-static LIVE: AtomicUsize = AtomicUsize::new(0);
-// Requested allocation bytes exclude allocator metadata, GPU memory, and RSS.
-unsafe impl GlobalAlloc for Allocator {
-    unsafe fn alloc(&self, l: Layout) -> *mut u8 {
-        let p = unsafe { System.alloc(l) };
-        if !p.is_null() {
-            ALLOCATIONS.fetch_add(1, Relaxed);
-            LIVE.fetch_add(l.size(), Relaxed);
-        }
-        p
-    }
-    unsafe fn dealloc(&self, p: *mut u8, l: Layout) {
-        LIVE.fetch_sub(l.size(), Relaxed);
-        unsafe { System.dealloc(p, l) }
-    }
-    unsafe fn realloc(&self, p: *mut u8, l: Layout, n: usize) -> *mut u8 {
-        let p = unsafe { System.realloc(p, l, n) };
-        if !p.is_null() {
-            ALLOCATIONS.fetch_add(1, Relaxed);
-            LIVE.fetch_sub(l.size(), Relaxed);
-            LIVE.fetch_add(n, Relaxed);
-        }
-        p
-    }
-}
-#[global_allocator]
-static ALLOCATOR: Allocator = Allocator;
 fn main() {
-    let args: Vec<_> = std::env::args().skip(1).collect();
+    let args: Vec<_> = arguments::args().collect();
     let rows: usize = args.first().map(|s| s.parse().unwrap()).unwrap_or(1000);
     let samples: usize = args.get(1).map(|s| s.parse().unwrap()).unwrap_or(1000);
     assert!(rows > 1 && samples > 0);

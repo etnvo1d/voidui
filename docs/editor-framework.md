@@ -333,8 +333,12 @@ also applies to empty lines and each wrapped row. Taller inline text or widgets
 can expand a row, so `line_height` is not a clipping height.
 
 ```rust
+use voidui::editing::{ParagraphStyle, Projection};
+
+let code = "let answer = 42;";
+let code_size = 14.0;
 let projection = Projection::new().paragraph(
-    code_range,
+    0..code.len(),
     ParagraphStyle {
         font: Some(voidui::render::font("monospace")),
         font_size: Some(code_size),
@@ -443,10 +447,10 @@ layout for such content must supply a segmented block provider and its boundary 
 ```sh
 cargo run --example editor_extensions
 cargo test --test editor_framework --test input --test rich_layout --test rich_editing
-cargo test --workspace --all-targets
+cargo test --workspace
 cargo test --doc -p voidui
 cargo check --no-default-features --lib
-cargo run --release --example rich_text_bench -- 1000 500
+cargo bench --bench rich_text -- 1000 500
 ```
 
 Tests cover source/display mapping, multi-paragraph folds, source-backed grids,
@@ -455,8 +459,10 @@ commands/lifecycle, viewport eviction/remounting, virtual compound blocks and
 remote carets, incremental index equivalence, rope snapshots and chunked graphemes.
 The 20,000-paragraph workload asserts bounded shaping/cache counts, not timing.
 
-See [verification and measured boundaries](editor-framework-results.md) for the
-recorded test run and viewport benchmark.
+See the [benchmark guide](../benches/README.md) for current workload commands and
+measurement limits. Source-block metadata remains vector-backed: edits can remap
+prefix/suffix indices in linear time even when glyph layout remains localized.
+Cache targets retain the visible working set if it exceeds the requested count.
 
 ### Composition geometry and captured selection scrolling
 

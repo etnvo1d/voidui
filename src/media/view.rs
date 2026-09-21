@@ -102,11 +102,47 @@ pub(crate) fn physical_size(w: f32, h: f32, scale: f32) -> Result<(u32, u32)> {
         w.is_finite() && h.is_finite() && w > 0. && h > 0.,
         "invalid image viewport"
     );
-    Ok((
-        (w * scale).ceil().max(1.) as u32,
-        (h * scale).ceil().max(1.) as u32,
-    ))
+    anyhow::ensure!(scale.is_finite() && scale > 0.0, "invalid image scale factor");
+    let width = (w * scale).ceil().max(1.0);
+    let height = (h * scale).ceil().max(1.0);
+    // Validate before Rust's float-to-integer cast can silently saturate. Compare
+    // in f64 because u32::MAX rounds upward when represented as f32.
+    anyhow::ensure!(
+        f64::from(width) <= f64::from(u32::MAX)
+            && f64::from(height) <= f64::from(u32::MAX),
+        "physical image dimensions exceed the supported range"
+    );
+    Ok((width as u32, height as u32))
 }
 pub(crate) fn visible(p: &Painter<'_>, b: render::Bounds<render::Pixels>) -> bool {
     !b.intersect(&p.content_mask().bounds).is_empty()
+}
+
+
+#[cfg(test)]
+mod tests {
+    use super::physical_size;
+
+    #[test]
+    fn physical_dimensions_preserve_fractional_rounding_and_minimum_size() {
+        assert_eq!(physical_size(1.5, 2.5, 1.25).unwrap(), (2, 4));
+        assert_eq!(physical_size(f32::MIN_POSITIVE, 1.0, 0.5).unwrap(), (1, 1));
+    }
+
+    #[test]
+    fn physical_dimensions_reject_invalid_inputs_before_integer_conversion() {
+        for invalid in [0.0, -1.0, f32::NAN, f32::INFINITY, f32::NEG_INFINITY] {
+            assert!(physical_size(invalid, 1.0, 1.0).is_err());
+            assert!(physical_size(1.0, invalid, 1.0).is_err());
+            assert!(physical_size(1.0, 1.0, invalid).is_err());
+        }
+        for (width, height, scale) in [
+            (f32::MAX, 1.0, 2.0),
+            (1.0, f32::MAX, 2.0),
+            (u32::MAX as f32, 1.0, 1.0),
+            (1.0, u32::MAX as f32, 1.0),
+        ] {
+            assert!(physical_size(width, height, scale).is_err());
+        }
+    }
 }

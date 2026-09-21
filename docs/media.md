@@ -244,7 +244,7 @@ cargo test --test media
 cargo test --workspace
 cargo run --example media
 cargo run --example media -- --snapshot target/media-example.png
-cargo run --release --example media_bench -- 1000 200
+cargo bench --bench media -- 1000 200
 ```
 
 The snapshot command checks GPU color, premultiplied alpha, pixelated sampling and

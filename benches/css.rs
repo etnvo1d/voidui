@@ -1,4 +1,7 @@
-//! `cargo run --release --example css_bench [nodes] [rules]`
+//! `cargo bench --bench css -- [nodes] [rules]`
+#[path = "support/args.rs"]
+mod arguments;
+
 use std::{sync::Arc, time::Instant};
 use voidui::{
     core::{
@@ -10,7 +13,7 @@ use voidui::{
     style::css::Stylesheet,
 };
 fn main() -> anyhow::Result<()> {
-    let args: Vec<_> = std::env::args().skip(1).collect();
+    let args: Vec<_> = arguments::args().collect();
     let nodes = args
         .first()
         .map(|s| s.parse())

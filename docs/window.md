@@ -3,7 +3,6 @@
 ## Run
 
 ```sh
-cargo run
 cargo run --example hello
 cargo run --release --example hello
 ```

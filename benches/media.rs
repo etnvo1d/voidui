@@ -1,5 +1,8 @@
-//! Headless scene benchmark: cargo run --release --example media_bench -- 1000 200
+//! Headless scene benchmark: cargo bench --bench media -- 1000 200
 //! The first argument is the icon count; the second is the cached frame count.
+#[path = "support/args.rs"]
+mod arguments;
+
 use anyhow::{Result, ensure};
 use std::{
     borrow::Cow,
@@ -51,7 +54,7 @@ impl PlatformAtlas for Atlas {
     }
 }
 fn main() -> Result<()> {
-    let mut args = std::env::args().skip(1);
+    let mut args = arguments::args();
     let count = args
         .next()
         .map(|s| s.parse())

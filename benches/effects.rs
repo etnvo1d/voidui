@@ -1,5 +1,8 @@
-//! `cargo run --release --example effects_bench [nodes] [frames]`
+//! `cargo bench --bench effects -- [nodes] [frames]`
 //! Separately measures idle style updates and animated paint-only style sampling.
+#[path = "support/args.rs"]
+mod arguments;
+
 use std::{
     hint::black_box,
     sync::Arc,
@@ -15,7 +18,7 @@ use voidui::{
     style::css::Stylesheet,
 };
 fn main() -> anyhow::Result<()> {
-    let args: Vec<_> = std::env::args().skip(1).collect();
+    let args: Vec<_> = arguments::args().collect();
     let count = args
         .first()
         .map(|s| s.parse())

@@ -1,5 +1,5 @@
 //! CPU selection cost only: excludes initial layout, font shaping, GPU painting,
-//! and native events. Run with `cargo run --release --example selection_bench`.
+//! and native events. Run with `cargo bench --bench selection`.
 use std::{borrow::Cow, hint::black_box, sync::Arc, time::Instant};
 use voidui::{
     core::{

@@ -13,6 +13,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  source:
+    name: Audit source snapshot
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - name: Archive tracked files only
+        run: git archive --format=tar.gz --output=source.tar.gz HEAD
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: audit-source
+          path: source.tar.gz
+          retention-days: 1
+
   test:
     name: Tests (macOS)
     runs-on: macos-latest

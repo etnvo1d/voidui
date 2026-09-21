@@ -92,8 +92,8 @@ until computed styles stabilize. They do not rematch selectors throughout the
 tree. `style_resolutions()` counts computed-style work separately from
 `cascade_stats()` so headless tests can verify reuse without timing assertions.
 
-Run a complete headless example with `cargo run --example layout`.
-For resize regression measurements, run `cargo run --example resize_bench -- 1000 200`.
+Run the headless layout contracts with `cargo test --test layout`.
+For resize regression measurements, run `cargo bench --bench resize -- 1000 200`.
 It reports CPU update costs and checks component, style and shaping reuse; native
 event delivery, painting and GPU presentation are excluded.
 

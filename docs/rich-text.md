@@ -218,12 +218,12 @@ view's base line height.
 ```sh
 cargo test --test rich_text --test rich_editing --test rich_layout --test input
 cargo test -p voidui_gpui_wgpu --test rich_text
-cargo test --workspace --all-targets
+cargo test --workspace
 cargo test --doc -p voidui
 cargo check --no-default-features --lib
 cargo run --example rich_text
 cargo run --example rich_text -- --smoke target/rich-text-smoke
-cargo run --release --example rich_text_bench -- 1000 500
+cargo bench --bench rich_text -- 1000 500
 ```
 
 Tests use bundled real fonts and CPU scenes. They cover exact style deltas,

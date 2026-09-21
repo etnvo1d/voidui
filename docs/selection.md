@@ -164,7 +164,7 @@ Verification commands:
 cargo test --test selection
 cargo run --example selection -- --pixels
 cargo run --example selection -- --smoke target/selection-smoke
-cargo run --release --example selection_bench
+cargo bench --bench selection
 ```
 
 The pixel test checks that transparent selected foreground replaces the original

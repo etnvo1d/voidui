@@ -1,12 +1,14 @@
 //! Warm pointer dispatch benchmark; excludes native delivery and rendering.
+#[path = "support/allocations.rs"]
+mod allocations;
+use allocations::ALLOCATIONS;
+#[path = "support/args.rs"]
+mod arguments;
+
 use std::{
-    alloc::{GlobalAlloc, Layout, System},
     cell::Cell,
     rc::Rc,
-    sync::{
-        Arc,
-        atomic::{AtomicUsize, Ordering::Relaxed},
-    },
+    sync::{Arc, atomic::Ordering::Relaxed},
     time::Instant,
 };
 use voidui::{
@@ -18,43 +20,9 @@ use voidui::{
     div,
     render::{ParleyTextSystem, TextLayoutCache, TextSystem},
 };
-struct CountingAllocator;
-static LIVE: AtomicUsize = AtomicUsize::new(0);
-static ALLOCATIONS: AtomicUsize = AtomicUsize::new(0);
-// Count requested bytes, not allocator metadata or RSS. This standalone process
-// has no window, GPU, font workers, or other concurrent benchmark workloads.
-unsafe impl GlobalAlloc for CountingAllocator {
-    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        // SAFETY: the unchanged layout is forwarded to the system allocator.
-        let pointer = unsafe { System.alloc(layout) };
-        if !pointer.is_null() {
-            LIVE.fetch_add(layout.size(), Relaxed);
-            ALLOCATIONS.fetch_add(1, Relaxed);
-        }
-        pointer
-    }
-    unsafe fn dealloc(&self, pointer: *mut u8, layout: Layout) {
-        LIVE.fetch_sub(layout.size(), Relaxed);
-        // SAFETY: pointer and layout come from this allocator's matching allocation.
-        unsafe { System.dealloc(pointer, layout) };
-    }
-    unsafe fn realloc(&self, pointer: *mut u8, layout: Layout, size: usize) -> *mut u8 {
-        // SAFETY: the original allocation and requested size are forwarded unchanged.
-        let next = unsafe { System.realloc(pointer, layout, size) };
-        if !next.is_null() {
-            LIVE.fetch_add(size, Relaxed);
-            LIVE.fetch_sub(layout.size(), Relaxed);
-            ALLOCATIONS.fetch_add(1, Relaxed);
-        }
-        next
-    }
-}
-#[global_allocator]
-static ALLOCATOR: CountingAllocator = CountingAllocator;
-
 fn main() {
-    let samples: usize = std::env::args()
-        .nth(1)
+    let samples: usize = arguments::args()
+        .next()
         .map(|value| value.parse().expect("samples must be an integer"))
         .unwrap_or(100_000);
     assert!(samples > 0);

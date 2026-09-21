@@ -170,8 +170,8 @@ a circular inner-corner approximation; elliptical corner radii are not supported
 cargo test --workspace
 cargo run --example effects -- --smoke target/effects-smoke
 cargo run --example effects -- --pixels
-cargo run --release --example css_bench -- 1000 1000
-cargo run --release --example effects_bench -- 1000 600
+cargo bench --bench css -- 1000 1000
+cargo bench --bench effects -- 1000 600
 ```
 
 The smoke test captures native frames, checks an authored color against GPU pixels,

@@ -4,22 +4,17 @@ A Rust UI library with Taffy layout, retained div/text widgets, and a Winit/WGPU
 desktop runtime. Static windows sleep between changes instead of drawing continuously.
 
 ```sh
-cargo run
 cargo run --example hello
-cargo run --example effects
-cargo run --example tailwind
-cargo run --example media
-cargo run --example overlays
-cargo run --example selection
+cargo run --example file_tree -- .
 cargo run --example input
-cargo run --example state
-cargo run --example async_tasks -- README.md
-cargo run --example resources -- README.md
-cargo run --example events
-cargo run --example scrolling
-cargo run --example spatial
-cargo test --workspace
+cargo test --workspace --all-features --locked
 ```
+
+The feature guides below describe the focused application examples. Headless
+performance workloads and their commands live in [benches](benches/README.md).
+The duplicate default binary and the separate `layout` and `state` examples have
+been removed. Use `hello`, `cargo test --test layout`, and `file_tree` respectively.
+
 
 - [Function components and state](docs/state.md)
 - [Async resources and scoped tasks](docs/tasks.md)
@@ -40,8 +35,8 @@ cargo test --workspace
 - [Text widgets](docs/text.md)
 - [GPUI-derived rendering backend](crates/voidui_gpui_wgpu/README.md)
 
-macOS rendering is tested locally. Windows and Linux cross-compilation is checked;
-platform-specific runtime validation is still required. See the window documentation
+CI runs the workspace tests on macOS and checks all targets on Linux and Windows.
+Native window, input, and GPU behavior still require platform-specific validation. See the window documentation
 for implemented adaptations, source references, tests, and remaining limitations.
 
 ## Rich text

@@ -48,10 +48,6 @@ name = "input"
 required-features = ["editing"]
 
 [[example]]
-name = "editing_bench"
-required-features = ["editing"]
-
-[[example]]
 name = "resources"
 required-features = ["editing"]
 
@@ -71,9 +67,74 @@ name = "rich_text"
 required-features = ["editing"]
 
 [[example]]
-name = "rich_text_bench"
-required-features = ["editing"]
-
-[[example]]
 name = "editor_extensions"
 required-features = ["editing"]
+
+# Headless benchmarks use their own main functions on stable Rust.
+
+[[bench]]
+name = "css"
+harness = false
+test = false
+
+[[bench]]
+name = "editing"
+harness = false
+test = false
+required-features = ["editing"]
+
+[[bench]]
+name = "effects"
+harness = false
+test = false
+
+[[bench]]
+name = "events"
+harness = false
+test = false
+
+[[bench]]
+name = "media"
+harness = false
+test = false
+
+[[bench]]
+name = "resize"
+harness = false
+test = false
+
+[[bench]]
+name = "rich_text"
+harness = false
+test = false
+required-features = ["editing"]
+
+[[bench]]
+name = "scroll"
+harness = false
+test = false
+
+[[bench]]
+name = "selection"
+harness = false
+test = false
+
+[[bench]]
+name = "spatial"
+harness = false
+test = false
+
+[[bench]]
+name = "stacking"
+harness = false
+test = false
+
+[[bench]]
+name = "state"
+harness = false
+test = false
+
+[[bench]]
+name = "tasks"
+harness = false
+test = false

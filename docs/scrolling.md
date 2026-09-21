@@ -144,7 +144,7 @@ order; its numbers exclude initial layout and GPU work.
 
 ```sh
 cargo test --test scroll
-cargo run --release --example scroll_bench -- 10000 1000
+cargo bench --bench scroll -- 10000 1000
 cargo run --example scrolling
 cargo run --example scrolling -- --smoke /tmp/scrolling.png
 ```

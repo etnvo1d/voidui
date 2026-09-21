@@ -1,5 +1,8 @@
-//! `cargo run --release --example stacking_bench [nodes] [frames]`
+//! `cargo bench --bench stacking -- [nodes] [frames]`
 //! Measures CPU scene construction with a cached stacking order, not GPU time.
+#[path = "support/args.rs"]
+mod arguments;
+
 use std::{borrow::Cow, sync::Arc, time::Instant};
 use voidui::{
     core::{
@@ -25,7 +28,7 @@ impl PlatformAtlas for NoGlyphs {
     fn remove(&self, _: &AtlasKey) {}
 }
 fn main() -> anyhow::Result<()> {
-    let args: Vec<_> = std::env::args().skip(1).collect();
+    let args: Vec<_> = arguments::args().collect();
     let count = args
         .first()
         .map(|s| s.parse())

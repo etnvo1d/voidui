@@ -287,6 +287,9 @@ impl Projection {
             s.style.validate()?;
         }
         end = 0;
+        // Both collections are sorted and independently non-overlapping. Each
+        // replacement can be checked once as the block boundary moves forward.
+        let mut replacements = self.replacements.iter().peekable();
         for b in &self.blocks {
             check(source, &b.range)?;
             if b.range.is_empty()
@@ -296,14 +299,19 @@ impl Projection {
                 return Err(EditError::Rejected("conflicting block views"));
             }
             end = b.range.end;
-            if self.replacements.iter().any(|r| {
-                r.range.start < b.range.end
-                    && r.range.end > b.range.start
-                    && !(r.range.start >= b.range.start && r.range.end <= b.range.end)
-            }) {
-                return Err(EditError::Rejected(
-                    "inline replacement overlaps block view",
-                ));
+            while let Some(replacement) = replacements.peek() {
+                if replacement.range.start >= b.range.end {
+                    break;
+                }
+                if replacement.range.end > b.range.start
+                    && (replacement.range.start < b.range.start
+                        || replacement.range.end > b.range.end)
+                {
+                    return Err(EditError::Rejected(
+                        "inline replacement overlaps block view",
+                    ));
+                }
+                replacements.next();
             }
         }
         // Give public projection queries collision-free local handles. Layout
@@ -674,5 +682,75 @@ mod composition_tests {
                 .map(&super::super::ChangeSet::default())
                 .is_structured()
         );
+    }
+}
+
+
+#[cfg(test)]
+mod validation_tests {
+    use super::*;
+    use crate::editing::EditorState;
+
+    #[test]
+    fn sorted_overlap_scan_matches_independent_pairwise_validation() {
+        let state = EditorState::new("abcdefgh");
+        let block_sets = [
+            vec![],
+            vec![0..8],
+            vec![1..3, 5..7],
+            vec![0..4, 4..8],
+        ];
+        // Enumerate disjoint pairs, including empty annotations and every
+        // boundary contact. Reverse the input to also exercise sorting.
+        for first_start in 0..=8 {
+            for first_end in first_start..=8 {
+                for second_start in first_end..=8 {
+                    for second_end in second_start..=8 {
+                        let ranges = [first_start..first_end, second_start..second_end];
+                        for blocks in &block_sets {
+                            let overlaps = ranges.iter().any(|range| {
+                                blocks.iter().any(|block| {
+                                    range.start < block.end
+                                        && range.end > block.start
+                                        && !(range.start >= block.start && range.end <= block.end)
+                                })
+                            });
+                            let mut projection = Projection::new()
+                                .replace(Replacement::hide(ViewId(2), ranges[1].clone()))
+                                .replace(Replacement::hide(ViewId(1), ranges[0].clone()));
+                            for (index, block) in blocks.iter().enumerate().rev() {
+                                projection = projection.block(
+                                    ViewId(10 + index as u64),
+                                    block.clone(),
+                                );
+                            }
+                            assert_eq!(
+                                projection.validate(state.document()).is_ok(),
+                                !overlaps,
+                                "ranges={ranges:?}, blocks={blocks:?}",
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn many_blocks_accept_contained_replacements_and_boundary_annotations() {
+        let count = 2000;
+        let state = EditorState::new("abcd".repeat(count));
+        let mut projection = Projection::new();
+        for index in (0..count).rev() {
+            let start = index * 4;
+            let id = index as u64 * 3;
+            projection = projection
+                .block(ViewId(id), start..start + 4)
+                .replace(Replacement::hide(ViewId(id + 1), start + 1..start + 3))
+                .replace(Replacement::hide(ViewId(id + 2), start..start));
+        }
+        projection.validate(state.document()).unwrap();
+        assert_eq!(projection.blocks.len(), count);
+        assert_eq!(projection.replacements.len(), count * 2);
     }
 }

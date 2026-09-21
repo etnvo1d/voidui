@@ -208,7 +208,7 @@ cargo test --workspace
 cargo run --example overlays
 cargo run --example overlays -- --smoke target/overlay-smoke
 cargo run --example overlays -- --pixels
-cargo run --release --example stacking_bench -- 1000 200
+cargo bench --bench stacking -- 1000 200
 ```
 
 Tests cover stacking-context escape/containment, negative and static z-index,

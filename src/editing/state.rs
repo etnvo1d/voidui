@@ -90,6 +90,25 @@ struct HistoryEntry {
     time: Instant,
     bytes: usize,
 }
+impl HistoryEntry {
+    /// Visit deltas in application order without allocating an iterator.
+    fn changes(&self, redo: bool) -> impl Iterator<Item = &ChangeSet> {
+        (0..self.records.len()).map(move |index| {
+            let index = if redo {
+                index
+            } else {
+                self.records.len() - index - 1
+            };
+            let record = &self.records[index];
+            if redo {
+                &record.forward
+            } else {
+                &record.inverse
+            }
+        })
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub struct Composition {
     /// Range in the committed document, unchanged until commit.
@@ -665,18 +684,24 @@ impl EditorState {
     }
     fn trim_history(&mut self) {
         while self.history_bytes > self.history.max_bytes {
-            let entry = self.undo.pop_front().or_else(|| {
-                if self.redo.is_empty() {
-                    None
-                } else {
-                    Some(self.redo.remove(0))
-                }
-            });
-            let Some(entry) = entry else {
+            let Some(entry) = self.undo.pop_front() else {
                 break;
             };
             self.history_bytes -= entry.bytes;
         }
+        // Redo is a stack: its first entries are the furthest future edits.
+        // Drain a discarded prefix once instead of shifting the vector for each
+        // entry. This keeps trimming linear without increasing every session's
+        // storage for the ordinary push/pop path.
+        let mut discarded = 0;
+        for entry in &self.redo {
+            if self.history_bytes <= self.history.max_bytes {
+                break;
+            }
+            self.history_bytes -= entry.bytes;
+            discarded += 1;
+        }
+        self.redo.drain(..discarded);
     }
     /// Undo/redo return each delta in execution order so external decorations can
     /// map their positions without diffing whole document snapshots.
@@ -701,13 +726,7 @@ impl EditorState {
         let constraints: Vec<_> = self.constraints.iter().filter_map(Weak::upgrade).collect();
         if !constraints.is_empty() {
             let mut probe = self.document.history_probe();
-            let valid = (0..entry.records.len()).try_for_each(|i| {
-                let record = &entry.records[if redo { i } else { entry.records.len() - i - 1 }];
-                let changes = if redo {
-                    &record.forward
-                } else {
-                    &record.inverse
-                };
+            let valid = entry.changes(redo).try_for_each(|changes| {
                 for check in &constraints {
                     check(&probe, changes)?;
                 }
@@ -725,17 +744,7 @@ impl EditorState {
         }
         self.cancel_composition();
         let mut result = Vec::with_capacity(entry.records.len());
-        let records: Box<dyn Iterator<Item = &Record> + '_> = if redo {
-            Box::new(entry.records.iter())
-        } else {
-            Box::new(entry.records.iter().rev())
-        };
-        for record in records {
-            let changes = if redo {
-                &record.forward
-            } else {
-                &record.inverse
-            };
+        for changes in entry.changes(redo) {
             let before_revision = self.revision();
             self.apply_document_change(changes, if redo { EditKind::Redo } else { EditKind::Undo });
             result.push(Change {
@@ -831,5 +840,89 @@ impl EditorState {
             self.break_history_group();
         }
         result
+    }
+}
+
+
+#[cfg(test)]
+mod history_tests {
+    use super::*;
+
+    fn three_commands() -> EditorState {
+        let mut state = EditorState::new("");
+        for text in ["a", "b", "c"] {
+            state.replace_selections(text, EditKind::Command).unwrap();
+        }
+        state
+    }
+
+    #[test]
+    fn trimming_redo_retains_the_nearest_future_entries() {
+        let mut state = three_commands();
+        for _ in 0..3 {
+            state.undo().unwrap();
+        }
+        // The stack is [c, b, a]. Keep exactly the two nearest redo entries,
+        // using their actual accounting rather than assuming allocator sizes.
+        let budget = state
+            .redo
+            .iter()
+            .rev()
+            .take(2)
+            .map(|entry| entry.bytes)
+            .sum();
+        state.set_history_options(HistoryOptions {
+            max_bytes: budget,
+            ..Default::default()
+        });
+        assert_eq!(state.history_bytes(), budget);
+        state.redo().unwrap();
+        assert_eq!(state.text(), "a");
+        state.redo().unwrap();
+        assert_eq!(state.text(), "ab");
+        assert!(!state.can_redo());
+        state.undo().unwrap();
+        state.undo().unwrap();
+        assert_eq!(state.text(), "");
+    }
+
+    #[test]
+    fn trimming_mixed_history_preserves_a_contiguous_chain() {
+        let mut state = three_commands();
+        state.undo().unwrap();
+        let budget = state.history_bytes() - state.undo.front().unwrap().bytes;
+        state.set_history_options(HistoryOptions {
+            max_bytes: budget,
+            ..Default::default()
+        });
+        state.undo().unwrap();
+        assert_eq!(state.text(), "a");
+        assert!(!state.can_undo());
+        state.redo().unwrap();
+        state.redo().unwrap();
+        assert_eq!(state.text(), "abc");
+        assert!(!state.can_redo());
+    }
+
+    #[test]
+    fn disabling_history_discards_a_large_redo_stack() {
+        let mut state = EditorState::new("");
+        for _ in 0..1000 {
+            state.replace_selections("x", EditKind::Command).unwrap();
+        }
+        while state.can_undo() {
+            state.undo().unwrap();
+        }
+        let text = state.text().to_owned();
+        state.set_history_options(HistoryOptions {
+            max_bytes: 0,
+            ..Default::default()
+        });
+        assert_eq!(state.history_bytes(), 0);
+        assert!(!state.can_undo());
+        assert!(!state.can_redo());
+        assert_eq!(state.text(), text);
+        assert_eq!(state.undo.capacity(), 0);
+        assert_eq!(state.redo.capacity(), 0);
     }
 }

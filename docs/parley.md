@@ -133,9 +133,10 @@ See [Text widgets](text.md) and [Text selection](selection.md) for ordinary text
 
 ## Verification and memory
 
-See the [production migration measurements](../experiments/text-memory/production-results.md)
-for native-window memory, the retained-document workload, idle verification and
-the remaining large-document reflow performance difference.
+Run the [headless benchmarks](../benches/README.md) for retained paragraph,
+editing, and resize workloads. These report requested Rust heap bytes and CPU
+work; native window memory, GPU resources, and process-wide idle behavior require
+separate platform measurements.
 
 ## Named font resources and positioned glyphs
 

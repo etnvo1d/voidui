@@ -38,10 +38,13 @@ pub(crate) fn absolute_file(path: &Path) -> std::io::Result<PathBuf> {
     };
     // Preserve the file name, not a canonicalized inode: editors frequently save
     // by atomically replacing it. The parent directory is the watched resource.
-    Ok(path.parent().unwrap().canonicalize()?.join(
-        path.file_name()
-            .ok_or_else(|| std::io::Error::other("CSS file name is missing"))?,
-    ))
+    let name = path
+        .file_name()
+        .ok_or_else(|| std::io::Error::other("CSS file name is missing"))?;
+    let parent = path
+        .parent()
+        .ok_or_else(|| std::io::Error::other("CSS parent directory is missing"))?;
+    Ok(parent.canonicalize()?.join(name))
 }
 
 fn same_path(a: &Path, b: &Path) -> bool {
@@ -175,6 +178,15 @@ impl Drop for ReloadManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn filesystem_roots_return_an_error_without_starting_a_watcher() {
+        let current = std::env::current_dir().unwrap();
+        let root = current.ancestors().last().unwrap().to_owned();
+        assert!(absolute_file(&root).is_err());
+        assert!(ReloadManager::start(vec![(0, root)], |_| {}).is_err());
+    }
+
     #[test]
     fn detects_atomic_save_filters_other_files_and_stops() {
         let dir = std::env::temp_dir().join(format!(

@@ -91,7 +91,7 @@ containing-block ownership or classic scrollbar gutters require layout. Static
 windows continue to sleep between changes. Retained paint order is reused while
 stacking membership is unchanged.
 
-Use `cargo run --release --example spatial_bench -- 1000 1000` to measure requested
+Use `cargo bench --bench spatial -- 1000 1000` to measure requested
 heap bytes, scroll/hit time, and allocation counts without a native window or GPU.
 Reported memory excludes allocator overhead and RSS. The benchmark asserts zero
 warm hit allocations and no scrolling-induced reflow or paint-order rebuild.

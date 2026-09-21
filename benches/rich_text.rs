@@ -1,12 +1,14 @@
 //! Measure sparse rich formatting and retained layout without a window or GPU.
+#[path = "support/allocations.rs"]
+mod allocations;
+use allocations::{ALLOCATIONS, LIVE};
+#[path = "support/args.rs"]
+mod arguments;
+
 use std::{
-    alloc::{GlobalAlloc, Layout, System},
     borrow::Cow,
     hint::black_box,
-    sync::{
-        Arc,
-        atomic::{AtomicUsize, Ordering::Relaxed},
-    },
+    sync::{Arc, atomic::Ordering::Relaxed},
     time::Instant,
 };
 use voidui::{
@@ -16,42 +18,8 @@ use voidui::{
     },
     render::{ParleyTextSystem, TextSystem, font},
 };
-struct CountingAllocator;
-static LIVE: AtomicUsize = AtomicUsize::new(0);
-static ALLOCATIONS: AtomicUsize = AtomicUsize::new(0);
-// Count requested bytes, not allocator metadata or RSS. This standalone process
-// has no window, GPU, font workers, or other concurrent benchmark workloads.
-unsafe impl GlobalAlloc for CountingAllocator {
-    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        // SAFETY: the unchanged layout is forwarded to the system allocator.
-        let pointer = unsafe { System.alloc(layout) };
-        if !pointer.is_null() {
-            LIVE.fetch_add(layout.size(), Relaxed);
-            ALLOCATIONS.fetch_add(1, Relaxed);
-        }
-        pointer
-    }
-    unsafe fn dealloc(&self, pointer: *mut u8, layout: Layout) {
-        LIVE.fetch_sub(layout.size(), Relaxed);
-        // SAFETY: pointer and layout come from this allocator's matching allocation.
-        unsafe { System.dealloc(pointer, layout) };
-    }
-    unsafe fn realloc(&self, pointer: *mut u8, layout: Layout, size: usize) -> *mut u8 {
-        // SAFETY: the original allocation and requested size are forwarded unchanged.
-        let next = unsafe { System.realloc(pointer, layout, size) };
-        if !next.is_null() {
-            LIVE.fetch_add(size, Relaxed);
-            LIVE.fetch_sub(layout.size(), Relaxed);
-            ALLOCATIONS.fetch_add(1, Relaxed);
-        }
-        next
-    }
-}
-#[global_allocator]
-static ALLOCATOR: CountingAllocator = CountingAllocator;
-
 fn main() {
-    let args: Vec<_> = std::env::args().skip(1).collect();
+    let args: Vec<_> = arguments::args().collect();
     let lines: usize = args.first().map(|s| s.parse().unwrap()).unwrap_or(1000);
     let edits: usize = args.get(1).map(|s| s.parse().unwrap()).unwrap_or(500);
     assert!(lines > 0 && edits > 0);

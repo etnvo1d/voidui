@@ -23,8 +23,9 @@ let view = component(|| {
 });
 ```
 
-`on_click_async` remains a deprecated forwarding alias for existing widget-builder
-calls. Use `on_click` for new code. No other event needs an `_async` variant.
+Use `on_click` for both synchronous and asynchronous callbacks. Calls to the
+removed `on_click_async` alias migrate by renaming the method; the closure stays
+the same.
 
 ## Supported events
 
@@ -246,13 +247,13 @@ and `current_cursor()` for integrations and programmatic window tests.
 ## Verification
 
 ```sh
-cargo test --workspace --all-targets
+cargo test --workspace
 cargo test --doc -p voidui
 cargo test --test events --no-default-features
 cargo check --all-targets --no-default-features
 cargo run --example events
 cargo run --example events -- --smoke
-cargo run --release --example events_bench -- 100000
+cargo bench --bench events -- 100000
 ```
 
 `--smoke` drives the actual window adapters programmatically and checks DPI conversion,

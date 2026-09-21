@@ -1,5 +1,8 @@
-//! Headless sidebar resize benchmark: cargo run --example resize_bench -- [rows] [frames]
+//! Headless sidebar resize benchmark: cargo bench --bench resize -- [rows] [frames]
 //! Reports reconciliation, style and layout time; excludes native events and painting.
+#[path = "support/args.rs"]
+mod arguments;
+
 use std::{borrow::Cow, cell::Cell, rc::Rc, sync::Arc, time::Instant};
 use voidui::{
     Read, component,
@@ -41,7 +44,7 @@ fn file_list(names: Read<Vec<String>>, document: Read<SvgDocument>) {
 }
 
 fn main() -> anyhow::Result<()> {
-    let mut args = std::env::args().skip(1);
+    let mut args = arguments::args();
     let rows = args
         .next()
         .map(|s| s.parse())

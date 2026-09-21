@@ -301,7 +301,7 @@ within the limits above, using [Taffy's calculation resolver](https://docs.rs/ta
 
 ```sh
 cargo test --workspace
-cargo run --release --example css_bench -- 1000 1000
+cargo bench --bench css -- 1000 1000
 cargo run --example css -- --smoke target/css-smoke
 ```
 

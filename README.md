@@ -20,6 +20,7 @@ been removed. Use `hello`, `cargo test --test layout`, and `file_tree` respectiv
 - [Async resources and scoped tasks](docs/tasks.md)
 - [Unified events and drag capture](docs/events.md)
 - [Native windows and performance](docs/window.md)
+- [Performance and resource budgets](docs/performance.md)
 - [CSS selectors and optional hot reload](docs/css.md)
 - [Stacking, top layer and tooltips](docs/overlays.md)
 - [Transitions, color spaces, gradients and shadows](docs/effects.md)

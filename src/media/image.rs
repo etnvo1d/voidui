@@ -305,6 +305,61 @@ impl PartialEq for Image {
     }
 }
 impl Image {
+    /// Retained bitmap bytes, or a conservative source-based SVG tree estimate.
+    pub fn retained_bytes(&self) -> usize {
+        match &self.0.kind {
+            ImageKind::Bitmap { pixels, .. } => pixels.len(),
+            ImageKind::Svg(svg) => {
+                svg.source.len().saturating_mul(4) + std::mem::size_of::<PreparedSvg>()
+            }
+        }
+    }
+    pub(crate) fn file_dimensions(path: &Path, limits: MediaLimits) -> Result<[f32; 2]> {
+        let reader = ::image::ImageReader::open(path)?.with_guessed_format()?;
+        if reader.format().is_none() {
+            return Ok(Self::from_bytes_with_options(
+                &limits.read(path)?,
+                &SvgOptions {
+                    limits,
+                    ..Default::default()
+                },
+            )?
+            .intrinsic_size());
+        }
+        let (w, h) = reader.into_dimensions()?;
+        limits.check_size(w, h)?;
+        Ok([w as f32, h as f32])
+    }
+    pub(crate) fn from_file_resized(
+        path: &Path,
+        width: u32,
+        height: u32,
+        limits: MediaLimits,
+    ) -> Result<Self> {
+        let bytes = limits.read(path)?;
+        let reader = ::image::ImageReader::new(Cursor::new(&bytes)).with_guessed_format()?;
+        if reader.format().is_none() {
+            return Self::from_bytes_with_options(
+                &bytes,
+                &SvgOptions {
+                    limits,
+                    ..Default::default()
+                },
+            );
+        }
+        let dimensions = ::image::ImageReader::new(Cursor::new(&bytes))
+            .with_guessed_format()?
+            .into_dimensions()?;
+        limits.check_size(dimensions.0, dimensions.1)?;
+        let decoded = reader.decode()?;
+        // Keep the source aspect ratio and never upscale the stored pixels.
+        // The widget applies CSS object-fit independently of this resolution.
+        let scaled = decoded.thumbnail(width.min(dimensions.0), height.min(dimensions.1));
+        let pixels = scaled.to_rgba8();
+        super::IMAGE_DECODES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        Self::from_rgba_with_limits(pixels.width(), pixels.height(), pixels.into_raw(), limits)
+    }
+
     /// Load and validate once. Clone the returned handle for repeated instances.
     pub fn from_file(path: impl AsRef<Path>) -> Result<Self> {
         Self::from_bytes(&MediaLimits::default().read(path.as_ref())?)

@@ -180,6 +180,10 @@ impl WidgetTree {
         {
             input.set_scroll_offset(next);
         }
+        let bounds = self.content_bounds(id);
+        if let Some(widget) = self.nodes[id].widget.as_mut() {
+            widget.viewport_changed(bounds, next);
+        }
         self.reposition_scrolled_children(id);
         self.paint_clip_dirty.set(true);
         self.widget_updates.repaint();

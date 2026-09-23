@@ -14,12 +14,19 @@ pub struct Invalidation {
 }
 #[derive(Default)]
 pub(crate) struct WidgetQueue {
+    pub runtime: Option<crate::TaskRuntime>,
     pending: RefCell<HashMap<WidgetId, Invalidation>>,
     wake: RefCell<Option<Rc<dyn Fn()>>>,
     pub paint_dirty: Cell<bool>,
     pub caret_visibility: Cell<Option<bool>>,
 }
 impl WidgetQueue {
+    pub(crate) fn with_runtime(runtime: crate::TaskRuntime) -> Self {
+        Self {
+            runtime: Some(runtime),
+            ..Default::default()
+        }
+    }
     /// Paint-only geometry updates coalesce without allocating a pending-node entry.
     pub(crate) fn repaint(&self) {
         if !self.paint_dirty.replace(true)
@@ -35,6 +42,11 @@ pub struct WidgetInvalidator {
     id: WidgetId,
 }
 impl WidgetInvalidator {
+    /// Nested hosts share their owner's executor and native wakeup lifecycle.
+    pub fn task_runtime(&self) -> Option<crate::TaskRuntime> {
+        self.queue.upgrade()?.runtime.clone()
+    }
+
     /// Wake presentation without invalidating static layout or scene data.
     #[cfg(feature = "editing")]
     pub(crate) fn caret_visibility(&self, visible: bool) {

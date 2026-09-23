@@ -376,6 +376,7 @@ impl Drop for MountedViews {
 /// Adapt any existing VoidUI subtree, including images and controls. The subtree
 /// shares the parent's font service and invalidation wakeup, not a separate window.
 pub struct WidgetView {
+    runtime: Option<crate::TaskRuntime>,
     factory: Rc<dyn Fn() -> crate::Element>,
     tree: Option<crate::core::widget_tree::WidgetTree>,
     cache: Option<TextLayoutCache>,
@@ -389,6 +390,7 @@ pub struct WidgetView {
 impl WidgetView {
     pub fn new(factory: impl Fn() -> crate::Element + 'static) -> Self {
         Self {
+            runtime: None,
             factory: Rc::new(factory),
             tree: None,
             cache: None,
@@ -435,7 +437,9 @@ impl WidgetView {
     }
     fn tree(&mut self) -> &mut crate::core::widget_tree::WidgetTree {
         self.tree.get_or_insert_with(|| {
-            let mut t = crate::core::widget_tree::WidgetTree::new();
+            let mut t = crate::core::widget_tree::WidgetTree::with_task_runtime(
+                self.runtime.clone().unwrap_or_default(),
+            );
             t.build_root((self.factory)());
             t
         })
@@ -524,6 +528,7 @@ impl EmbeddedView for WidgetView {
     }
     fn mounted(&mut self, invalidate: Option<WidgetInvalidator>) {
         if let Some(invalidate) = invalidate {
+            self.runtime = invalidate.task_runtime();
             self.tree().set_update_waker(move || invalidate.repaint());
         }
     }

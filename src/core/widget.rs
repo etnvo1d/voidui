@@ -11,6 +11,15 @@ use crate::core::{
 };
 
 pub trait Widget: std::any::Any {
+    /// Notify viewport-backed content after layout or scrolling. Defer component
+    /// state publication until after the current layout/draw traversal.
+    fn viewport_changed(
+        &mut self,
+        _bounds: crate::core::geometry::Rect<f32>,
+        _offset: crate::core::geometry::Point<f32>,
+    ) {
+    }
+
     /// Expose a compact SVG subtree to the shared CSS selector adapter. Internal
     /// SVG nodes do not allocate UI layout, event, selection or animation state.
     fn svg_document(&self) -> Option<&crate::svg::SvgDocument> {

@@ -2,7 +2,9 @@
 //! widget (or in a scoped task); painting never performs file or network I/O.
 #![doc = include_str!("../../docs/media.md")]
 
+mod asset;
 mod image;
+pub use asset::ImageAsset;
 mod svg_cache;
 pub use image::{Image, MediaLimits, SvgOptions};
 pub(crate) use image::{PreparedSvg, Raster};

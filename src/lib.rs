@@ -8,7 +8,7 @@ pub use core::rich_text::{Inline, InlineStyle, RichText, StyleSpan, span};
 #[cfg(feature = "editing")]
 pub use editing::Editor;
 pub use voidui_gpui_wgpu as render;
-pub use widgets::{div, img, rich_text, text};
+pub use widgets::{VirtualListOptions, asset_img, div, img, rich_text, text, virtual_list};
 #[cfg(feature = "editing")]
 pub use widgets::{input, input_group, rich_editor, textarea};
 
@@ -34,6 +34,7 @@ pub use voidui_macros::filter_style_methods as __voidui_filter_style_methods;
 
 pub use core::element::{Element, IntoElement};
 
+pub mod cache;
 pub mod files;
 pub mod tasks;
 pub use core::task_hooks::{app_task_scope, on_mount, task_scope, window_task_scope};

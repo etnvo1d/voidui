@@ -145,7 +145,9 @@ impl WidgetTree {
             scrollers: Vec::new(),
             scroll_drag: None,
             events: Default::default(),
-            widget_updates: Default::default(),
+            widget_updates: std::rc::Rc::new(super::updates::WidgetQueue::with_runtime(
+                runtime.clone(),
+            )),
             tasks: crate::tasks::host::TaskHost::new(runtime),
             root: None,
             components: Default::default(),
@@ -823,6 +825,14 @@ impl WidgetTree {
             self.calc_layout_positions(self.viewport.children[index], origin);
         }
         self.layout_backdrops();
+        for index in 0..self.scrollers.len() {
+            let id = self.scrollers[index];
+            let bounds = self.content_bounds(id);
+            let offset = self.scroll_offset(id);
+            if let Some(widget) = self.nodes[id].widget.as_mut() {
+                widget.viewport_changed(bounds, offset);
+            }
+        }
         self.layout_ready = self.root == Some(root_id);
         self.nodes[root_id].global_bounds.size
     }
@@ -1251,6 +1261,14 @@ impl WidgetTree {
         self.styles_ready = true;
         if backdrop_changed {
             self.layout_backdrops();
+            for index in 0..self.scrollers.len() {
+                let id = self.scrollers[index];
+                let bounds = self.content_bounds(id);
+                let offset = self.scroll_offset(id);
+                if let Some(widget) = self.nodes[id].widget.as_mut() {
+                    widget.viewport_changed(bounds, offset);
+                }
+            }
         }
 
         // Reconciled content may invalidate layout without changing any CSS.

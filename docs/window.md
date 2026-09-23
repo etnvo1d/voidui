@@ -53,6 +53,14 @@ pixels back to the CPU.
 
 ## When work happens
 
+Component commits can enqueue another update (for example, restarting a resource
+publishes its loading state). Native frames use `WidgetTree::prepare_frame` and
+defer layout/presentation when it returns `None`. Paint invalidation survives that
+deferral, and CPU follow-up work does not count as a failed GPU presentation.
+Custom incremental hosts should use the same boundary before `layout_computed`
+and `draw`; `update_styles` alone does not guarantee an empty update queue. Each
+attempt processes one batch rather than draining arbitrary user effects in a loop.
+
 - Content/tree edits: layout, rebuild the scene, present.
 - Changed logical window size: layout, rebuild the scene, present.
 - DPI change with identical logical dimensions: rebuild device-scaled primitives,

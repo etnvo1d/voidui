@@ -1016,6 +1016,28 @@ impl WidgetTree {
         });
     }
 
+    /// Prepare one bounded update batch for a native frame. None means commit
+    /// callbacks queued another batch; retry on a later event-loop turn before
+    /// calling layout_computed or draw. Do not drain arbitrary user effects in
+    /// a loop: a resource restart or a destructor can itself enqueue more work.
+    pub fn prepare_frame(&mut self, now: Instant) -> Option<StyleChange> {
+        let changes = self.update_styles(now);
+        if self.has_pending_updates() {
+            // Style sampling consumed these flags, but no frame will present
+            // them yet. Carry paint-only changes too, even if the next batch
+            // produces identical layout and styles.
+            if changes.paint {
+                self.widget_updates.paint_dirty.set(true);
+            }
+            if changes.layout {
+                self.layout_ready = false;
+            }
+            None
+        } else {
+            Some(changes)
+        }
+    }
+
     /// Resolve dirty styles and sample active transitions without running layout.
     /// A clean, non-animating tree returns immediately without traversing nodes.
     pub fn update_styles(&mut self, now: Instant) -> StyleChange {

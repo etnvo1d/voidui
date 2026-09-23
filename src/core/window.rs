@@ -753,7 +753,13 @@ impl AppWindow {
             width: logical.width,
             height: logical.height,
         });
-        let changes = self.tree.update_styles(Instant::now());
+        let Some(changes) = self.tree.prepare_frame(Instant::now()) else {
+            // Reconciliation may publish resource/loading or destructor updates
+            // at commit. Resume on the next turn, without treating CPU work as
+            // a failed GPU presentation or laying out an uncommitted tree.
+            self.schedule.invalidate();
+            return Ok(false);
+        };
         if changes.paint {
             self.tree.refresh_scroll_content(&self.text_layout);
         }

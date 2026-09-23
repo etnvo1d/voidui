@@ -111,6 +111,189 @@ fn transformed_overflow_clip_uses_local_shape_not_bounding_rect() {
         Some(HitTarget::Element(child))
     );
 }
+
+#[test]
+fn rounded_overflow_clips_all_corners_and_preserves_axis_semantics() {
+    for (overflow, rounded) in [
+        ("hidden", true),
+        ("auto", true),
+        ("scroll", true),
+        ("clip", true),
+        ("visible", false),
+        ("clip visible", false),
+        ("visible clip", false),
+        ("hidden visible", true),
+    ] {
+        let t = build(
+            div().id("parent").child(div().id("child")),
+            &format!(
+                "#parent{{width:100px;height:100px;border:4px solid black;border-radius:24px;overflow:{overflow};scrollbar-width:none}}#child{{width:100px;height:100px}}"
+            ),
+        );
+        let child = t.find_by_id("child").unwrap();
+        for p in [
+            Point::new(5., 5.),
+            Point::new(103., 5.),
+            Point::new(103., 103.),
+            Point::new(5., 103.),
+        ] {
+            assert_eq!(
+                t.hit_test(p) == Some(HitTarget::Element(child)),
+                !rounded,
+                "{overflow} at {p:?}"
+            );
+        }
+        assert_eq!(
+            t.hit_test(Point::new(54., 5.)),
+            Some(HitTarget::Element(child))
+        );
+    }
+}
+
+#[test]
+fn inner_corners_are_elliptical_and_outer_radius_is_normalized_first() {
+    let t = build(
+        div().id("parent").child(div().id("child")),
+        "#parent{width:100px;height:100px;box-sizing:border-box;border-radius:1000px;border-width:4px 8px 12px 20px;overflow:hidden}#child{width:100px;height:100px}",
+    );
+    let child = t.find_by_id("child").unwrap();
+    // Outer radius 50 becomes (30,46) at the top-left, not a radius-30 circle.
+    assert_ne!(
+        t.hit_test(Point::new(24., 20.)),
+        Some(HitTarget::Element(child))
+    );
+    assert_eq!(
+        t.hit_test(Point::new(40., 20.)),
+        Some(HitTarget::Element(child))
+    );
+    assert_eq!(
+        t.hit_test(Point::new(50., 5.)),
+        Some(HitTarget::Element(child))
+    );
+}
+
+#[test]
+fn rounded_clip_follows_transforms_scrolling_and_containing_blocks() {
+    let mut t = build(
+        div()
+            .id("parent")
+            .child(div().id("child"))
+            .child(div().id("fixed").fixed().left(1).top(1).size(2, 2)),
+        "#parent{width:100px;height:100px;border-radius:30px;overflow:hidden}#child{width:100px;height:300px}#parent.moved{transform:translate(100px,50px) scale(2);transform-origin:0 0}",
+    );
+    let parent = t.find_by_id("parent").unwrap();
+    let child = t.find_by_id("child").unwrap();
+    let fixed = t.find_by_id("fixed").unwrap();
+    assert_eq!(
+        t.hit_test(Point::new(2., 2.)),
+        Some(HitTarget::Element(fixed))
+    );
+    t.scroll_to(parent, Point::new(0., 50.));
+    assert_ne!(
+        t.hit_test(Point::new(5., 5.)),
+        Some(HitTarget::Element(child))
+    );
+    assert_eq!(
+        t.hit_test(Point::new(50., 5.)),
+        Some(HitTarget::Element(child))
+    );
+    t.set_classes(parent, "moved");
+    layout(&mut t);
+    assert_ne!(
+        t.hit_test(Point::new(110., 60.)),
+        Some(HitTarget::Element(child))
+    );
+    assert_eq!(
+        t.hit_test(Point::new(200., 60.)),
+        Some(HitTarget::Element(child))
+    );
+}
+
+#[test]
+fn radius_changes_refresh_descendant_clips_without_layout_or_reordering() {
+    let mut t = build(
+        div().id("parent").child(div().id("child")),
+        "#parent{width:100px;height:100px;overflow:hidden}#parent.round{border-radius:40px}#child{width:100px;height:100px}",
+    );
+    let parent = t.find_by_id("parent").unwrap();
+    let child = t.find_by_id("child").unwrap();
+    assert_eq!(
+        t.hit_test(Point::new(2., 2.)),
+        Some(HitTarget::Element(child))
+    );
+    let order = t.paint_order_rebuilds();
+    for class in ["round", "", "round"] {
+        t.set_classes(parent, class);
+        assert!(!t.update_styles(Instant::now()).layout);
+        assert_eq!(
+            t.hit_test(Point::new(2., 2.)) == Some(HitTarget::Element(child)),
+            class.is_empty()
+        );
+        assert_eq!(t.paint_order_rebuilds(), order);
+    }
+}
+
+#[test]
+fn nested_rounding_intersects_ancestor_clips() {
+    let t = build(
+        div()
+            .id("outer")
+            .child(div().id("inner").child(div().id("child"))),
+        "#outer{width:100px;height:100px;overflow:hidden;border-radius:40px}#inner{width:100px;height:100px;overflow:hidden;border-radius:10px;transform:translateX(5px)}#child{width:100px;height:100px}",
+    );
+    let child = t.find_by_id("child").unwrap();
+    // This point clears the inner corner but remains outside the outer curve.
+    assert_ne!(
+        t.hit_test(Point::new(15., 5.)),
+        Some(HitTarget::Element(child))
+    );
+    assert_eq!(
+        t.hit_test(Point::new(50., 5.)),
+        Some(HitTarget::Element(child))
+    );
+}
+
+#[test]
+fn scrollbar_gutters_intersect_without_reshaping_padding_corners() {
+    let t = build(
+        div()
+            .id("parent")
+            .scrollbar_mode(ScrollbarMode::Classic)
+            .child(div().id("child")),
+        "#parent{width:100px;height:100px;overflow:auto;border-radius:30px}#child{width:100px;height:300px}",
+    );
+    let parent = t.find_by_id("parent").unwrap();
+    let child = t.find_by_id("child").unwrap();
+    let width = t.scroll_metrics(parent).unwrap().viewport.width;
+    assert!(width < 100.);
+    assert_eq!(
+        t.hit_test(Point::new(width - 1., 15.)),
+        Some(HitTarget::Element(child))
+    );
+    assert_ne!(
+        t.hit_test(Point::new(1., 1.)),
+        Some(HitTarget::Element(child))
+    );
+}
+
+#[test]
+fn radius_transition_updates_the_clip_between_layouts() {
+    use std::time::Duration;
+    let mut t = build(
+        div().id("parent").child(div().id("child")),
+        "#parent{width:100px;height:100px;overflow:hidden;border-radius:0;transition:border-radius 1s linear}#parent.round{border-radius:40px}#child{width:100px;height:100px}",
+    );
+    let parent = t.find_by_id("parent").unwrap();
+    let child = t.find_by_id("child").unwrap();
+    let point = Point::new(10., 10.);
+    let now = Instant::now();
+    t.set_classes(parent, "round");
+    assert!(!t.update_styles(now).layout);
+    assert!(!t.update_styles(now + Duration::from_millis(500)).layout);
+    assert_eq!(t.hit_test(point), Some(HitTarget::Element(child)));
+    assert!(!t.update_styles(now + Duration::from_secs(1)).layout);
+    assert_ne!(t.hit_test(point), Some(HitTarget::Element(child)));
+}
 #[test]
 fn transformed_ancestor_contains_fixed_and_absolute_descendants() {
     let t = build(

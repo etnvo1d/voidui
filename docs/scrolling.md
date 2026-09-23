@@ -152,12 +152,24 @@ cargo run --example scrolling -- --smoke /tmp/scrolling.png
 The native smoke test delivers wheel input and thumb dragging, asserts unchanged
 layout-pass counts, verifies idle scene reuse and writes a rendered PNG.
 
+## Rounded clipping
+
+When both computed overflow axes are non-visible, content is clipped to the
+rounded padding edge. The outer `border-radius` is normalized to fit the border
+box, then each adjoining border width is subtracted independently; unequal widths
+produce elliptical inner corners. Scrollbar gutters intersect this shape without
+moving its curves. A `clip` axis paired with `visible` keeps a rectangular clip.
+
+Nested clips, transforms, hit testing and radius transitions share the same
+geometry. The element's own background and border are painted outside its content
+clip. Rounded edges are antialiased across backgrounds, text, images and paths.
+
 ## Scope
 
 This provides standard scrolling for the existing widget box model, not a full HTML
 browser viewport. Smooth scrolling/`scroll-behavior`, scroll snap, scroll anchoring,
 scroll-linked animations, `scroll-padding`/`scroll-margin`,
-touch panning, auto-hiding/animated OS scrollbars and rounded overflow clipping are
+touch panning and auto-hiding/animated OS scrollbars are
 not implemented. Unsupported CSS is rejected rather than accepted without effect.
 Root/body overflow propagation and vertical writing modes are not implemented.
 

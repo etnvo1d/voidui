@@ -102,6 +102,7 @@ impl<'a> Painter<'a> {
                 mask.bounds.size.height.0,
             ],
             axes: [true, true],
+            radii: [[0.; 2]; 4],
         };
         self.scene.spatial_id = self.scene.spatial.push(space, self.scale_factor, viewport);
         // A conservative local viewport keeps existing widget culling safe.

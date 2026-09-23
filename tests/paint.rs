@@ -168,6 +168,55 @@ fn overflow_clips_only_requested_axes_and_restores_sibling_mask() {
 }
 
 #[test]
+fn rounded_overflow_attaches_shared_spatial_clips_only_to_its_subtree() {
+    let scene = paint(
+        div()
+            .child(
+                div()
+                    .size(100, 100)
+                    .border_width(4)
+                    .border_radius(24.)
+                    .overflow(voidui::Overflow::Hidden)
+                    .child(div().size(100, 50).background(Rgba8::from_rgb8(255, 0, 0)))
+                    .child(div().size(100, 50).background(Rgba8::from_rgb8(0, 255, 0))),
+            )
+            .child(div().size(100, 20).background(Rgba8::from_rgb8(0, 0, 255))),
+        2.0,
+    );
+    assert_eq!(scene.quads.len(), 4);
+    // Scene batching can reorder non-overlapping quads; identify the boxes by
+    // geometry rather than depending on their submission order.
+    let parent = scene
+        .quads
+        .iter()
+        .find(|q| q.border_widths.left.0 > 0.)
+        .unwrap()
+        .spatial_id;
+    let children: Vec<_> = scene
+        .quads
+        .iter()
+        .filter(|q| q.bounds.size.height.0 == 100.)
+        .collect();
+    let child = children[0].spatial_id;
+    assert_ne!(child, 0);
+    assert_ne!(
+        child, parent,
+        "the parent's border must not receive its own content clip"
+    );
+    assert_eq!(children.len(), 2);
+    assert_eq!(children[1].spatial_id, child);
+    assert_eq!(
+        scene
+            .quads
+            .iter()
+            .find(|q| q.bounds.size.height.0 == 40.)
+            .unwrap()
+            .spatial_id,
+        0
+    );
+}
+
+#[test]
 fn inherited_currentcolor_is_resolved_by_the_receiving_element() {
     use voidui::style::{CssValue, color::Color};
     let foreground = Rgba8::from_rgb8(20, 80, 140);

@@ -93,12 +93,38 @@ pub struct SpatialClip {
     pub inverse: Affine,
     pub bounds: [f32; 4],
     pub axes: [bool; 2],
+    /// Elliptical inner radii in top-left, top-right, bottom-right, bottom-left order.
+    /// A zero component makes that corner square. Single-axis clips stay square.
+    pub radii: [[f32; 2]; 4],
 }
 impl SpatialClip {
     pub fn contains(self, point: [f32; 2]) -> bool {
         let [x, y] = self.inverse.map(point);
         let [l, t, w, h] = self.bounds;
-        (!self.axes[0] || (x >= l && x < l + w)) && (!self.axes[1] || (y >= t && y < t + h))
+        if (self.axes[0] && (x < l || x >= l + w)) || (self.axes[1] && (y < t || y >= t + h)) {
+            return false;
+        }
+        if self.axes != [true, true] {
+            return true;
+        }
+        // Test each corner independently: unequal borders can move an ellipse's
+        // center past the middle of the padding box.
+        for ([rx, ry], [dx, dy]) in self.radii.into_iter().zip([
+            [x - l, y - t],
+            [l + w - x, y - t],
+            [l + w - x, t + h - y],
+            [x - l, t + h - y],
+        ]) {
+            if rx > 0.0
+                && ry > 0.0
+                && dx < rx
+                && dy < ry
+                && ((dx - rx) / rx).powi(2) + ((dy - ry) / ry).powi(2) > 1.0
+            {
+                return false;
+            }
+        }
+        true
     }
 }
 
@@ -165,6 +191,9 @@ impl SpatialData {
         self.last_space = None;
     }
     fn clip(&mut self, c: SpatialClip, scale: f32, parent: u32) -> u32 {
+        // Five vec4 words: two inverse-matrix rows (with parent/flags), bounds,
+        // then four radius pairs. Scene replay and both shader transports share
+        // this layout; bit 2 lets rectangular clips skip the radius loads.
         let index = self.words.len() as u32;
         let [a, b, cx, d, e, f] = c.inverse.device(scale).0;
         self.words
@@ -173,9 +202,21 @@ impl SpatialData {
             b.to_bits(),
             d.to_bits(),
             f.to_bits(),
-            u32::from(c.axes[0]) | (u32::from(c.axes[1]) << 1),
+            u32::from(c.axes[0])
+                | (u32::from(c.axes[1]) << 1)
+                | (u32::from(
+                    c.axes == [true, true] && c.radii.iter().any(|r| r[0] > 0.0 && r[1] > 0.0),
+                ) << 2),
         ]);
         self.words.push(c.bounds.map(|v| (v * scale).to_bits()));
+        for corners in c.radii.chunks_exact(2) {
+            self.words.push([
+                (corners[0][0] * scale).to_bits(),
+                (corners[0][1] * scale).to_bits(),
+                (corners[1][0] * scale).to_bits(),
+                (corners[1][1] * scale).to_bits(),
+            ]);
+        }
         index
     }
     fn chain(&mut self, chain: &Arc<ClipChain>, scale: f32) -> u32 {
@@ -251,7 +292,7 @@ impl SpatialData {
             if target.words.is_empty() {
                 target.words.push([0; 4]);
             }
-            let parent = record(target, source, source.words[id as usize][3], 3, copied);
+            let parent = record(target, source, source.words[id as usize][3], 5, copied);
             let next = target.words.len() as u32;
             target
                 .words
@@ -306,12 +347,192 @@ mod tests {
         assert!(Affine::scale(0., 1.).inverse().is_none());
     }
     #[test]
+    fn elliptical_clips_handle_zero_radii_and_disabled_axes() {
+        let mut clip = SpatialClip {
+            inverse: Affine::translate(-10., -20.),
+            bounds: [0., 0., 100., 100.],
+            axes: [true, true],
+            radii: [[30., 46.], [0., 10.], [12., 0.], [8., 20.]],
+        };
+        assert!(!clip.contains([14., 36.]));
+        assert!(clip.contains([30., 36.]));
+        assert!(clip.contains([109., 21.]));
+        assert!(clip.contains([109., 119.]));
+        clip.axes = [true, false];
+        assert!(clip.contains([11., -100.]));
+        assert!(!clip.contains([9., 30.]));
+    }
+
+    /// Run the production clipping shader against packed, replayed scene data.
+    /// This catches CPU/GPU layout, DPI and ellipse-equation disagreements.
+    #[cfg(not(target_family = "wasm"))]
+    #[test]
+    fn gpu_rounded_coverage_matches_hit_testing_after_replay() -> anyhow::Result<()> {
+        use wgpu::util::DeviceExt;
+        let (device, queue) = crate::block_on(async {
+            let instance =
+                wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle());
+            let adapter = instance
+                .request_adapter(&wgpu::RequestAdapterOptions::default())
+                .await?;
+            Ok::<_, anyhow::Error>(
+                adapter
+                    .request_device(&wgpu::DeviceDescriptor::default())
+                    .await?,
+            )
+        })?;
+        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("rounded_clip_coverage_test"),
+            source: wgpu::ShaderSource::Wgsl(
+                concat!(
+                    include_str!("shaders.wgsl"),
+                    include_str!("shaders_storage.wgsl"),
+                    "\n@group(1) @binding(0) var<storage, read> test_points: array<vec4<f32>>;
+                @group(2) @binding(0) var<storage, read_write> test_coverage: array<f32>;
+                @compute @workgroup_size(64)
+                fn test_clip(@builtin(global_invocation_id) id: vec3<u32>) {
+                    if id.x < arrayLength(&test_points) {
+                        let p = test_points[id.x];
+                        test_coverage[id.x] = spatial_coverage(p.xy, bitcast<u32>(p.w));
+                    }
+                }"
+                )
+                .into(),
+            ),
+        });
+        let pipeline = device.create_compute_pipeline(&wgpu::ComputePipelineDescriptor {
+            label: None,
+            layout: None,
+            module: &shader,
+            entry_point: Some("test_clip"),
+            compilation_options: Default::default(),
+            cache: None,
+        });
+        let mut replay = SpatialData::default();
+        let mut samples = Vec::new();
+        let mut expected = Vec::new();
+        for scale in [1., 2.] {
+            let matrix = Affine::translate(80., 60.)
+                .compose(Affine::rotate(0.3))
+                .compose(Affine::scale(1.5, 0.8));
+            let clip = SpatialClip {
+                inverse: matrix.inverse().unwrap(),
+                bounds: [0., 0., 60., 50.],
+                axes: [true, true],
+                radii: [[20., 24.], [12., 24.], [12., 16.], [20., 16.]],
+            };
+            let chain = Arc::new(ClipChain {
+                clip,
+                parent: Some(Arc::new(ClipChain {
+                    clip: SpatialClip {
+                        bounds: [2., 0., 58., 50.],
+                        radii: [[0.; 2]; 4],
+                        ..clip
+                    },
+                    parent: None,
+                })),
+            });
+            let space = PaintSpace::new(matrix, Some(chain.clone()));
+            let mut source = SpatialData::default();
+            let id = source.push(
+                &space,
+                scale,
+                SpatialClip {
+                    inverse: Affine::IDENTITY,
+                    bounds: [0., 0., 300., 300.],
+                    axes: [true, true],
+                    radii: [[0.; 2]; 4],
+                },
+            );
+            let id = replay.copy_space(&source, id, &mut Default::default());
+            drop(source);
+            for y in -1..51 {
+                for x in -1..61 {
+                    let p = matrix.map([x as f32 + 0.37, y as f32 + 0.61]);
+                    samples.push([p[0] * scale, p[1] * scale, 0., f32::from_bits(id)]);
+                    expected.push(chain.contains(p));
+                }
+            }
+        }
+        let buffer = |data: &[u8], usage| {
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: None,
+                contents: data,
+                usage,
+            })
+        };
+        let spatial = buffer(
+            bytemuck::cast_slice(&replay.words),
+            wgpu::BufferUsages::STORAGE,
+        );
+        let points = buffer(bytemuck::cast_slice(&samples), wgpu::BufferUsages::STORAGE);
+        let bytes = (samples.len() * std::mem::size_of::<f32>()) as u64;
+        let output = device.create_buffer(&wgpu::BufferDescriptor {
+            label: None,
+            size: bytes,
+            usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_SRC,
+            mapped_at_creation: false,
+        });
+        let readback = device.create_buffer(&wgpu::BufferDescriptor {
+            label: None,
+            size: bytes,
+            usage: wgpu::BufferUsages::MAP_READ | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let groups: Vec<_> = [(2, &spatial), (0, &points), (0, &output)]
+            .into_iter()
+            .enumerate()
+            .map(|(index, (binding, buffer))| {
+                device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: None,
+                    layout: &pipeline.get_bind_group_layout(index as u32),
+                    entries: &[wgpu::BindGroupEntry {
+                        binding,
+                        resource: buffer.as_entire_binding(),
+                    }],
+                })
+            })
+            .collect();
+        let mut encoder = device.create_command_encoder(&Default::default());
+        {
+            let mut pass = encoder.begin_compute_pass(&Default::default());
+            pass.set_pipeline(&pipeline);
+            for (index, group) in groups.iter().enumerate() {
+                pass.set_bind_group(index as u32, group, &[]);
+            }
+            pass.dispatch_workgroups((samples.len() as u32).div_ceil(64), 1, 1);
+        }
+        encoder.copy_buffer_to_buffer(&output, 0, &readback, 0, bytes);
+        let submission = queue.submit([encoder.finish()]);
+        let (tx, rx) = std::sync::mpsc::channel();
+        readback
+            .slice(..)
+            .map_async(wgpu::MapMode::Read, move |r| tx.send(r).unwrap());
+        device.poll(wgpu::PollType::Wait {
+            submission_index: Some(submission),
+            timeout: Some(std::time::Duration::from_secs(30)),
+        })?;
+        rx.recv_timeout(std::time::Duration::from_secs(30))??;
+        let mapped = readback.slice(..).get_mapped_range();
+        let coverage: &[f32] = bytemuck::cast_slice(&mapped);
+        assert!(
+            coverage.iter().any(|a| *a > 0. && *a < 1.),
+            "rounded edges must be antialiased"
+        );
+        for (index, (&alpha, inside)) in coverage.iter().zip(expected).enumerate() {
+            assert!(alpha.is_finite() && (0.0..=1.0).contains(&alpha));
+            assert_eq!(alpha >= 0.5, inside, "sample {index}: alpha {alpha}");
+        }
+        Ok(())
+    }
+    #[test]
     fn shared_space_upload_is_constant_in_descendant_count() {
         let clip = Arc::new(ClipChain {
             clip: SpatialClip {
                 inverse: Affine::IDENTITY,
                 bounds: [0., 0., 100., 100.],
                 axes: [true, true],
+                radii: [[0.; 2]; 4],
             },
             parent: None,
         });
@@ -328,7 +549,7 @@ mod tests {
             });
         }
         // Sentinel + ancestor clip + viewport clip + matrix; no per-glyph matrices.
-        assert_eq!(scene.spatial.words.len(), 1 + 3 + 3 + 2);
+        assert_eq!(scene.spatial.words.len(), 1 + 5 + 5 + 2);
         assert!(
             scene
                 .quads

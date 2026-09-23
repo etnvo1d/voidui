@@ -1,5 +1,6 @@
 //! Post-layout coordinates. Ordinary nodes keep a single null pointer; only
-//! transformed subtrees retain matrices. Scroll updates reuse Taffy/text caches.
+//! transformed or rounded-clipped subtrees retain spatial records. Scroll
+//! updates reuse Taffy/text caches.
 use super::{
     geometry::{Point, Rect},
     stacking::Phase,
@@ -23,7 +24,10 @@ impl WidgetTree {
             .and_then(|p| self.nodes[p].visual.as_ref())
             .map(|v| v.matrix);
         let n = &self.nodes[id];
-        if inherited.is_none() && n.computed.transform.is_none() {
+        let rounded_clip = n.computed.paint.border_radius > 0.0
+            && n.computed.scroll.overflow.x != crate::Overflow::Visible
+            && n.computed.scroll.overflow.y != crate::Overflow::Visible;
+        if inherited.is_none() && n.computed.transform.is_none() && !rounded_clip {
             self.nodes[id].visual = None;
             return;
         }
@@ -76,23 +80,19 @@ impl WidgetTree {
         } else {
             Arc::new(PaintSpace::new(matrix, clips.clone()))
         };
-        let content_space = if let Some(clip) = self.own_clip(id, inverse.unwrap_or_default()) {
+        let content_clips = self.content_clips(
+            id,
+            inverse.unwrap_or_default(),
+            clips.clone(),
+            previous.and_then(|v| v.content_space.clips.as_ref()),
+        );
+        let content_space = if !same_chain(&content_clips, &clips) {
             if let Some(previous) = previous.filter(|v| {
-                v.matrix == matrix
-                    && v.content_space
-                        .clips
-                        .as_ref()
-                        .is_some_and(|c| c.clip == clip && same_chain(&c.parent, &clips))
+                v.matrix == matrix && same_chain(&v.content_space.clips, &content_clips)
             }) {
                 previous.content_space.clone()
             } else {
-                Arc::new(PaintSpace::new(
-                    matrix,
-                    Some(Arc::new(ClipChain {
-                        clip,
-                        parent: clips,
-                    })),
-                ))
+                Arc::new(PaintSpace::new(matrix, content_clips))
             }
         } else {
             box_space.clone()
@@ -149,21 +149,90 @@ impl WidgetTree {
         if !axes[0] && !axes[1] {
             return None;
         }
-        let b = self.scrollport(id);
+        let outer = n.global_bounds;
+        let border = n.layout.border;
+        let b = Rect::from_xywh(
+            outer.origin.x + border.left,
+            outer.origin.y + border.top,
+            (outer.size.width - border.left - border.right).max(0.0),
+            (outer.size.height - border.top - border.bottom).max(0.0),
+        );
+        // CSS normalizes the outer radius before subtracting each adjoining
+        // edge. Unequal border widths therefore produce elliptical inner corners.
+        let radius = n
+            .computed
+            .paint
+            .border_radius
+            .min(outer.size.width.min(outer.size.height) * 0.5)
+            .max(0.0);
+        let radii = if axes == [true, true] {
+            [
+                [border.left, border.top],
+                [border.right, border.top],
+                [border.right, border.bottom],
+                [border.left, border.bottom],
+            ]
+            .map(|inset| inset.map(|edge| (radius - edge).max(0.0)))
+        } else {
+            [[0.0; 2]; 4]
+        };
         Some(SpatialClip {
             inverse,
             bounds: [b.origin.x, b.origin.y, b.size.width, b.size.height],
             axes,
+            radii,
+        })
+    }
+    /// Scrollbar gutters intersect the rounded padding edge with a rectangle;
+    /// they must not shrink or move the corner ellipses themselves.
+    fn content_clips(
+        &self,
+        id: WidgetId,
+        inverse: Affine,
+        parent: Option<Arc<ClipChain>>,
+        previous: Option<&Arc<ClipChain>>,
+    ) -> Option<Arc<ClipChain>> {
+        let Some(clip) = self.own_clip(id, inverse) else {
+            return parent;
+        };
+        let append = |clip, parent: Option<Arc<ClipChain>>| {
+            // There are at most two local records. Reuse them so unchanged
+            // frames and siblings keep sharing the same uploaded clip chain.
+            previous
+                .into_iter()
+                .chain(previous.and_then(|c| c.parent.as_ref()))
+                .find(|c| {
+                    c.clip == clip
+                        && match (&c.parent, &parent) {
+                            (None, None) => true,
+                            (Some(a), Some(b)) => Arc::ptr_eq(a, b),
+                            _ => false,
+                        }
+                })
+                .cloned()
+                .unwrap_or_else(|| Arc::new(ClipChain { clip, parent }))
+        };
+        let chain = append(clip, parent);
+        let b = self.scrollport(id);
+        let bounds = [b.origin.x, b.origin.y, b.size.width, b.size.height];
+        Some(if bounds == clip.bounds {
+            chain
+        } else {
+            append(
+                SpatialClip {
+                    bounds,
+                    radii: [[0.0; 2]; 4],
+                    ..clip
+                },
+                Some(chain),
+            )
         })
     }
     fn ancestor_clips(&self, id: Option<WidgetId>) -> Option<Arc<ClipChain>> {
         let id = id?;
         let n = &self.nodes[id];
         let parent = self.ancestor_clips(n.layout_parent);
-        match self.own_clip(id, Affine::IDENTITY) {
-            Some(clip) => Some(Arc::new(ClipChain { clip, parent })),
-            None => parent,
-        }
+        self.content_clips(id, Affine::IDENTITY, parent, None)
     }
     pub(crate) fn entry_space(&self, id: WidgetId, phase: Phase) -> Option<Arc<PaintSpace>> {
         if phase == Phase::Backdrop {

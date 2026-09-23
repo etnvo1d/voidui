@@ -1430,7 +1430,9 @@ impl WidgetTree {
         let transform_changed = node.computed.transform != resolved.transform
             || node.computed.transform_origin != resolved.transform_origin
             || node.computed.sticky_inset != resolved.sticky_inset;
-        if transform_changed {
+        // Rounded overflow is paint geometry, so radius transitions refresh the
+        // shared paint/hit-test clip chain even when layout remains valid.
+        if transform_changed || node.computed.paint.border_radius != resolved.paint.border_radius {
             self.paint_clip_dirty.set(true);
         }
         if node.computed.transform.is_none() != resolved.transform.is_none()

@@ -73,9 +73,9 @@ IME candidate rectangles and selection geometry are returned in window space.
 
 ## Performance
 
-Untransformed nodes retain only a null visual-state pointer and use the existing
-rectangle path. Descendants with no additional transform or clip share their
-ancestor's coordinates. Clip ancestry is immutable and shared, including by
+Nodes without transforms or rounded overflow clips retain only a null visual-state
+pointer and use the rectangle path. Descendants with no additional transform or
+clip share their ancestor's coordinates. Clip ancestry is immutable and shared, including by
 native hit-test snapshots. Warm hit testing allocates nothing.
 
 Transforms execute in the existing GPU primitive pipelines, including text,
@@ -101,13 +101,15 @@ warm hit allocations and no scrolling-induced reflow or paint-order rebuild.
 This is CSS 2D support for the library's block, flex, and grid widgets. It does not
 add HTML parsing, inline/table formatting, vertical writing modes, 3D transforms,
 perspective, individual `translate`/`rotate`/`scale` properties, `transform-box`,
-CSS relative units beyond the existing layout parser, or rounded overflow clips.
+or CSS relative units beyond the existing layout parser.
 SVG's internal `transform` attribute remains separate from the widget's CSS
 transform. Raster images and glyphs retain their atlas resolution while transformed.
 
 `tests/spatial.rs` covers layout, clipping, containing blocks, overflow, input,
 and transition behavior. Renderer tests validate all three WGSL transports and
-spatial scene reuse. `tests/fixtures/spatial-reference.html` contains standalone
+spatial scene reuse. GPU coverage tests compare elliptical overflow clips with
+hit testing after scene replay at multiple device scales.
+`tests/fixtures/spatial-reference.html` contains standalone
 browser comparison scenarios; open it manually to inspect live browser values.
 Browser comparison is separate from the Rust tests.
 

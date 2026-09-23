@@ -51,12 +51,13 @@ fn fs_subpixel_sprite(input: SubpixelSpriteOutput) -> SubpixelSpriteFragmentOutp
     let alpha_corrected = apply_contrast_and_gamma_correction3(sample, input.color.rgb, gamma_params.subpixel_enhanced_contrast, gamma_params.gamma_ratios);
 
     // Alpha clip after using the derivatives.
-    if (any(input.clip_distances < vec4<f32>(0.0)) || spatial_clipped(input.position.xy, input.spatial_id)) {
+    let clip_alpha = spatial_coverage(input.position.xy, input.spatial_id);
+    if (any(input.clip_distances < vec4<f32>(0.0)) || clip_alpha == 0.0) {
         return SubpixelSpriteFragmentOutput(vec4<f32>(0.0), vec4<f32>(0.0));
     }
 
     var out = SubpixelSpriteFragmentOutput();
     out.foreground = vec4<f32>(input.color.rgb, 1.0);
-    out.alpha = vec4<f32>(input.color.a * alpha_corrected, 1.0);
+    out.alpha = vec4<f32>(input.color.a * alpha_corrected * clip_alpha, 1.0);
     return out;
 }

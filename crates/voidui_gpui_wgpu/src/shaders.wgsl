@@ -187,8 +187,13 @@ fn spatial_point(p:vec2<f32>, id:u32)->vec2<f32> {
 fn spatial_position(p:vec2<f32>, id:u32)->vec4<f32> {
     return to_device_position_impl(spatial_point(p,id));
 }
-fn spatial_clipped(p:vec2<f32>, id:u32)->bool {
-    if id==0u {return false;}
+// Coverage is shared by every primitive, including glyphs and cached paths.
+// The ellipse gradient is mapped to device coordinates analytically so affine
+// transforms and DPI retain a one-pixel antialias fringe without derivatives
+// inside a variable-length clip-chain loop.
+fn spatial_coverage(p:vec2<f32>, id:u32)->f32 {
+    if id==0u {return 1.0;}
+    var coverage = 1.0;
     var clip=load_spatial_word(id).w;
     loop {
         if clip==0u {break;}
@@ -196,10 +201,31 @@ fn spatial_clipped(p:vec2<f32>, id:u32)->bool {
         let b=load_spatial_word(clip+1u);
         let bounds=bitcast<vec4<f32>>(load_spatial_word(clip+2u));
         let q=vec2<f32>(dot(bitcast<vec2<f32>>(a.xy),p)+bitcast<f32>(a.z),dot(bitcast<vec2<f32>>(b.xy),p)+bitcast<f32>(b.z));
-        if ((b.w&1u)!=0u && (q.x<bounds.x || q.x>=bounds.x+bounds.z)) || ((b.w&2u)!=0u && (q.y<bounds.y || q.y>=bounds.y+bounds.w)) {return true;}
+        if ((b.w&1u)!=0u && (q.x<bounds.x || q.x>=bounds.x+bounds.z)) || ((b.w&2u)!=0u && (q.y<bounds.y || q.y>=bounds.y+bounds.w)) {return 0.0;}
+        // Rectangular clips avoid radius loads and all ellipse arithmetic.
+        if (b.w & 4u) != 0u {
+            let top = bitcast<vec4<f32>>(load_spatial_word(clip+3u));
+            let bottom = bitcast<vec4<f32>>(load_spatial_word(clip+4u));
+            let radii = array<vec2<f32>,4>(top.xy, top.zw, bottom.xy, bottom.zw);
+            let lo = q - bounds.xy;
+            let hi = bounds.xy + bounds.zw - q;
+            let edges = array<vec2<f32>,4>(lo, vec2<f32>(hi.x,lo.y), hi, vec2<f32>(lo.x,hi.y));
+            let signs = array<vec2<f32>,4>(vec2<f32>(1.0),vec2<f32>(-1.0,1.0),vec2<f32>(-1.0),vec2<f32>(1.0,-1.0));
+            for (var i=0u; i<4u; i+=1u) {
+                let r = radii[i];
+                if all(r > vec2<f32>(0.0)) && all(edges[i] < r) {
+                    let v = (edges[i] - r) / r;
+                    let gradient = 2.0 * v / r * signs[i];
+                    let device_gradient = gradient.x * bitcast<vec2<f32>>(a.xy)
+                        + gradient.y * bitcast<vec2<f32>>(b.xy);
+                    let distance = (dot(v,v) - 1.0) / max(length(device_gradient), 0.000001);
+                    coverage = min(coverage, saturate(0.5 - distance));
+                }
+            }
+        }
         clip=a.w;
     }
-    return false;
+    return coverage;
 }
 
 fn to_device_position(unit_vertex: vec2<f32>, bounds: Bounds) -> vec4<f32> {
@@ -650,8 +676,9 @@ fn vs_quad(@builtin(vertex_index) vertex_id: u32, @builtin(instance_index) insta
 
 @fragment
 fn fs_quad(input: QuadVarying) -> @location(0) vec4<f32> {
+    let clip_alpha = spatial_coverage(input.position.xy, input.spatial_id);
     // Alpha clip first, since we don't have `clip_distance`.
-    if (any(input.clip_distances < vec4<f32>(0.0)) || spatial_clipped(input.position.xy, input.spatial_id)) {
+    if (any(input.clip_distances < vec4<f32>(0.0)) || clip_alpha == 0.0) {
         return vec4<f32>(0.0);
     }
 
@@ -671,7 +698,7 @@ fn fs_quad(input: QuadVarying) -> @location(0) vec4<f32> {
             quad.border_widths.right == 0.0 &&
             quad.border_widths.bottom == 0.0 &&
             unrounded) {
-        return blend_color(background_color, 1.0);
+        return blend_color(background_color, clip_alpha);
     }
 
     let size = quad.bounds.size;
@@ -737,7 +764,7 @@ fn fs_quad(input: QuadVarying) -> @location(0) vec4<f32> {
     // However, that might negatively impact performance in the case of
     // reasonable sizes for rounded corners.
     if (is_within_inner_straight_border && !is_near_rounded_corner) {
-        return blend_color(background_color, 1.0);
+        return blend_color(background_color, clip_alpha);
     }
 
     // Signed distance of the point to the outside edge of the quad's border. It
@@ -976,7 +1003,7 @@ fn fs_quad(input: QuadVarying) -> @location(0) vec4<f32> {
                     saturate(antialias_threshold - inner_sdf));
     }
 
-    return blend_color(color, saturate(antialias_threshold - outer_sdf));
+    return blend_color(color, clip_alpha * saturate(antialias_threshold - outer_sdf));
 }
 
 // Returns the dash velocity of a corner given the dash velocity of the two
@@ -1092,7 +1119,8 @@ fn vs_shadow(@builtin(vertex_index) vertex_id: u32, @builtin(instance_index) ins
 @fragment
 fn fs_shadow(input: ShadowVarying) -> @location(0) vec4<f32> {
     // Alpha clip first, since we don't have `clip_distance`.
-    if (any(input.clip_distances < vec4<f32>(0.0)) || spatial_clipped(input.position.xy, input.spatial_id)) {
+    let clip_alpha = spatial_coverage(input.position.xy, input.spatial_id);
+    if (any(input.clip_distances < vec4<f32>(0.0)) || clip_alpha == 0.0) {
         return vec4<f32>(0.0);
     }
 
@@ -1143,7 +1171,7 @@ fn fs_shadow(input: ShadowVarying) -> @location(0) vec4<f32> {
         alpha *= saturate(0.5 + distance);
     }
 
-    return blend_color(input.color, alpha);
+    return blend_color(input.color, alpha * clip_alpha);
 }
 
 // --- path rasterization --- //
@@ -1187,7 +1215,8 @@ fn vs_path_rasterization(@builtin(vertex_index) vertex_id: u32) -> PathRasteriza
 fn fs_path_rasterization(input: PathRasterizationVarying) -> @location(0) vec4<f32> {
     let dx = dpdx(input.st_position);
     let dy = dpdy(input.st_position);
-    if (any(input.clip_distances < vec4<f32>(0.0)) || spatial_clipped(input.position.xy + globals.origin, input.spatial_id)) {
+    let clip_alpha = spatial_coverage(input.position.xy + globals.origin, input.spatial_id);
+    if (any(input.clip_distances < vec4<f32>(0.0)) || clip_alpha == 0.0) {
         return vec4<f32>(0.0);
     }
 
@@ -1213,7 +1242,7 @@ fn fs_path_rasterization(input: PathRasterizationVarying) -> @location(0) vec4<f
     );
     let color = gradient_color(background, input.local_position, bounds,
         prepared_gradient.solid, prepared_gradient.color0, prepared_gradient.color1);
-    return vec4<f32>(color.rgb * color.a * alpha, color.a * alpha);
+    return vec4<f32>(color.rgb * color.a * alpha, color.a * alpha) * clip_alpha;
 }
 
 // --- paths --- //
@@ -1297,14 +1326,15 @@ fn fs_underline(input: UnderlineVarying) -> @location(0) vec4<f32> {
     const WAVE_HEIGHT_RATIO: f32 = 0.8;
 
     // Alpha clip first, since we don't have `clip_distance`.
-    if (any(input.clip_distances < vec4<f32>(0.0)) || spatial_clipped(input.position.xy, input.spatial_id)) {
+    let clip_alpha = spatial_coverage(input.position.xy, input.spatial_id);
+    if (any(input.clip_distances < vec4<f32>(0.0)) || clip_alpha == 0.0) {
         return vec4<f32>(0.0);
     }
 
     let underline = load_underline(input.underline_id);
     if (underline.wavy == 0u)
     {
-        return blend_color(input.color, input.color.a);
+        return blend_color(input.color, input.color.a * clip_alpha);
     }
 
     let half_thickness = underline.thickness * 0.5;
@@ -1320,7 +1350,7 @@ fn fs_underline(input: UnderlineVarying) -> @location(0) vec4<f32> {
     let distance_from_top_border = distance_in_pixels - half_thickness;
     let distance_from_bottom_border = distance_in_pixels + half_thickness;
     let alpha = saturate(0.5 - max(-distance_from_bottom_border, distance_from_top_border));
-    return blend_color(input.color, alpha * input.color.a);
+    return blend_color(input.color, alpha * input.color.a * clip_alpha);
 }
 
 // --- monochrome sprites --- //
@@ -1369,11 +1399,12 @@ fn fs_mono_sprite(input: MonoSpriteVarying) -> @location(0) vec4<f32> {
     let alpha_corrected = apply_contrast_and_gamma_correction(sample, input.color.rgb, gamma_params.grayscale_enhanced_contrast, gamma_params.gamma_ratios);
 
     // Alpha clip after using the derivatives.
-    if (any(input.clip_distances < vec4<f32>(0.0)) || spatial_clipped(input.position.xy, input.spatial_id)) {
+    let clip_alpha = spatial_coverage(input.position.xy, input.spatial_id);
+    if (any(input.clip_distances < vec4<f32>(0.0)) || clip_alpha == 0.0) {
         return vec4<f32>(0.0);
     }
 
-    return blend_color(input.color, alpha_corrected);
+    return blend_color(input.color, alpha_corrected * clip_alpha);
 }
 
 // --- polychrome sprites --- //
@@ -1441,7 +1472,8 @@ fn fs_poly_sprite(input: PolySpriteVarying) -> @location(0) vec4<f32> {
     }
     if ((sprite.pad & 4u) != 0u && sample.a > 0.0) { sample = vec4<f32>(sample.rgb / sample.a, sample.a); }
     // Alpha clip after using the derivatives.
-    if (any(input.clip_distances < vec4<f32>(0.0)) || spatial_clipped(input.position.xy, input.spatial_id)) {
+    let clip_alpha = spatial_coverage(input.position.xy, input.spatial_id);
+    if (any(input.clip_distances < vec4<f32>(0.0)) || clip_alpha == 0.0) {
         return vec4<f32>(0.0);
     }
 
@@ -1452,7 +1484,7 @@ fn fs_poly_sprite(input: PolySpriteVarying) -> @location(0) vec4<f32> {
         let grayscale = dot(color.rgb, GRAYSCALE_FACTORS);
         color = vec4<f32>(vec3<f32>(grayscale), sample.a);
     }
-    return blend_color(color, sprite.opacity * saturate(0.5 - distance));
+    return blend_color(color, sprite.opacity * saturate(0.5 - distance) * clip_alpha);
 }
 
 // --- surfaces --- //

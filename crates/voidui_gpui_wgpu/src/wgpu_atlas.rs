@@ -34,6 +34,10 @@ struct PendingUpload {
 }
 
 struct WgpuAtlasState {
+    glyphs: FxHashMap<AtlasKey, (Arc<()>, u64, usize)>,
+    frame: u64,
+    glyph_budget: usize,
+    glyph_bytes: usize,
     device: Arc<wgpu::Device>,
     queue: Arc<wgpu::Queue>,
     max_texture_size: u32,
@@ -56,6 +60,10 @@ impl WgpuAtlas {
     ) -> Self {
         let max_texture_size = device.limits().max_texture_dimension_2d;
         WgpuAtlas(Mutex::new(WgpuAtlasState {
+            glyphs: Default::default(),
+            frame: 0,
+            glyph_budget: 16 * 1024 * 1024,
+            glyph_bytes: 0,
             device,
             queue,
             max_texture_size,
@@ -77,6 +85,22 @@ impl WgpuAtlas {
 
     pub fn before_frame(&self) {
         let mut lock = self.0.lock();
+        lock.frame += 1;
+        if lock.glyph_bytes > lock.glyph_budget {
+            let mut unused: Vec<_> = lock
+                .glyphs
+                .iter()
+                .filter(|(_, (owner, _, _))| Arc::strong_count(owner) == 1)
+                .map(|(key, (_, age, _))| (key.clone(), *age))
+                .collect();
+            unused.sort_unstable_by_key(|(_, age)| *age);
+            for (key, _) in unused {
+                if lock.glyph_bytes <= lock.glyph_budget {
+                    break;
+                }
+                lock.remove(&key);
+            }
+        }
         // Scan image allocations only; glyph atlases can contain many thousands of keys.
         let mut keys = std::mem::take(&mut lock.managed_images);
         keys.retain(|key| {
@@ -105,6 +129,8 @@ impl WgpuAtlas {
         let mut lock = self.0.lock();
         lock.storage = WgpuAtlasStorage::default();
         lock.tiles_by_key.clear();
+        lock.glyphs.clear();
+        lock.glyph_bytes = 0;
         lock.pending_uploads.clear();
         lock.managed_images.clear();
     }
@@ -118,12 +144,47 @@ impl WgpuAtlas {
         lock.color_texture_format = context.color_texture_format();
         lock.storage = WgpuAtlasStorage::default();
         lock.tiles_by_key.clear();
+        lock.glyphs.clear();
+        lock.glyph_bytes = 0;
         lock.pending_uploads.clear();
         lock.managed_images.clear();
     }
 }
 
+impl WgpuAtlas {
+    pub fn set_glyph_budget(&self, bytes: usize) {
+        self.0.lock().glyph_budget = bytes;
+    }
+    /// Tile payload excludes page fragmentation and includes pinned tiles.
+    /// Allocated texture payload including page slack, unlike glyph_bytes().
+    pub fn allocated_bytes(&self) -> u64 {
+        let state = self.0.lock();
+        [
+            &state.storage.monochrome_textures,
+            &state.storage.subpixel_textures,
+            &state.storage.polychrome_textures,
+        ]
+        .into_iter()
+        .flat_map(|list| list.textures.iter().flatten())
+        .map(|t| {
+            u64::from(t.texture.width())
+                * u64::from(t.texture.height())
+                * u64::from(t.bytes_per_pixel())
+        })
+        .sum()
+    }
+    pub fn glyph_bytes(&self) -> usize {
+        self.0.lock().glyph_bytes
+    }
+}
 impl PlatformAtlas for WgpuAtlas {
+    fn pin(&self, key: &AtlasKey) -> Option<Arc<()>> {
+        let mut state = self.0.lock();
+        let frame = state.frame;
+        let (owner, age, _) = state.glyphs.get_mut(key)?;
+        *age = frame;
+        Some(owner.clone())
+    }
     fn get_or_insert_with<'a>(
         &self,
         key: &AtlasKey,
@@ -163,6 +224,12 @@ impl PlatformAtlas for WgpuAtlas {
                 .context("failed to allocate")?;
             lock.upload_texture(tile.texture_id, tile.bounds, &bytes);
             lock.tiles_by_key.insert(key.clone(), tile);
+            if matches!(key, AtlasKey::Glyph(_)) {
+                let frame = lock.frame;
+                lock.glyph_bytes += bytes.len();
+                lock.glyphs
+                    .insert(key.clone(), (Arc::new(()), frame, bytes.len()));
+            }
             if let AtlasKey::ManagedImage(key) = key {
                 lock.managed_images.push(key.clone());
             }
@@ -182,7 +249,9 @@ impl PlatformAtlas for WgpuAtlas {
 impl WgpuAtlasState {
     fn remove(&mut self, key: &AtlasKey) {
         let lock = self;
-
+        if let Some((_, _, bytes)) = lock.glyphs.remove(key) {
+            lock.glyph_bytes -= bytes;
+        }
         let Some(tile) = lock.tiles_by_key.remove(key) else {
             return;
         };
@@ -490,6 +559,36 @@ mod tests {
         })
     }
 
+    #[test]
+    fn pinned_glyphs_survive_budget_pressure_until_the_scene_releases_them() -> anyhow::Result<()> {
+        let (device, queue) = test_device_and_queue()?;
+        let atlas = WgpuAtlas::new(device, queue, wgpu::TextureFormat::Bgra8Unorm);
+        let key = AtlasKey::Glyph(crate::RenderGlyphParams {
+            font_id: crate::FontId(0),
+            glyph_id: crate::GlyphId(1),
+            font_size: crate::px(16.),
+            subpixel_variant: Default::default(),
+            scale_factor: 1.,
+            is_emoji: false,
+            subpixel_rendering: false,
+            dilation: 0,
+        });
+        atlas.get_or_insert_with(&key, &mut || {
+            Ok(Some((
+                crate::size(DevicePixels(8), DevicePixels(8)),
+                Cow::Owned(vec![255; 64]),
+            )))
+        })?;
+        let lease = atlas.pin(&key).unwrap();
+        atlas.set_glyph_budget(0);
+        atlas.before_frame();
+        assert_eq!(atlas.glyph_bytes(), 64);
+        drop(lease);
+        atlas.before_frame();
+        assert_eq!(atlas.glyph_bytes(), 0);
+        assert!(!atlas.0.lock().tiles_by_key.contains_key(&key));
+        Ok(())
+    }
     #[test]
     fn image_allocations_follow_scene_lifetime() -> anyhow::Result<()> {
         let (device, queue) = test_device_and_queue()?;

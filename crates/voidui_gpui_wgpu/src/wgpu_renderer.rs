@@ -63,6 +63,10 @@ struct GlobalParams {
     viewport_size: [f32; 2],
     premultiplied_alpha: u32,
     srgb_framebuffer: u32,
+    origin: [f32; 2],
+    path_origin: [f32; 2],
+    path_size: [f32; 2],
+    padding: [f32; 2],
 }
 
 #[repr(C)]
@@ -185,6 +189,7 @@ enum InstanceData {
 
 /// GPU resources that must be dropped together during device recovery.
 struct WgpuResources {
+    frame_cache: Option<crate::frame_cache::FrameCache>,
     device: Arc<wgpu::Device>,
     queue: Arc<wgpu::Queue>,
     surface: wgpu::Surface<'static>,
@@ -208,6 +213,7 @@ struct WgpuResources {
 
 impl WgpuResources {
     fn invalidate_intermediate_textures(&mut self) {
+        self.frame_cache = None;
         self.path_intermediate_texture = None;
         self.path_intermediate_view = None;
         self.path_msaa_texture = None;
@@ -215,6 +221,32 @@ impl WgpuResources {
     }
 }
 
+/// Per-window resource retention. Active scene glyphs remain pinned even when
+/// they exceed the budget; inactive glyph tiles are evicted at frame boundaries.
+#[derive(Clone, Copy, Debug)]
+pub struct RenderCacheOptions {
+    pub frame_bytes: u64,
+    pub glyph_bytes: usize,
+}
+impl Default for RenderCacheOptions {
+    fn default() -> Self {
+        Self {
+            frame_bytes: 32 * 1024 * 1024,
+            glyph_bytes: 16 * 1024 * 1024,
+        }
+    }
+}
+#[derive(Clone, Copy, Debug, Default)]
+pub struct RenderStats {
+    pub scene_submissions: u64,
+    pub retained_presentations: u64,
+    pub instance_upload_bytes: u64,
+    pub path_passes: u64,
+    pub frame_bytes: u64,
+    pub path_bytes: u64,
+    pub glyph_bytes: usize,
+    pub atlas_bytes: u64,
+}
 pub struct WgpuRenderer {
     /// Shared GPU context for device recovery coordination (unused on WASM).
     #[allow(dead_code)]
@@ -243,6 +275,9 @@ pub struct WgpuRenderer {
     device_lost: std::sync::Arc<std::sync::atomic::AtomicBool>,
     surface_configured: bool,
     needs_redraw: bool,
+    frame_cache_budget: u64,
+    stats: RenderStats,
+    path_bounds: [f32; 4],
 }
 
 impl WgpuRenderer {
@@ -538,6 +573,7 @@ impl WgpuRenderer {
         let gradient_bind_group =
             Self::gradient_binding(&device, &bind_group_layouts.gradients, &gradient_data);
         let resources = WgpuResources {
+            frame_cache: None,
             device,
             queue,
             surface,
@@ -585,6 +621,9 @@ impl WgpuRenderer {
             device_lost: context.device_lost_flag(),
             surface_configured: true,
             needs_redraw: false,
+            frame_cache_budget: RenderCacheOptions::default().frame_bytes,
+            stats: Default::default(),
+            path_bounds: [0., 0., 1., 1.],
         })
     }
 
@@ -1172,13 +1211,17 @@ impl WgpuRenderer {
     }
 
     fn ensure_intermediate_textures(&mut self) {
-        if self.resources().path_intermediate_texture.is_some() {
+        let format = self.surface_config.format;
+        let width = self.path_bounds[2].max(1.) as u32;
+        let height = self.path_bounds[3].max(1.) as u32;
+        if self
+            .resources()
+            .path_intermediate_texture
+            .as_ref()
+            .is_some_and(|t| t.width() == width && t.height() == height)
+        {
             return;
         }
-
-        let format = self.surface_config.format;
-        let width = self.surface_config.width;
-        let height = self.surface_config.height;
         let path_sample_count = self.rendering_params.path_sample_count;
         let resources = self.resources_mut();
 
@@ -1282,6 +1325,48 @@ impl WgpuRenderer {
         self.max_texture_size
     }
 
+    pub fn set_cache_options(&mut self, options: RenderCacheOptions) {
+        self.set_frame_cache_budget(options.frame_bytes);
+        self.atlas.set_glyph_budget(options.glyph_bytes);
+    }
+    pub fn stats(&self) -> RenderStats {
+        let mut stats = self.stats;
+        stats.glyph_bytes = self.atlas.glyph_bytes();
+        stats.atlas_bytes = self.atlas.allocated_bytes();
+        let Some(resources) = self.resources.as_ref() else {
+            return stats;
+        };
+        if let Some(cache) = resources.frame_cache.as_ref() {
+            stats.frame_bytes = cache
+                .textures
+                .iter()
+                .flatten()
+                .map(|t| u64::from(t.width()) * u64::from(t.height()) * 4)
+                .sum();
+        }
+        stats.path_bytes = self
+            .resources()
+            .path_intermediate_texture
+            .as_ref()
+            .map_or(0, |t| {
+                u64::from(t.width())
+                    * u64::from(t.height())
+                    * 4
+                    * u64::from(
+                        1 + if self.rendering_params.path_sample_count > 1 {
+                            self.rendering_params.path_sample_count
+                        } else {
+                            0
+                        },
+                    )
+            });
+        stats
+    }
+    /// Maximum backing-texture payload per window. Zero disables frame retention.
+    pub fn set_frame_cache_budget(&mut self, bytes: u64) {
+        self.frame_cache_budget = bytes;
+        self.resources_mut().frame_cache = None;
+    }
     pub fn draw(&mut self, scene: &Scene) -> bool {
         self.draw_with_present_callback(scene, || {})
     }
@@ -1341,6 +1426,7 @@ impl WgpuRenderer {
         let frame = match self.resources().surface.get_current_texture() {
             wgpu::CurrentSurfaceTexture::Success(frame) => frame,
             wgpu::CurrentSurfaceTexture::Suboptimal(frame) => {
+                log::debug!("surface acquisition deferred: suboptimal");
                 // Textures must be destroyed before the surface can be reconfigured.
                 drop(frame);
                 let surface_config = self.surface_config.clone();
@@ -1351,6 +1437,7 @@ impl WgpuRenderer {
                 return false;
             }
             wgpu::CurrentSurfaceTexture::Lost | wgpu::CurrentSurfaceTexture::Outdated => {
+                log::debug!("surface acquisition deferred: lost/outdated");
                 let surface_config = self.surface_config.clone();
                 let resources = self.resources_mut();
                 resources
@@ -1358,7 +1445,12 @@ impl WgpuRenderer {
                     .configure(&resources.device, &surface_config);
                 return false;
             }
-            wgpu::CurrentSurfaceTexture::Timeout | wgpu::CurrentSurfaceTexture::Occluded => {
+            wgpu::CurrentSurfaceTexture::Timeout => {
+                log::debug!("surface acquisition deferred: timeout");
+                return false;
+            }
+            wgpu::CurrentSurfaceTexture::Occluded => {
+                log::debug!("surface acquisition deferred: occluded");
                 return false;
             }
             wgpu::CurrentSurfaceTexture::Validation => {
@@ -1368,10 +1460,17 @@ impl WgpuRenderer {
             }
         };
 
+        self.update_path_bounds(scene);
         // Rectangle/text-only scenes do not need full-viewport path/MSAA targets.
         // Allocate them only when a scene actually contains vector paths.
         if !scene.paths.is_empty() {
             self.ensure_intermediate_textures();
+        } else {
+            let resources = self.resources_mut();
+            resources.path_intermediate_texture = None;
+            resources.path_intermediate_view = None;
+            resources.path_msaa_texture = None;
+            resources.path_msaa_view = None;
         }
 
         let frame_view = frame
@@ -1380,7 +1479,58 @@ impl WgpuRenderer {
 
         self.write_frame_uniforms();
 
-        if let Err(error) = self.record_frame(scene, &frame_view) {
+        let size = (self.surface_config.width, self.surface_config.height);
+        let slots = if scene.quads.iter().any(|q| q.spatial_pad & 1 != 0) {
+            2
+        } else {
+            1
+        };
+        let bytes = u64::from(size.0) * u64::from(size.1) * 4 * slots;
+        let result = if scene.revision != 0 && bytes <= self.frame_cache_budget {
+            if self
+                .resources()
+                .frame_cache
+                .as_ref()
+                .is_none_or(|c| c.size != size)
+            {
+                let cache = crate::frame_cache::FrameCache::new(
+                    &self.resources().device,
+                    self.surface_config.format,
+                    size,
+                );
+                self.resources_mut().frame_cache = Some(cache);
+            }
+            let device = self.resources().device.clone();
+            let format = self.surface_config.format;
+            let (view, dirty) = self
+                .resources_mut()
+                .frame_cache
+                .as_mut()
+                .unwrap()
+                .prepare(&device, format, scene);
+            let result = if dirty {
+                self.record_frame(scene, &view)
+            } else {
+                self.stats.retained_presentations += 1;
+                Ok(())
+            };
+            if result.is_ok() {
+                self.resources_mut().frame_cache.as_mut().unwrap().ready
+                    [crate::frame_cache::FrameCache::slot(scene)] = true;
+                let resources = self.resources();
+                resources.frame_cache.as_ref().unwrap().present(
+                    &resources.device,
+                    &resources.queue,
+                    &view,
+                    &frame_view,
+                );
+            }
+            result
+        } else {
+            self.resources_mut().frame_cache = None;
+            self.record_frame(scene, &frame_view)
+        };
+        if let Err(error) = result {
             log::error!("{error:#}");
             self.resources().queue.submit(std::iter::empty());
             return false;
@@ -1391,6 +1541,24 @@ impl WgpuRenderer {
         true
     }
 
+    fn update_path_bounds(&mut self, scene: &Scene) {
+        let bounds = scene
+            .paths
+            .iter()
+            .map(|p| p.clipped_bounds())
+            .reduce(|a, b| a.union(&b));
+        self.path_bounds = bounds.map_or([0., 0., 1., 1.], |b| {
+            let x = b.origin.x.0.floor().max(0.);
+            let y = b.origin.y.0.floor().max(0.);
+            let right = (b.origin.x.0 + b.size.width.0)
+                .ceil()
+                .min(self.surface_config.width as f32);
+            let bottom = (b.origin.y.0 + b.size.height.0)
+                .ceil()
+                .min(self.surface_config.height as f32);
+            [x, y, (right - x).max(1.), (bottom - y).max(1.)]
+        });
+    }
     fn write_frame_uniforms(&self) {
         let gamma_params = GammaParams {
             gamma_ratios: self.rendering_params.gamma_ratios,
@@ -1401,6 +1569,10 @@ impl WgpuRenderer {
         };
 
         let globals = GlobalParams {
+            origin: [0., 0.],
+            path_origin: [self.path_bounds[0], self.path_bounds[1]],
+            path_size: [self.path_bounds[2], self.path_bounds[3]],
+            padding: [0., 0.],
             viewport_size: [
                 self.surface_config.width as f32,
                 self.surface_config.height as f32,
@@ -1416,6 +1588,8 @@ impl WgpuRenderer {
         };
 
         let path_globals = GlobalParams {
+            viewport_size: globals.path_size,
+            origin: globals.path_origin,
             premultiplied_alpha: 0,
             ..globals
         };
@@ -1444,6 +1618,7 @@ impl WgpuRenderer {
     /// Uses the same pipelines as window drawing. Native-only synchronous readback.
     #[cfg(not(target_family = "wasm"))]
     pub fn render_to_rgba(&mut self, scene: &Scene) -> Result<Vec<u8>> {
+        self.update_path_bounds(scene);
         anyhow::ensure!(!self.device_lost(), "device lost; recover before rendering");
         self.atlas.before_frame();
         if !scene.paths.is_empty() {
@@ -1538,6 +1713,7 @@ impl WgpuRenderer {
     }
 
     fn record_frame(&mut self, scene: &Scene, frame_view: &wgpu::TextureView) -> Result<()> {
+        self.stats.scene_submissions += 1;
         self.write_gradients(&scene.gradient_data)?;
         self.write_spatial(&scene.spatial.words)?;
         let mut instance_offset = 0;
@@ -1684,12 +1860,26 @@ impl WgpuRenderer {
         scene: &Scene,
         instance_offset: &mut u64,
     ) -> Result<InstanceBindings> {
+        let hidden;
+        let quads = if !scene.caret_visible && scene.quads.iter().any(|q| q.spatial_pad & 1 != 0) {
+            hidden = scene
+                .quads
+                .iter()
+                .map(|q| {
+                    let mut q = *q;
+                    if q.spatial_pad & 1 != 0 {
+                        q.background = crate::transparent_black().into();
+                        q.border_color = crate::transparent_black();
+                    }
+                    q
+                })
+                .collect::<Vec<_>>();
+            &hidden[..]
+        } else {
+            &scene.quads[..]
+        };
         Ok(InstanceBindings {
-            quads: self.write_instance_binding(
-                "quads_bind_group",
-                instance_offset,
-                &scene.quads,
-            )?,
+            quads: self.write_instance_binding("quads_bind_group", instance_offset, quads)?,
             shadows: self.write_instance_binding(
                 "shadows_bind_group",
                 instance_offset,
@@ -1845,6 +2035,7 @@ impl WgpuRenderer {
         paths: &[Path<ScaledPixels>],
         instance_offset: &mut u64,
     ) -> Result<bool> {
+        self.stats.path_passes += 1;
         let mut vertices = Vec::new();
         for path in paths {
             let bounds = path.bounds.intersect(&path.content_mask.bounds);
@@ -1919,6 +2110,7 @@ impl WgpuRenderer {
         instances: &[T],
     ) -> Result<InstanceBinding> {
         let data = unsafe { Self::instance_bytes(instances) };
+        self.stats.instance_upload_bytes += data.len() as u64;
         // wgpu rejects zero-sized bindings, so empty primitive arrays still
         // reserve the 16-byte minimum.
         let size = (data.len() as u64).max(16);
@@ -2493,6 +2685,13 @@ mod tests {
     use super::*;
     use crate::{MonochromeSprite, PolychromeSprite, Quad, Shadow, SubpixelSprite, Underline};
 
+    #[test]
+    fn retained_frame_shader_is_valid() {
+        validate_wgsl(
+            include_str!("frame_cache.wgsl"),
+            naga::valid::Capabilities::empty(),
+        );
+    }
     #[test]
     fn webgl_shader_is_valid_wgsl_without_storage_buffers() {
         assert!(!WEBGL_SHADERS.contains("var<storage"));

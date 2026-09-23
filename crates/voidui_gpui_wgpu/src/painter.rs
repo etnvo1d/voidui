@@ -128,6 +128,24 @@ impl<'a> Painter<'a> {
         self.scene.pop_layer();
         result
     }
+    /// Retain caret ink separately from its visibility. Publication preserves its
+    /// ordinary stacking/clip position; toggling never moves it above a popover.
+    pub fn paint_caret(&mut self, quad: PaintQuad, visible: bool) {
+        let before = self.scene.quads.len();
+        self.paint_quad(quad);
+        if self.scene.quads.len() == before {
+            return;
+        }
+        if let Some(last) = self.scene.quads.last_mut() {
+            last.spatial_pad = 1;
+        }
+        if let Some(crate::scene::PaintOperation::Primitive(crate::Primitive::Quad(last))) =
+            self.scene.paint_operations.last_mut()
+        {
+            last.spatial_pad = 1;
+        }
+        self.scene.caret_visible = visible;
+    }
     pub fn paint_quad(&mut self, quad: PaintQuad) {
         self.scene.insert_primitive(Quad {
             order: 0,
@@ -276,6 +294,9 @@ impl<'a> Painter<'a> {
                 Ok(Some((size, Cow::Owned(bytes))))
             })?
             .ok_or_else(|| anyhow::anyhow!("glyph atlas allocation returned no tile"))?;
+        if let Some(lease) = self.atlas.pin(&params.into()) {
+            self.scene.atlas_leases.push((self.scene.len(), lease));
+        }
         let bounds = Bounds {
             origin: point(ScaledPixels(q.x.floor()), ScaledPixels(q.y.floor()))
                 + raster.origin.map(Into::into),

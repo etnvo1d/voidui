@@ -17,6 +17,7 @@ pub(crate) struct WidgetQueue {
     pending: RefCell<HashMap<WidgetId, Invalidation>>,
     wake: RefCell<Option<Rc<dyn Fn()>>>,
     pub paint_dirty: Cell<bool>,
+    pub caret_visibility: Cell<Option<bool>>,
 }
 impl WidgetQueue {
     /// Paint-only geometry updates coalesce without allocating a pending-node entry.
@@ -34,6 +35,16 @@ pub struct WidgetInvalidator {
     id: WidgetId,
 }
 impl WidgetInvalidator {
+    /// Wake presentation without invalidating static layout or scene data.
+    #[cfg(feature = "editing")]
+    pub(crate) fn caret_visibility(&self, visible: bool) {
+        if let Some(queue) = self.queue.upgrade() {
+            queue.caret_visibility.set(Some(visible));
+            if let Some(wake) = queue.wake.borrow().as_ref() {
+                wake();
+            }
+        }
+    }
     pub fn repaint(&self) {
         self.invalidate(Invalidation::default());
     }

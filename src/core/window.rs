@@ -31,6 +31,7 @@ use crate::{
 /// Native window configuration. Sizes are logical pixels and follow monitor DPI.
 #[derive(Debug, Clone)]
 pub struct WindowOptions {
+    pub render_cache: crate::render::RenderCacheOptions,
     pub decorations: super::decoration::WindowDecorations,
     pub titlebar: super::decoration::TitlebarOptions,
     pub resizable: bool,
@@ -49,6 +50,7 @@ pub struct WindowOptions {
 impl Default for WindowOptions {
     fn default() -> Self {
         Self {
+            render_cache: Default::default(),
             decorations: Default::default(),
             titlebar: Default::default(),
             resizable: true,
@@ -77,6 +79,7 @@ pub struct FrameStats {
     pub last_layout_time: Duration,
     pub last_scene_time: Duration,
     pub last_present_time: Duration,
+    pub renderer: crate::render::RenderStats,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -707,6 +710,9 @@ impl AppWindow {
         if self.native_focused {
             self.tree.tick_input(now);
         }
+        if self.tree.widget_updates.caret_visibility.get().is_some() {
+            self.schedule.invalidate();
+        }
         if self.tree.has_pending_updates() {
             self.schedule.invalidate();
             // Commit component lifecycles without requiring a drawable surface.
@@ -753,6 +759,9 @@ impl AppWindow {
             width: logical.width,
             height: logical.height,
         });
+        if let Some(visible) = self.tree.widget_updates.caret_visibility.take() {
+            self.scene.caret_visible = visible;
+        }
         let Some(changes) = self.tree.prepare_frame(Instant::now()) else {
             // Reconciliation may publish resource/loading or destructor updates
             // at commit. Resume on the next turn, without treating CPU work as
@@ -786,6 +795,10 @@ impl AppWindow {
                 },
                 None,
             )?);
+            self.renderer
+                .as_mut()
+                .unwrap()
+                .set_cache_options(self.options.render_cache);
             self.scene_dirty = true;
         }
         let renderer = self.renderer.as_mut().unwrap();
@@ -866,6 +879,7 @@ impl AppWindow {
             renderer.draw_with_present_callback(&self.scene, || self.native.pre_present_notify());
         platform::prepare_present(renderer, false);
         self.stats.last_present_time = started.elapsed();
+        self.stats.renderer = renderer.stats();
         self.sync_text_input();
         if presented {
             self.stats.presented_frames += 1;

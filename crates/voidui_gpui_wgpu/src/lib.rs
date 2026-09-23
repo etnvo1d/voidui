@@ -29,7 +29,9 @@ pub use types::*;
 pub use wgpu;
 pub use wgpu_atlas::*;
 pub use wgpu_context::*;
-pub use wgpu_renderer::{GpuContext, WgpuRenderer, WgpuSurfaceConfig};
+pub use wgpu_renderer::{
+    GpuContext, RenderCacheOptions, RenderStats, WgpuRenderer, WgpuSurfaceConfig,
+};
 
 pub(crate) trait ResultExt<T> {
     fn log_err(self) -> Option<T>;
@@ -66,3 +68,7 @@ pub use image_texture::*;
 
 mod spatial;
 pub use spatial::{Affine, ClipChain, PaintSpace, SpatialClip};
+
+mod frame_cache;
+
+pub mod resource_cache;

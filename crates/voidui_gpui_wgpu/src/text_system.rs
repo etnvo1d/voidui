@@ -26,14 +26,21 @@ pub const SUBPIXEL_VARIANTS_Y: u8 = 1;
 pub struct TextSystem {
     pub(crate) backend: Arc<ParleyTextSystem>,
     font_metrics: RwLock<FxHashMap<FontId, FontMetrics>>,
-    raster_bounds: RwLock<FxHashMap<RenderGlyphParams, Bounds<DevicePixels>>>,
+    raster_bounds: parking_lot::Mutex<
+        crate::resource_cache::BudgetCache<RenderGlyphParams, Bounds<DevicePixels>>,
+    >,
 }
 impl TextSystem {
     pub fn new(backend: Arc<ParleyTextSystem>) -> Self {
         Self {
             backend,
             font_metrics: Default::default(),
-            raster_bounds: Default::default(),
+            raster_bounds: parking_lot::Mutex::new(crate::resource_cache::BudgetCache::new(
+                crate::resource_cache::CacheBudget {
+                    max_bytes: 4 * 1024 * 1024,
+                    max_entries: 32768,
+                },
+            )),
         }
     }
     pub fn all_font_names(&self) -> Vec<String> {
@@ -203,16 +210,27 @@ impl TextSystem {
     }
 
     /// Get the rasterized size and location of a specific, rendered glyph.
+    /// Bounds are cheap metadata and can be recomputed without invalidating atlas tiles.
+    pub fn set_raster_bounds_limit(&self, entries: usize) {
+        self.raster_bounds
+            .lock()
+            .set_budget(crate::resource_cache::CacheBudget {
+                max_bytes: 4 * 1024 * 1024,
+                max_entries: entries,
+            });
+    }
     pub fn raster_bounds(&self, params: &RenderGlyphParams) -> Result<Bounds<DevicePixels>> {
-        let raster_bounds = self.raster_bounds.upgradable_read();
-        if let Some(bounds) = raster_bounds.get(params) {
-            Ok(*bounds)
-        } else {
-            let mut raster_bounds = RwLockUpgradableReadGuard::upgrade(raster_bounds);
-            let bounds = self.backend.glyph_raster_bounds(params)?;
-            raster_bounds.insert(params.clone(), bounds);
-            Ok(bounds)
+        let mut cache = self.raster_bounds.lock();
+        if let Some(bounds) = cache.get(params) {
+            return Ok(*bounds);
         }
+        let bounds = self.backend.glyph_raster_bounds(params)?;
+        cache.insert(
+            params.clone(),
+            bounds,
+            std::mem::size_of_val(params) + std::mem::size_of_val(&bounds),
+        );
+        Ok(bounds)
     }
 
     pub fn rasterize_glyph(

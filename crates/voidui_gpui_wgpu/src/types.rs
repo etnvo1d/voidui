@@ -89,6 +89,12 @@ impl From<RenderImageParams> for AtlasKey {
 }
 
 pub trait PlatformAtlas {
+    /// A retained scene pins its glyph tiles until the scene is replaced. GPU
+    /// command buffers separately retain the textures they already reference.
+    fn pin(&self, _key: &AtlasKey) -> Option<std::sync::Arc<()>> {
+        None
+    }
+
     fn get_or_insert_with<'a>(
         &self,
         key: &AtlasKey,

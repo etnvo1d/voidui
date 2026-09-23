@@ -247,7 +247,6 @@ impl TextEdit {
                     && !self.disabled
                     && !state.selections().is_structured()
                     && view.text.focused_view().is_none()
-                    && (self.caret_visible || !self.style.caret_animation)
                 {
                     let composed_selection = state.composition().map(|_| display_selection(state));
                     let selections = composed_selection.as_ref().into_iter().chain(
@@ -265,10 +264,15 @@ impl TextEdit {
                                 width,
                                 cx.text_align,
                             ) {
-                                paint_rect(
-                                    painter,
-                                    viewport_caret(caret, cx.content_bounds, view.scroll),
-                                    self.style.caret_color.resolve(cx.color).into(),
+                                let bounds = viewport_caret(caret, cx.content_bounds, view.scroll);
+                                painter.paint_caret(
+                                    render::fill(
+                                        native_rect(bounds),
+                                        render::Hsla::from(
+                                            self.style.caret_color.resolve(cx.color),
+                                        ),
+                                    ),
+                                    self.caret_visible || !self.style.caret_animation,
                                 );
                             }
                         }

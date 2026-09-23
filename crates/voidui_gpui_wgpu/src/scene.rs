@@ -40,6 +40,10 @@ impl From<bool> for PaddedBool32 {
 
 #[derive(Default)]
 pub struct Scene {
+    pub(crate) atlas_leases: Vec<(usize, std::sync::Arc<()>)>,
+    /// Publication serial for retained GPU data. Call finish after modifying a scene.
+    pub revision: u64,
+    pub caret_visible: bool,
     pub(crate) spatial: crate::spatial::SpatialData,
     pub(crate) spatial_id: u32,
     pub(crate) paint_operations: Vec<PaintOperation>,
@@ -59,6 +63,7 @@ pub struct Scene {
 
 impl Scene {
     pub fn clear(&mut self) {
+        self.atlas_leases.clear();
         self.spatial.clear();
         self.spatial_id = 0;
         self.paint_operations.clear();
@@ -156,6 +161,14 @@ impl Scene {
     }
 
     pub fn replay(&mut self, range: Range<usize>, prev_scene: &Scene) {
+        let offset = self.paint_operations.len();
+        self.atlas_leases.extend(
+            prev_scene
+                .atlas_leases
+                .iter()
+                .filter(|(i, _)| range.contains(i))
+                .map(|(i, owner)| (offset + i - range.start, owner.clone())),
+        );
         // Copy ownership for exactly this paint range. A replayed scene must
         // remain valid after its source scene and original widgets are dropped.
         let saved_space = self.spatial_id;
@@ -206,6 +219,8 @@ impl Scene {
     }
 
     pub fn finish(&mut self) {
+        static SERIAL: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
+        self.revision = SERIAL.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         self.shadows.sort_by_key(|shadow| shadow.order);
         self.quads.sort_by_key(|quad| quad.order);
         self.paths.sort_by_key(|path| path.order);
@@ -585,6 +600,8 @@ impl PrimitiveBatch {
 pub struct Quad {
     pub order: DrawOrder,
     pub spatial_id: u32,
+    /// CPU scene annotation; the shader treats this word as padding. Bit zero
+    /// identifies caret ink when preparing retained visible/hidden frame variants.
     pub spatial_pad: u32,
     pub border_style: BorderStyle,
     pub bounds: Bounds<ScaledPixels>,
@@ -892,6 +909,17 @@ impl Path<Pixels> {
         }
     }
 
+    /// Move retained local geometry without tessellating curves again.
+    pub fn translated(&self, offset: Point<Pixels>) -> Self {
+        let mut path = self.clone();
+        path.bounds.origin += offset;
+        path.start += offset;
+        path.current += offset;
+        for vertex in &mut path.vertices {
+            vertex.xy_position += offset;
+        }
+        path
+    }
     /// Scale this path by the given factor.
     pub fn scale(&self, factor: f32) -> Path<ScaledPixels> {
         Path {

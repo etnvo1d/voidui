@@ -203,7 +203,9 @@ impl TextInputClient for TextEdit {
         if self.blink_enabled() && self.blink_at.is_some_and(|t| t <= now) {
             self.caret_visible = !self.caret_visible;
             self.blink_at = Some(now + self.options.blink_interval);
-            self.repaint();
+            if let Some(invalidator) = &self.invalidator {
+                invalidator.caret_visibility(self.caret_visible);
+            }
         }
     }
     fn bounds_for_range(&mut self, range: Range<usize>, cx: InputContext<'_>) -> Option<Rect<f32>> {

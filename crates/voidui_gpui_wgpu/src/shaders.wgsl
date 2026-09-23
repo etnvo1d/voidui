@@ -81,6 +81,10 @@ struct GlobalParams {
     viewport_size: vec2<f32>,
     premultiplied_alpha: u32,
     srgb_framebuffer: u32,
+    origin: vec2<f32>,
+    path_origin: vec2<f32>,
+    path_size: vec2<f32>,
+    padding: vec2<f32>,
 }
 
 struct GammaParams {
@@ -168,7 +172,7 @@ struct TransformationMatrix {
 }
 
 fn to_device_position_impl(position: vec2<f32>) -> vec4<f32> {
-    let device_position = position / globals.viewport_size * vec2<f32>(2.0, -2.0) + vec2<f32>(-1.0, 1.0);
+    let device_position = (position - globals.origin) / globals.viewport_size * vec2<f32>(2.0, -2.0) + vec2<f32>(-1.0, 1.0);
     return vec4<f32>(device_position, 0.0, 1.0);
 }
 
@@ -1183,7 +1187,7 @@ fn vs_path_rasterization(@builtin(vertex_index) vertex_id: u32) -> PathRasteriza
 fn fs_path_rasterization(input: PathRasterizationVarying) -> @location(0) vec4<f32> {
     let dx = dpdx(input.st_position);
     let dy = dpdy(input.st_position);
-    if (any(input.clip_distances < vec4<f32>(0.0)) || spatial_clipped(input.position.xy, input.spatial_id)) {
+    if (any(input.clip_distances < vec4<f32>(0.0)) || spatial_clipped(input.position.xy + globals.origin, input.spatial_id)) {
         return vec4<f32>(0.0);
     }
 
@@ -1232,7 +1236,7 @@ fn vs_path(@builtin(vertex_index) vertex_id: u32, @builtin(instance_index) insta
     let device_position = to_device_position(unit_vertex, sprite.bounds);
     // For screen-space intermediate texture, convert screen position to texture coordinates
     let screen_position = sprite.bounds.origin + unit_vertex * sprite.bounds.size;
-    let texture_coords = screen_position / globals.viewport_size;
+    let texture_coords = (screen_position - globals.path_origin) / globals.path_size;
 
     var out = PathVarying();
     out.position = device_position;

@@ -51,6 +51,9 @@ impl Engine {
                         && self.same_block_inputs(b, old, old_block)
                         && b.body == old_block.body
                     {
+                        if let Some(arrangement) = old.arrangements.get(old_i) {
+                            self.arrangements.insert(i, arrangement.clone());
+                        }
                         self.cache.insert(i, cached.clone());
                         self.heights.set(
                             i,

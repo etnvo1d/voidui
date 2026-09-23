@@ -401,3 +401,55 @@ fn pending_manual_scroll_is_respected_when_the_control_resizes() {
         }
     }
 }
+
+#[test]
+fn virtual_cells_keep_offscreen_tab_targets_without_retaining_all_glyphs() {
+    struct LargeGrid;
+    impl BlockLayout for LargeGrid {
+        fn layout(
+            &self,
+            source: Range<usize>,
+            m: &mut dyn BlockMeasure,
+        ) -> render::Result<BlockArrangement> {
+            let text = m.source().read(source.clone()).unwrap();
+            let mut offset = source.start;
+            let cells = text
+                .split_inclusive('\n')
+                .enumerate()
+                .map(|(row, line)| {
+                    let range = offset..offset + line.trim_end_matches('\n').len();
+                    offset += line.len();
+                    TextCell {
+                        source: range,
+                        bounds: Rect::from_xywh(0., row as f32 * 24., 100., 24.),
+                    }
+                })
+                .collect::<Vec<_>>();
+            Ok(BlockArrangement {
+                size: voidui::core::geometry::Size::new(100., cells.len() as f32 * 24.),
+                cells,
+                cell_overscan: Some(24.),
+                ..Default::default()
+            })
+        }
+    }
+    let text = (0..2000).map(|i| format!("cell{i}\n")).collect::<String>();
+    let state = EditorState::new(text.clone());
+    let mut h = Harness::new();
+    let id = ViewId(90);
+    h.layout
+        .configure_views(EditorViews::new().block(id, LargeGrid), None);
+    h.prepare(&state, Projection::new().block(id, 0..text.len()), Some(0.));
+    assert!(h.layout.stats().cached_cells < 20);
+    let far = text.find("cell1800\n").unwrap();
+    assert_eq!(
+        h.layout.next_cell(far, false).unwrap().head,
+        text.find("cell1801\n").unwrap()
+    );
+    assert!(
+        h.layout
+            .caret(far, Bias::After, 300., TextAlign::Left)
+            .is_some()
+    );
+    assert!(h.layout.stats().cached_cells < 30);
+}

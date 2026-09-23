@@ -25,6 +25,21 @@ impl TextEdit {
             .then(|| state.generation()),
         );
         let mut view = self.view.borrow_mut();
+        // Selection-only changes can reuse geometry when every extension
+        // confirms that its revealed syntax is unchanged. Composition always
+        // uses the normal path, including its source-coordinate mapping.
+        if state.composition().is_none()
+            && view.pointer_projection.is_none()
+            && view.source.is_some_and(|old| {
+                old.0 == key.0 && old.1 == key.1 && old.2 == key.2 && old.3 != key.3
+            })
+            && self
+                .extension_host
+                .borrow_mut()
+                .selection_unchanged(&state.snapshot())
+        {
+            view.source = Some(key);
+        }
         let changed = view.source != Some(key)
             || view.options.as_ref() != Some(&options)
             || view.font_revision != system.font_revision()

@@ -286,6 +286,7 @@ impl Projection {
             check(source, &s.range)?;
             s.style.validate()?;
         }
+        self.normalize_paragraphs();
         end = 0;
         // Both collections are sorted and independently non-overlapping. Each
         // replacement can be checked once as the block boundary moves forward.
@@ -370,15 +371,67 @@ impl Projection {
     }
     /// Look up a source line's container style after validating the projection.
     pub fn paragraph_style(&self, byte: usize) -> ParagraphStyle {
-        // Validation sorts starts. Skip later decorations before searching for
-        // the last containing range; long decorated documents need local lookup.
         let end = self.paragraphs.partition_point(|s| s.range.start <= byte);
         self.paragraphs[..end]
             .iter()
             .rev()
-            .find(|s| s.range.contains(&byte) || s.range.is_empty() && s.range.start == byte)
+            .skip_while(|s| s.range.is_empty() && s.range.start != byte)
+            .next()
+            .filter(|s| s.range.contains(&byte) || s.range.is_empty() && s.range.start == byte)
             .map(|s| s.style.clone())
             .unwrap_or_default()
+    }
+    fn normalize_paragraphs(&mut self) {
+        if self
+            .paragraphs
+            .windows(2)
+            .all(|p| p[0].range.end <= p[1].range.start)
+        {
+            return;
+        }
+        let mut events = Vec::with_capacity(self.paragraphs.len() * 2);
+        for (i, p) in self.paragraphs.iter().enumerate() {
+            if !p.range.is_empty() {
+                events.push((p.range.start, i, true));
+                events.push((p.range.end, i, false));
+            }
+        }
+        events.sort_unstable();
+        let mut active = std::collections::BTreeSet::new();
+        let mut previous = 0;
+        let mut output: Vec<BlockStyle> = Vec::new();
+        for (at, i, start) in events {
+            if at > previous
+                && let Some(&index) = active.last()
+            {
+                let value: &BlockStyle = &self.paragraphs[index];
+                if let Some(last) = output
+                    .last_mut()
+                    .filter(|p| p.range.end == previous && p.style == value.style)
+                {
+                    last.range.end = at;
+                } else {
+                    output.push(BlockStyle {
+                        range: previous..at,
+                        style: value.style.clone(),
+                    });
+                }
+            }
+            if start {
+                active.insert(i);
+            } else {
+                active.remove(&i);
+            }
+            previous = at;
+        }
+        output.extend(
+            self.paragraphs
+                .iter()
+                .filter(|p| p.range.is_empty())
+                .cloned(),
+        );
+        output.sort_by_key(|p| (p.range.start, p.range.end));
+        self.paragraphs = output;
     }
     /// Only the requested layout fragment is materialized. A replacement may
     /// cross hard breaks; callers group that source range into one layout block.
@@ -685,7 +738,6 @@ mod composition_tests {
     }
 }
 
-
 #[cfg(test)]
 mod validation_tests {
     use super::*;
@@ -694,12 +746,7 @@ mod validation_tests {
     #[test]
     fn sorted_overlap_scan_matches_independent_pairwise_validation() {
         let state = EditorState::new("abcdefgh");
-        let block_sets = [
-            vec![],
-            vec![0..8],
-            vec![1..3, 5..7],
-            vec![0..4, 4..8],
-        ];
+        let block_sets = [vec![], vec![0..8], vec![1..3, 5..7], vec![0..4, 4..8]];
         // Enumerate disjoint pairs, including empty annotations and every
         // boundary contact. Reverse the input to also exercise sorting.
         for first_start in 0..=8 {
@@ -719,10 +766,8 @@ mod validation_tests {
                                 .replace(Replacement::hide(ViewId(2), ranges[1].clone()))
                                 .replace(Replacement::hide(ViewId(1), ranges[0].clone()));
                             for (index, block) in blocks.iter().enumerate().rev() {
-                                projection = projection.block(
-                                    ViewId(10 + index as u64),
-                                    block.clone(),
-                                );
+                                projection =
+                                    projection.block(ViewId(10 + index as u64), block.clone());
                             }
                             assert_eq!(
                                 projection.validate(state.document()).is_ok(),

@@ -50,7 +50,9 @@ impl ViewSpec {
 }
 impl PartialEq for ViewSpec {
     fn eq(&self, other: &Self) -> bool {
-        self.key == other.key && self.scope == other.scope && self.inner.same(other.inner.as_ref())
+        self.key == other.key
+            && self.scope == other.scope
+            && (Rc::ptr_eq(&self.inner, &other.inner) || self.inner.same(other.inner.as_ref()))
     }
 }
 impl fmt::Debug for ViewSpec {

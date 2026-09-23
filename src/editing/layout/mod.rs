@@ -55,6 +55,9 @@ pub enum Motion {
 pub struct ViewportOptions {
     pub overscan: f32,
     pub max_cached_blocks: usize,
+    /// Glyph retention and lightweight metric retention have independent budgets.
+    pub cell_shapes: crate::cache::CacheBudget,
+    pub cell_metrics: crate::cache::CacheBudget,
     /// Estimated average advance, as a multiple of font size, for unseen rows.
     pub estimated_advance: f32,
 }
@@ -63,6 +66,14 @@ impl Default for ViewportOptions {
         Self {
             overscan: 300.0,
             max_cached_blocks: 128,
+            cell_shapes: crate::cache::CacheBudget {
+                max_bytes: 4 * 1024 * 1024,
+                max_entries: 128,
+            },
+            cell_metrics: crate::cache::CacheBudget {
+                max_bytes: 16 * 1024 * 1024,
+                max_entries: 32768,
+            },
             estimated_advance: 0.5,
         }
     }
@@ -71,6 +82,9 @@ impl Default for ViewportOptions {
 pub struct LayoutStats {
     pub blocks: usize,
     pub cached_blocks: usize,
+    pub cached_cells: usize,
+    pub cell_shape_bytes: usize,
+    pub cell_metric_bytes: usize,
     pub mounted_views: usize,
     pub estimated_height: f32,
 }
@@ -101,6 +115,8 @@ struct Cached {
 }
 #[derive(Clone)]
 struct Engine {
+    cell_cache: Rc<RefCell<cell_cache::CellCache>>,
+    arrangements: BTreeMap<usize, Rc<crate::editing::BlockArrangement>>,
     composing: bool,
     composition_cells: BTreeMap<ViewId, Vec<crate::editing::TextCell>>,
     source: TextSnapshot,
@@ -153,6 +169,7 @@ impl EditorLayout {
             host.factories = views;
             if let Some(e) = self.engine.get_mut() {
                 e.cache.clear();
+                e.arrangements.clear();
                 e.heights.forget_measurements();
             }
         }
@@ -165,6 +182,9 @@ impl EditorLayout {
             .map_or(LayoutStats::default(), |e| LayoutStats {
                 blocks: e.blocks.len(),
                 cached_blocks: e.cache.len(),
+                cached_cells: e.cache.values().map(|c| c.cells.len()).sum(),
+                cell_shape_bytes: e.cell_cache.borrow().shapes.stats().retained_bytes,
+                cell_metric_bytes: e.cell_cache.borrow().metrics.stats().retained_bytes,
                 mounted_views: e.views.borrow().views.len(),
                 estimated_height: e.heights.total(),
             })
@@ -283,6 +303,132 @@ impl EditorLayout {
                     || consecutive.is_some()),
             same_document,
         )?;
+        // Selection revelation usually changes only inline replacements inside
+        // existing hard lines. Preserve the height index and unchanged blocks;
+        // multiline folds and block replacements take the transactional rebuild.
+        if let Some(old) = self.engine.get_mut().as_mut()
+            && snapshot.document_id != 0
+            && old.document_id == snapshot.document_id
+            && old.revision == snapshot.revision
+            && !old.composing
+            && !snapshot.composing
+            && old.options == options
+            && old.font_revision == system.font_revision()
+            && Arc::ptr_eq(&old.system, &system)
+            && old.styles == snapshot.spans
+            && old.projection.styles == projection.styles
+            && old.projection.paragraphs == projection.paragraphs
+            && old.projection.blocks == projection.blocks
+        {
+            let mut dirty = BTreeSet::new();
+            let mut a = old.projection.replacements.iter().peekable();
+            let mut b = projection.replacements.iter().peekable();
+            let mut local = true;
+            while a.peek().is_some() || b.peek().is_some() {
+                if a.peek() == b.peek() {
+                    a.next();
+                    b.next();
+                    continue;
+                }
+                let take_old = match (a.peek(), b.peek()) {
+                    (Some(a), Some(b)) => {
+                        (a.range.start, a.range.end) <= (b.range.start, b.range.end)
+                    }
+                    (Some(_), None) => true,
+                    _ => false,
+                };
+                let r = if take_old {
+                    a.next().unwrap()
+                } else {
+                    b.next().unwrap()
+                };
+                let start = old.block_at(r.range.start);
+                let end = old.block_at(r.range.end.saturating_sub(1).max(r.range.start));
+                if start != end
+                    || old.source.line_at(r.range.start)
+                        != old
+                            .source
+                            .line_at(r.range.end.saturating_sub(1).max(r.range.start))
+                {
+                    local = false;
+                    break;
+                }
+                if let Some(i) = start {
+                    dirty.insert(i);
+                }
+            }
+            if local && dirty.is_empty() {
+                old.virtual_options = virtual_options;
+                old.cell_cache
+                    .borrow_mut()
+                    .shapes
+                    .set_budget(virtual_options.cell_shapes);
+                old.cell_cache
+                    .borrow_mut()
+                    .metrics
+                    .set_budget(virtual_options.cell_metrics);
+                if let Some(viewport) = viewport {
+                    return old.prepare_visible(viewport, anchor);
+                }
+                return Ok(0.);
+            }
+            if local {
+                let backup = old.clone();
+                let mounted = old
+                    .views
+                    .borrow()
+                    .views
+                    .keys()
+                    .copied()
+                    .collect::<BTreeSet<_>>();
+                let descriptions = projection
+                    .widgets()
+                    .map(|(id, _, spec, _)| (id, spec.clone()))
+                    .collect();
+                old.projection = projection;
+                old.descriptions = descriptions;
+                old.present_views = old.projection.view_ids();
+                old.virtual_options = virtual_options;
+                old.cell_cache
+                    .borrow_mut()
+                    .shapes
+                    .set_budget(virtual_options.cell_shapes);
+                old.cell_cache
+                    .borrow_mut()
+                    .metrics
+                    .set_budget(virtual_options.cell_metrics);
+                for i in dirty {
+                    old.cache.remove(&i);
+                    old.arrangements.remove(&i);
+                }
+                old.views.borrow_mut().descriptions = old.descriptions.clone();
+                let prepared = (|| {
+                    if let Some(viewport) = viewport {
+                        return old.prepare_visible(viewport, anchor);
+                    }
+                    for i in 0..old.blocks.len() {
+                        old.ensure(i)?;
+                    }
+                    Ok(0.)
+                })();
+                if prepared.is_err() {
+                    {
+                        let mut host = old.views.borrow_mut();
+                        host.descriptions = backup.descriptions.clone();
+                        host.retain_present(&mounted);
+                        for id in mounted {
+                            host.get(id)?;
+                        }
+                    }
+                    *old = backup;
+                }
+                if prepared.is_ok() {
+                    old.views.borrow_mut().retain_present(&old.present_views);
+                }
+                return prepared;
+            }
+        }
+        let old = self.engine.get_mut().as_ref();
         let descriptions = projection
             .widgets()
             .map(|(id, _, spec, _)| (id, spec.clone()))
@@ -296,14 +442,19 @@ impl EditorLayout {
                         .filter_map(|(i, cached)| {
                             Some((
                                 old.blocks[*i].view?,
-                                cached
-                                    .cells
-                                    .iter()
-                                    .map(|cell| crate::editing::TextCell {
-                                        source: cell.source.clone(),
-                                        bounds: cell.bounds,
-                                    })
-                                    .collect(),
+                                old.arrangements
+                                    .get(i)
+                                    .map(|a| a.cells.clone())
+                                    .unwrap_or_else(|| {
+                                        cached
+                                            .cells
+                                            .iter()
+                                            .map(|cell| crate::editing::TextCell {
+                                                source: cell.source.clone(),
+                                                bounds: cell.bounds,
+                                            })
+                                            .collect()
+                                    }),
                             ))
                         })
                         .collect()
@@ -313,6 +464,11 @@ impl EditorLayout {
             BTreeMap::new()
         };
         let mut next = Engine {
+            arrangements: BTreeMap::new(),
+            cell_cache: old
+                .filter(|e| Arc::ptr_eq(&e.system, &system))
+                .map(|e| e.cell_cache.clone())
+                .unwrap_or_default(),
             composing: snapshot.composing,
             composition_cells,
             document_id: snapshot.document_id,
@@ -372,6 +528,11 @@ impl EditorLayout {
             next.reuse(old, mapped_changes)?;
         } else {
             next.index_blocks()?;
+        }
+        {
+            let mut cells = next.cell_cache.borrow_mut();
+            cells.shapes.set_budget(virtual_options.cell_shapes);
+            cells.metrics.set_budget(virtual_options.cell_metrics);
         }
         let (previous_descriptions, previous_mounted) = {
             let mut host = self.views.borrow_mut();
@@ -453,6 +614,7 @@ impl EditorLayout {
         // Width changes clone only retained native paragraphs, then rebreak them.
         let mut next = old.clone();
         next.options.width = width;
+        next.arrangements.clear();
         next.cache.clear();
         next.reset_estimates();
         for (i, cached) in &old.cache {
@@ -506,6 +668,18 @@ impl EditorLayout {
         let e = state.as_mut()?;
         let i = e.block_at(position)?;
         e.ensure(i).ok()?;
+        if let Some(arrangement) = e.arrangements.get(&i) {
+            let cells = &arrangement.cells;
+            let at = cells
+                .iter()
+                .position(|c| c.source.start <= position && position <= c.source.end)?;
+            let next = if backwards {
+                at.checked_sub(1)?
+            } else {
+                at + 1
+            };
+            return Some(Selection::caret(cells.get(next)?.source.start));
+        }
         let cells = &e.cache[&i].cells;
         let at = cells
             .iter()
@@ -651,3 +825,5 @@ mod reuse;
 mod scroll;
 use cells::CellMeasure;
 use scroll::ScrollAnchor;
+
+mod cell_cache;

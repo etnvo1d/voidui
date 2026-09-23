@@ -4,7 +4,7 @@ pub mod core;
 pub mod style;
 pub mod widgets;
 
-pub use core::rich_text::{Inline, InlineStyle, RichText, StyleSpan, span};
+pub use core::rich_text::{Inline, InlineStyle, RichText, StyleSpan, StyleSpanBuilder, span};
 #[cfg(feature = "editing")]
 pub use editing::Editor;
 pub use voidui_gpui_wgpu as render;

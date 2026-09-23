@@ -99,11 +99,42 @@ impl Engine {
         old: &Engine,
         changes: &crate::editing::ChangeSet,
     ) -> render::Result<bool> {
-        if !self.projection.replacements.is_empty()
-            || !old.projection.replacements.is_empty()
-            || !self.projection.blocks.is_empty()
-            || !old.projection.blocks.is_empty()
+        // Projection changes need not force a full line scan when structural
+        // ranges are the exact mapped counterparts of the previous revision.
+        let mapped = |old: &Range<usize>, new: &Range<usize>| {
+            changes.map(old.start, Bias::Before) == new.start
+                && changes.map(old.end, Bias::After) == new.end
+        };
+        if self.projection.replacements.len() != old.projection.replacements.len()
+            || self.projection.blocks.len() != old.projection.blocks.len()
+            || !old
+                .projection
+                .replacements
+                .iter()
+                .zip(&self.projection.replacements)
+                .all(|(a, b)| mapped(&a.range, &b.range))
+            || !old
+                .projection
+                .blocks
+                .iter()
+                .zip(&self.projection.blocks)
+                .all(|(a, b)| mapped(&a.range, &b.range))
         {
+            return Ok(false);
+        }
+        // Editing inside a grouped/custom block may change its internal hard
+        // lines; rebuild that provider through the established full index path.
+        if changes.edits().iter().any(|edit| {
+            old.projection
+                .blocks
+                .iter()
+                .any(|b| b.range.start <= edit.range.start && edit.range.end <= b.range.end)
+                || old
+                    .projection
+                    .replacements
+                    .iter()
+                    .any(|r| r.range.start < edit.range.end && edit.range.start < r.range.end)
+        }) {
             return Ok(false);
         }
         let Some(first_edit) = changes.edits().first() else {
@@ -248,6 +279,7 @@ impl Engine {
             .and_then(|id| self.views.borrow().factories.block_layout(id))
         {
             let mut measure = CellMeasure {
+                retained: self.cell_cache.clone(),
                 composition_cells: b
                     .view
                     .and_then(|id| self.composition_cells.get(&id).map(Vec::as_slice)),
@@ -269,26 +301,44 @@ impl Engine {
                 cache: BTreeMap::new(),
                 required_position: self.requested_position,
             };
-            let arrangement = provider.layout(b.range.clone(), &mut measure)?;
-            anyhow::ensure!(
-                arrangement.size.width.is_finite()
-                    && arrangement.size.width >= 0.0
-                    && arrangement.size.height.is_finite()
-                    && arrangement.size.height > 0.0,
-                "invalid block arrangement size"
-            );
+            let arrangement = if let Some(ready) = self.arrangements.get(&i) {
+                ready.clone()
+            } else {
+                let ready = Rc::new(provider.layout(b.range.clone(), &mut measure)?);
+                ready.validate(&self.source, b.body.start..b.range.end)?;
+                if !ready.viewport_dependent {
+                    self.arrangements.insert(i, ready.clone());
+                }
+                ready
+            };
             let mut cells = Vec::new();
             let mut child_objects = Vec::new();
-            for cell in arrangement.cells {
-                anyhow::ensure!(
-                    cell.source.start >= b.body.start
-                        && cell.source.end <= b.range.end
-                        && cell.bounds.origin.x.is_finite()
-                        && cell.bounds.origin.y.is_finite()
-                        && cell.bounds.size.width.is_finite()
-                        && cell.bounds.size.width >= 0.0,
-                    "invalid source-backed cell"
-                );
+            let requested_bounds = measure
+                .required_position
+                .and_then(|p| {
+                    arrangement
+                        .cells
+                        .iter()
+                        .find(|c| c.source.start <= p && p <= c.source.end)
+                })
+                .map(|c| c.bounds);
+            for cell in &arrangement.cells {
+                if let (Some(overscan), Some(viewport)) =
+                    (arrangement.cell_overscan, measure.viewport)
+                {
+                    let required = requested_bounds.is_some_and(|r| {
+                        cell.bounds.origin.y + cell.bounds.size.height >= r.origin.y - overscan
+                            && cell.bounds.origin.y <= r.origin.y + r.size.height + overscan
+                    });
+                    if !required
+                        && (cell.bounds.origin.y + cell.bounds.size.height
+                            < viewport.origin.y - overscan
+                            || cell.bounds.origin.y
+                                > viewport.origin.y + viewport.size.height + overscan)
+                    {
+                        continue;
+                    }
+                }
                 measure.measure(cell.source.clone(), cell.bounds.size.width)?;
                 let mut cached = measure
                     .cache
@@ -327,14 +377,14 @@ impl Engine {
                 None,
             )?;
             let cached = Cached {
-                window: if arrangement.viewport_dependent {
+                window: if arrangement.viewport_dependent || arrangement.cell_overscan.is_some() {
                     self.viewport
                 } else {
                     None
                 },
                 cells,
-                rules: arrangement.rules,
-                decoration: arrangement.decoration,
+                rules: arrangement.rules.clone(),
+                decoration: arrangement.decoration.clone(),
                 projected,
                 flow: TextFlow::from_paragraph(empty, self.flow_options(b), self.system.clone()),
                 width: arrangement.size.width,

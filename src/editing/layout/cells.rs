@@ -1,6 +1,7 @@
 //! Source-backed custom block children use the shared text flow and selection.
 use super::*;
 pub(super) struct CellMeasure<'a> {
+    pub(super) retained: Rc<RefCell<super::cell_cache::CellCache>>,
     pub(super) composition_cells: Option<&'a [crate::editing::TextCell]>,
     pub(super) source: &'a TextSnapshot,
     pub(super) styles: &'a [StyleSpan],
@@ -45,19 +46,42 @@ impl CellMeasure<'_> {
                 offset_em: m.offset_em,
             });
         }
-        let paragraph = self.system.shape_inline_paragraph(
-            projected.text.clone().into(),
-            &runs,
-            render::InlineTextStyle {
-                font: &options.font,
-                font_size: options.font_size,
-                line_height: options.line_height,
+        let shape_key = super::cell_cache::CellKey {
+            text: projected.text.clone(),
+            spans: projected.spans.clone(),
+            options: LayoutOptions {
+                width: None,
+                ..options.clone()
             },
-            Some(width),
-            None,
-            &boxes,
-            0.0,
-        )?;
+            boxes: boxes.clone(),
+            revision: self.system.font_revision(),
+        };
+        let hit = self.retained.borrow_mut().shapes.get(&shape_key).cloned();
+        let paragraph = if let Some(paragraph) = hit {
+            paragraph
+        } else {
+            let paragraph = self.system.shape_inline_paragraph(
+                projected.text.clone().into(),
+                &runs,
+                render::InlineTextStyle {
+                    font: &options.font,
+                    font_size: options.font_size,
+                    line_height: options.line_height,
+                },
+                None,
+                None,
+                &boxes,
+                0.0,
+            )?;
+            // Estimate native glyph/row ownership conservatively in addition to
+            // the explicit source/style key. The entry count is a second bound.
+            let bytes = shape_key.cost() + shape_key.text.chars().count() * 192 + 512;
+            self.retained
+                .borrow_mut()
+                .shapes
+                .insert(shape_key.clone(), paragraph.clone(), bytes);
+            paragraph
+        };
         let flow = TextFlow::from_paragraph(
             paragraph,
             LayoutOptions {
@@ -69,6 +93,11 @@ impl CellMeasure<'_> {
         let size = Size::new(
             flow.size().width,
             flow.size().height.max(options.line_height),
+        );
+        self.retained.borrow_mut().metrics.insert(
+            (shape_key.clone(), width.to_bits()),
+            size,
+            shape_key.cost() + std::mem::size_of_val(&size),
         );
         self.cache.insert(
             key,
@@ -99,7 +128,41 @@ impl crate::editing::BlockMeasure for CellMeasure<'_> {
         self.viewport
     }
     fn measure_text(&mut self, r: Range<usize>, w: f32) -> render::Result<Size<f32>> {
-        self.measure(r, w)
+        let projected = self
+            .projection
+            .project(self.source, r.clone(), self.styles)?;
+        // Inline views can change their intrinsic metrics independently of text;
+        // their metric key is produced by measure(), after view measurement.
+        if projected.objects.is_empty() {
+            let key = super::cell_cache::CellKey {
+                text: projected.text,
+                spans: projected.spans,
+                options: LayoutOptions {
+                    width: None,
+                    ..self
+                        .options
+                        .for_paragraph(&self.projection.paragraph_style(r.start))
+                },
+                boxes: Vec::new(),
+                revision: self.system.font_revision(),
+            };
+            let mut retained = self.retained.borrow_mut();
+            if let Some(size) = retained.metrics.get(&(key.clone(), w.to_bits())) {
+                return Ok(*size);
+            }
+            if let Some(size) = retained
+                .metrics
+                .get(&(key, f32::MAX.to_bits()))
+                .filter(|s| s.width <= w)
+            {
+                return Ok(*size);
+            }
+        }
+        let size = self.measure(r.clone(), w)?;
+        // Intrinsic measurement must not pin the entire compound block's glyphs.
+        // The engine materializes only the cells returned in the arrangement.
+        self.cache.remove(&(r.start, r.end, w.to_bits()));
+        Ok(size)
     }
 }
 impl Engine {

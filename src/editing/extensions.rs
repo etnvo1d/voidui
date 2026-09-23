@@ -11,6 +11,16 @@ pub struct ExtensionContext<'a> {
     pub change: Option<&'a Change>,
 }
 pub trait EditorExtension {
+    /// Return false only when changing the selection cannot change this layer.
+    /// This avoids rebuilding document metadata for ordinary caret motion.
+    fn selection_affects_projection(
+        &mut self,
+        _previous: &SelectionSet,
+        _context: ExtensionContext<'_>,
+    ) -> bool {
+        true
+    }
+
     fn project(&mut self, context: ExtensionContext<'_>) -> Result<Projection, EditError>;
     /// May handle committed text, paste and keys. Native Commit is also offered
     /// during composition using committed snapshot coordinates. A returned commit
@@ -68,6 +78,7 @@ impl EditorExtensions {
 }
 #[derive(Default)]
 pub(crate) struct ExtensionHost {
+    previous: Option<(u64, u64, SelectionSet)>,
     configuration: EditorExtensions,
     plugins: Vec<(ViewId, Box<dyn EditorExtension>)>,
 }
@@ -80,6 +91,7 @@ impl ExtensionHost {
             p.unmounted();
         }
         self.plugins.clear();
+        self.previous = None;
         let mut ordered: Vec<_> = config.factories.iter().collect();
         ordered.sort_by_key(|(id, f)| (f.priority, **id));
         for (id, f) in ordered {
@@ -88,6 +100,23 @@ impl ExtensionHost {
             self.plugins.push((*id, p));
         }
         self.configuration = config;
+    }
+    pub fn selection_unchanged(&mut self, snapshot: &ProjectionSnapshot) -> bool {
+        let Some((document, revision, previous)) = &self.previous else {
+            return false;
+        };
+        if *document != snapshot.document_id || *revision != snapshot.revision {
+            return false;
+        }
+        self.plugins.iter_mut().all(|(_, p)| {
+            !p.selection_affects_projection(
+                previous,
+                ExtensionContext {
+                    snapshot,
+                    change: None,
+                },
+            )
+        })
     }
     pub fn project(
         &mut self,
@@ -108,6 +137,11 @@ impl ExtensionHost {
             out.blocks.extend(layer.blocks);
         }
         out.validate(&snapshot.text)?;
+        self.previous = Some((
+            snapshot.document_id,
+            snapshot.revision,
+            snapshot.selections.clone(),
+        ));
         Ok(out)
     }
     pub fn command(

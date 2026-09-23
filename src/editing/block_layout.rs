@@ -12,6 +12,9 @@ pub struct TextCell {
 pub struct BlockArrangement {
     /// Re-run the provider as the viewport/required source changes.
     pub viewport_dependent: bool,
+    /// Keep complete cell geometry for navigation, but shape only cells near the
+    /// viewport. None retains the legacy fully materialized arrangement.
+    pub cell_overscan: Option<f32>,
     pub size: Size<f32>,
     pub cells: Vec<TextCell>,
     pub rules: Vec<(Rect<f32>, crate::render::Hsla)>,
@@ -21,6 +24,38 @@ pub struct BlockArrangement {
     pub decoration: Option<super::ViewSpec>,
 }
 impl BlockArrangement {
+    pub(crate) fn validate(
+        &self,
+        source: &dyn TextRead,
+        range: Range<usize>,
+    ) -> crate::render::Result<()> {
+        anyhow::ensure!(
+            self.cell_overscan.is_none_or(|v| v.is_finite() && v >= 0.)
+                && self.size.width.is_finite()
+                && self.size.width >= 0.
+                && self.size.height.is_finite()
+                && self.size.height > 0.,
+            "invalid block arrangement size"
+        );
+        for cell in &self.cells {
+            anyhow::ensure!(
+                cell.source.start >= range.start
+                    && cell.source.start <= cell.source.end
+                    && cell.source.end <= range.end
+                    && source.is_char_boundary(cell.source.start)
+                    && source.is_char_boundary(cell.source.end)
+                    && cell.bounds.origin.x.is_finite()
+                    && cell.bounds.origin.y.is_finite()
+                    && cell.bounds.size.width.is_finite()
+                    && cell.bounds.size.width >= 0.
+                    && cell.bounds.size.height.is_finite()
+                    && cell.bounds.size.height >= 0.,
+                "invalid source-backed cell"
+            );
+        }
+        Ok(())
+    }
+
     /// Attach a retained view whose inputs include the geometry from this layout.
     /// The block owns its size; the view's measured size does not resize the block.
     pub fn with_decoration(mut self, view: impl super::ViewDescription) -> Self {

@@ -7,6 +7,9 @@ use crate::render::{
 };
 use std::{collections::BTreeMap, ops::Range, sync::Arc};
 
+mod spans;
+pub use spans::StyleSpanBuilder;
+
 /// Sparse overrides of the surrounding typography. Unset fields inherit.
 /// Metadata is retained with text but has no built-in visual or event behavior;
 /// components can use it for links, mentions, annotations, or schema identifiers.

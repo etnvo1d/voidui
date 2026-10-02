@@ -270,6 +270,19 @@ fn rich_foregrounds_decorations_and_selection_reach_the_scene() {
             );
         }
         assert_eq!(scene.underlines.len(), 4);
+        // Underlines share one line-wide position so mixed fonts stay aligned.
+        let underline_y = p
+            .layout()
+            .get(0)
+            .unwrap()
+            .items()
+            .filter_map(|item| match item {
+                parley::PositionedLayoutItem::GlyphRun(run) => {
+                    Some(run.baseline() + run.run().metrics().underline_offset.abs())
+                }
+                _ => None,
+            })
+            .fold(f32::NEG_INFINITY, f32::max);
         for (index, item) in p.layout().get(0).unwrap().items().enumerate() {
             let parley::PositionedLayoutItem::GlyphRun(run) = item else {
                 continue;
@@ -285,8 +298,7 @@ fn rich_foregrounds_decorations_and_selection_reach_the_scene() {
             assert!(scene.underlines.iter().any(|decoration| {
                 decoration.color == expected
                     && decoration.bounds.origin.x == ScaledPixels(run.offset())
-                    && decoration.bounds.origin.y
-                        == ScaledPixels(run.baseline() + run.run().metrics().underline_offset.abs())
+                    && decoration.bounds.origin.y == ScaledPixels(underline_y)
             }));
         }
     }

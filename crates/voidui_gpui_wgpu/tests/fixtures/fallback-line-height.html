@@ -1,0 +1,39 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Fixed line-height with font fallback</title>
+<style>
+@font-face { font-family: AhemTest; src: url(../fonts/Ahem.ttf); }
+@font-face { font-family: PlexTest; src: url(../fonts/IBMPlexSans-Regular.ttf); }
+.line { font-size: 14.5px; margin: 8px 0; }
+.baseline { display: inline-block; width: 0; height: 0; vertical-align: baseline; }
+pre { white-space: pre-wrap; }
+</style>
+<h1>Fixed line-height with font fallback</h1>
+<div id="cases"></div>
+<pre id="report">Loading fonts…</pre>
+<script>
+(async () => {
+  await Promise.all([
+    document.fonts.load('14.5px AhemTest', 'a'),
+    document.fonts.load('14.5px PlexTest', 'Ж'),
+  ]);
+  const results = [];
+  for (const family of ['AhemTest, PlexTest', 'system-ui']) {
+    for (const lineHeight of [12, 32, 48]) {
+      const texts = family.startsWith('Ahem') ? ['a', 'Ж', 'aЖ', 'aЖabc'] : ['a', '中', '中a', '中ab', '中abc'];
+      for (const text of texts) {
+        const line = document.createElement('div');
+        line.className = 'line';
+        Object.assign(line.style, {fontFamily: family, lineHeight: `${lineHeight}px`});
+        line.append(document.createTextNode(text));
+        const baseline = line.appendChild(document.createElement('span'));
+        baseline.className = 'baseline';
+        document.querySelector('#cases').append(line);
+        const rect = line.getBoundingClientRect();
+        results.push({family, lineHeight, text, height: rect.height, baseline: baseline.getBoundingClientRect().top - rect.top});
+      }
+    }
+  }
+  document.querySelector('#report').textContent = JSON.stringify(results, null, 2);
+})();
+</script>

@@ -182,13 +182,30 @@ advance, then maps to the native row band. If unusually tall fonts overlap even
 the common native height, the adapter uses public `BreakLines` positioning to
 separate native bands; it only repeats line breaking, never shaping.
 
-Uniform effective heights allocate no adapter. Mixed paragraphs reuse row-vector
+Uniform effective heights in `shape_paragraph` allocate no adapter. Mixed paragraphs reuse row-vector
 capacity on resize. Reflow at an unchanged width returns immediately with no
 row traversal or allocation. Empty source still creates no row; editor-owned
 empty hard paragraphs and their separator style remain the editor's policy.
 
 For exact source evidence, reproduction commands and the public-API comparison,
 see [Parley line-height diagnostics](docs/parley-line-height.md).
+
+### CSS inline text and font fallback
+
+`shape_inline_paragraph` adds a parent font strut and combines the layout bounds
+of styled text and embedded objects. Its numeric line heights are explicit used
+values. Following [CSS Inline Layout §5.3](https://www.w3.org/TR/css-inline-3/#inline-height),
+each text style uses its first available font for ascent, descent and half-leading.
+Fonts selected only to render missing glyphs do not change that style's line
+height or baseline. Glyph shaping and painting still use the fallback fonts.
+
+Different authored fonts, sizes or line heights and tall embedded objects can
+still enlarge a row. Text extents follow original style ranges, mapped through
+CRLF normalization and object-placeholder removal, rather than native shaping
+run boundaries. Primary-font metrics are cached by font and size; wrapping and
+paint-only style changes reuse them. `fallback-line-height.html` in the test
+fixtures provides a browser comparison for bundled fonts and Chinese system-font
+fallback.
 
 ## Parley migration
 

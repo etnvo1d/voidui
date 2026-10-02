@@ -162,14 +162,14 @@ impl TextSystem {
             end == text.len(),
             "text runs must cover the entire paragraph"
         );
-        let inline = if !text.is_empty() && clamp != Some(0) {
+        let source = TextSource::with_objects(text, &objects);
+        let inline = if !source.original().is_empty() && clamp != Some(0) {
             style
-                .map(|style| InlineContext::new(self, style, runs, &mut objects))
+                .map(|style| InlineContext::new(self, style, runs, &mut objects, &source))
                 .transpose()?
         } else {
             None
         };
-        let source = TextSource::with_objects(text, &objects);
         let boxes: Vec<_> = objects
             .iter()
             .map(|b| parley::InlineBox {
@@ -742,8 +742,59 @@ impl Paragraph {
                 .map(|(range, fg, bg)| (std::slice::from_ref(range), *fg, *bg)),
         )
     }
+    /// Exclude embedded content from the text background only. Its host paints
+    /// the object and then its selection overlay, so transparent objects receive
+    /// one tint and opaque objects cannot hide their selected state. Keep the
+    /// original rectangles for selected glyph colors and public range geometry.
+    fn selection_backgrounds<'a>(
+        &self,
+        rectangles: &'a [(usize, Bounds<f32>)],
+        width: f32,
+        align: TextAlign,
+    ) -> std::borrow::Cow<'a, [(usize, Bounds<f32>)]> {
+        let mut result = std::borrow::Cow::Borrowed(rectangles);
+        if rectangles.is_empty() || self.objects.is_empty() {
+            return result;
+        }
+        for (_, _, object) in self.inline_boxes(width, align) {
+            if !result.iter().any(|(_, r)| !r.intersect(&object).is_empty()) {
+                continue;
+            }
+            let previous = result.into_owned();
+            let mut pieces = Vec::with_capacity(previous.len() + 3);
+            for (row, r) in previous {
+                let cut = r.intersect(&object);
+                if cut.is_empty() {
+                    pieces.push((row, r));
+                    continue;
+                }
+                // The four strips are disjoint; the side strips span only the
+                // cut's height. Space above/below short formulas stays selected.
+                for piece in [
+                    Bounds::from_corners(r.origin, point(r.right(), cut.top())),
+                    Bounds::from_corners(point(r.left(), cut.bottom()), r.bottom_right()),
+                    Bounds::from_corners(
+                        point(r.left(), cut.top()),
+                        point(cut.left(), cut.bottom()),
+                    ),
+                    Bounds::from_corners(
+                        point(cut.right(), cut.top()),
+                        point(r.right(), cut.bottom()),
+                    ),
+                ] {
+                    if !piece.is_empty() {
+                        pieces.push((row, piece));
+                    }
+                }
+            }
+            result = std::borrow::Cow::Owned(pieces);
+        }
+        result
+    }
+
     /// Paint disjoint editor selections without repainting the paragraph glyphs.
     /// Explicit run foregrounds survive `color`; selection foregrounds override both.
+    /// Inline object bounds are reserved for the host's post-object selection overlay.
     pub fn paint_selections(
         &self,
         painter: &mut Painter<'_>,
@@ -838,7 +889,8 @@ impl Paragraph {
             if let Some((_, _, bg)) = &selection
                 && bg.a > 0.0
             {
-                for (_, r) in &rectangles {
+                let backgrounds = self.selection_backgrounds(&rectangles, bounds.size.width, align);
+                for (_, r) in backgrounds.iter() {
                     painter.paint_quad(fill(
                         Bounds::new(
                             point(
@@ -862,6 +914,19 @@ impl Paragraph {
                 }
                 let dx = bounds.origin.x + self.offset(row, bounds.size.width, align);
                 let dy = bounds.origin.y + metrics.baseline - line.metrics().baseline;
+                // Fallback fonts (e.g. CJK next to Latin) report different underline
+                // offsets; share the lowest one so a line's underline stays straight.
+                let underline_y = line
+                    .items()
+                    .filter_map(|item| match item {
+                        PositionedLayoutItem::GlyphRun(run)
+                            if run.style().brush.underline.is_some() =>
+                        {
+                            Some(run.baseline() + run.run().metrics().underline_offset.abs())
+                        }
+                        _ => None,
+                    })
+                    .fold(f32::NEG_INFINITY, f32::max);
                 for item in line.items() {
                     if let PositionedLayoutItem::GlyphRun(run) = item {
                         let (font_id, emoji) = backend.raster.register(run.run());
@@ -953,12 +1018,7 @@ impl Paragraph {
                         if let Some(mut u) = brush.underline {
                             u.color = Some(u.color.unwrap_or(fg));
                             painter.paint_underline(
-                                point(
-                                    px(dx + run.offset()),
-                                    px(dy
-                                        + run.baseline()
-                                        + run.run().metrics().underline_offset.abs()),
-                                ),
+                                point(px(dx + run.offset()), px(dy + underline_y)),
                                 px(run.advance()),
                                 &u,
                             );

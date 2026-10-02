@@ -1,6 +1,6 @@
 //! CSS line boxes for text and embedded objects in one formatting context.
 //! Parley keeps ownership of shaping and horizontal line breaking.
-use super::paragraph_rows::HeightSpan;
+use super::source::TextSource;
 use crate::{Font, InlineTextBox, Result, TextBrush, TextRun, TextSystem};
 
 /// Parent typography of an inline formatting context. Its zero-width strut
@@ -28,7 +28,7 @@ pub enum InlineAlignment {
     TextBottom,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, PartialEq)]
 pub(super) struct LineExtents {
     pub over: f32,
     pub under: f32,
@@ -64,8 +64,15 @@ struct ObjectLayout {
 }
 
 #[derive(Clone)]
+struct TextExtents {
+    end: usize,
+    extents: LineExtents,
+}
+
+#[derive(Clone)]
 pub(super) struct InlineContext {
     strut: LineExtents,
+    text: Vec<TextExtents>,
     objects: Vec<ObjectLayout>,
 }
 impl InlineContext {
@@ -76,9 +83,35 @@ impl InlineContext {
         style: InlineTextStyle<'_>,
         runs: &[TextRun],
         objects: &mut [InlineTextBox],
+        source: &TextSource,
     ) -> Result<Self> {
         let metrics = system.backend.line_metrics(style.font, style.font_size)?;
         let strut = LineExtents::text(&metrics, style.line_height);
+        // CSS Inline Layout §5.3: an explicit line-height uses the first
+        // available font of each styled text box. Shaping may split that box
+        // into fallback-font runs; those glyphs must not resize its line box.
+        // Retain style extents in normalized text coordinates so CRLF and
+        // removed object placeholders cannot shift a later style boundary.
+        let mut text: Vec<TextExtents> = Vec::new();
+        let mut source_end = 0;
+        let mut layout_end = 0;
+        for run in runs {
+            source_end += run.len;
+            let end = source.to_layout(source_end);
+            if end == layout_end {
+                continue;
+            }
+            let metrics = system
+                .backend
+                .line_metrics(&run.font, run.font_size.unwrap_or(style.font_size))?;
+            let extents = LineExtents::text(&metrics, run.line_height.unwrap_or(style.line_height));
+            if let Some(last) = text.last_mut().filter(|last| last.extents == extents) {
+                last.end = end;
+            } else {
+                text.push(TextExtents { end, extents });
+            }
+            layout_end = end;
+        }
         let mut resolved = Vec::with_capacity(objects.len());
         let mut run_index = 0;
         let mut end = runs.first().map_or(0, |run| run.len);
@@ -127,6 +160,7 @@ impl InlineContext {
         resolved.sort_by_key(|object| object.id);
         Ok(Self {
             strut,
+            text,
             objects: resolved,
         })
     }
@@ -142,21 +176,16 @@ impl InlineContext {
         self.object(id).map_or(0.0, |object| object.offset_y)
     }
 
-    pub fn line(&self, line: &parley::Line<'_, TextBrush>, heights: &[HeightSpan]) -> LineExtents {
+    pub fn line(&self, line: &parley::Line<'_, TextBrush>) -> LineExtents {
         let mut extents = self.strut;
-        for run in line.runs() {
-            let range = run.text_range();
-            let mut index = heights
-                .partition_point(|span| span.end <= range.start)
-                .min(heights.len() - 1);
-            loop {
-                // Requested heights come from source spans. Parley 0.11.1 may
-                // merge line-height-only changes or assign the next run's height.
-                extents.include(LineExtents::text(run.metrics(), heights[index].height));
-                if index + 1 == heights.len() || heights[index].end >= range.end {
+        let range = line.text_range();
+        if !range.is_empty() {
+            let first = self.text.partition_point(|span| span.end <= range.start);
+            for span in &self.text[first..] {
+                extents.include(span.extents);
+                if span.end >= range.end {
                     break;
                 }
-                index += 1;
             }
         }
         for item in line.items() {

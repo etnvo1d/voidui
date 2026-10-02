@@ -158,7 +158,7 @@ impl ParagraphRows {
             }
             let native = line.metrics();
             let (ascent, descent, over) = if let Some(inline) = &self.inline {
-                let extents = inline.line(&line, &self.spans);
+                let extents = inline.line(&line);
                 height = extents.over + extents.under;
                 (extents.ascent, extents.descent, extents.over)
             } else {

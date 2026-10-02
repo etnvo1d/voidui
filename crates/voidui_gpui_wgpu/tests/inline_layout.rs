@@ -62,6 +62,113 @@ fn metrics(system: &TextSystem, font: &Font, size: f32) -> parley::RunMetrics {
 }
 
 #[test]
+fn fallback_glyphs_preserve_explicit_line_height_and_baseline() {
+    let system = system();
+    let mut primary = font("Ahem");
+    primary.fallbacks = Some(FontFallbacks::from_fonts(vec!["IBM Plex Sans".into()]));
+    let size = 14.5;
+    let m = metrics(&system, &primary, size);
+    for height in [12.0, 32.0, 48.0] {
+        let baseline = m.ascent + (height - m.ascent - m.descent) / 2.0;
+        for text in ["a", "Ж", "aЖ", "aЖabc", "aЖ\r\naЖ\n"] {
+            let p = system
+                .shape_inline_paragraph(
+                    text.into(),
+                    &[TextRun {
+                        len: text.len(),
+                        font: primary.clone(),
+                        ..Default::default()
+                    }],
+                    InlineTextStyle {
+                        font: &primary,
+                        font_size: size,
+                        line_height: height,
+                    },
+                    None,
+                    None,
+                    &[],
+                    0.0,
+                )
+                .unwrap();
+            // Ahem lacks Cyrillic: exercise a real fallback, not merely a
+            // different script that happens to be present in the primary font.
+            if text == "aЖ" {
+                let ids: std::collections::HashSet<_> = p
+                    .layout()
+                    .lines()
+                    .flat_map(|line| line.runs())
+                    .map(|run| run.font().data.id())
+                    .collect();
+                assert_eq!(ids.len(), 2);
+            }
+            close(p.height(), height * p.line_count() as f32);
+            close(p.first_baseline().unwrap(), baseline);
+            close(
+                p.last_baseline().unwrap(),
+                baseline + height * (p.line_count() - 1) as f32,
+            );
+        }
+    }
+}
+
+#[test]
+fn fallback_style_extents_survive_wrapping_and_source_normalization() {
+    let system = system();
+    let mut primary = font("Ahem");
+    primary.fallbacks = Some(FontFallbacks::from_fonts(vec!["IBM Plex Sans".into()]));
+    let first = format!("{OBJECT}aЖ\r\n");
+    let second = "Жa Жa Жa Жa";
+    let text = format!("{first}{second}");
+    let mut b = object(InlineAlignment::Baseline);
+    b.height = 2.0;
+    b.baseline = 1.0;
+    let mut p = system
+        .shape_inline_paragraph(
+            text.into(),
+            &[
+                TextRun {
+                    len: first.len(),
+                    font: primary.clone(),
+                    line_height: Some(32.0),
+                    ..Default::default()
+                },
+                TextRun {
+                    len: second.len(),
+                    font: primary.clone(),
+                    line_height: Some(48.0),
+                    ..Default::default()
+                },
+            ],
+            InlineTextStyle {
+                font: &primary,
+                font_size: 14.5,
+                line_height: 32.0,
+            },
+            None,
+            None,
+            &[b],
+            0.0,
+        )
+        .unwrap();
+    let shaped = system.stats().paragraphs_shaped;
+    for width in [None, Some(60.0), Some(90.0), None] {
+        p.reflow(width);
+        assert_eq!(system.stats().paragraphs_shaped, shaped);
+        let count = p.line_count();
+        assert!(count >= 2);
+        close(p.height(), 32.0 + 48.0 * (count - 1) as f32);
+        let first_row = p.row_bounds(0, 400.0, TextAlign::Left).unwrap();
+        close(first_row.origin.y, 0.0);
+        close(first_row.size.height, 32.0);
+        for row in 1..count {
+            let bounds = p.row_bounds(row, 400.0, TextAlign::Left).unwrap();
+            close(bounds.origin.y, 32.0 + 48.0 * (row - 1) as f32);
+            close(bounds.size.height, 48.0);
+        }
+    }
+}
+
+#[test]
 fn adding_and_removing_text_preserves_object_geometry() {
     let system = system();
     for family in ["IBM Plex Sans", "Ahem"] {

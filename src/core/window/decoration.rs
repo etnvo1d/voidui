@@ -35,12 +35,12 @@ impl AppWindow {
             match action {
                 WindowAction::Close => self.close(),
                 WindowAction::Minimize if self.tree.window_host.state().minimizable => {
-                    self.native.set_minimized(true)
+                    platform::decoration::minimize(&self.native)
                 }
                 WindowAction::ToggleMaximize
                     if self.native.is_resizable() && self.native.fullscreen().is_none() =>
                 {
-                    self.native.set_maximized(!self.native.is_maximized());
+                    platform::decoration::toggle_maximize(&self.native);
                 }
                 _ => {}
             }

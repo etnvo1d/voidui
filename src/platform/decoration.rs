@@ -88,10 +88,13 @@ impl Decoration {
     }
 }
 
-pub(crate) fn double_click(window: &Window) {
+pub(crate) fn double_click(window: &Arc<Window>) {
     #[cfg(target_os = "macos")]
     {
-        super::macos::titlebar_double_click(window);
+        super::macos::defer_window_action(
+            window,
+            super::macos::NativeWindowAction::TitlebarDoubleClick,
+        );
     }
     #[cfg(not(target_os = "macos"))]
     {
@@ -99,6 +102,20 @@ pub(crate) fn double_click(window: &Window) {
             window.set_maximized(!window.is_maximized());
         }
     }
+}
+
+pub(crate) fn minimize(window: &Arc<Window>) {
+    #[cfg(target_os = "macos")]
+    super::macos::defer_window_action(window, super::macos::NativeWindowAction::Minimize);
+    #[cfg(not(target_os = "macos"))]
+    window.set_minimized(true);
+}
+
+pub(crate) fn toggle_maximize(window: &Arc<Window>) {
+    #[cfg(target_os = "macos")]
+    super::macos::defer_window_action(window, super::macos::NativeWindowAction::ToggleMaximize);
+    #[cfg(not(target_os = "macos"))]
+    window.set_maximized(!window.is_maximized());
 }
 
 /// Client-side border hit testing is separate from titlebar content and disabled

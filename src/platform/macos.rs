@@ -115,7 +115,46 @@ impl Chrome {
             .then(|| Rect::from_xyxy(min.x, min.y, max.x, max.y))
     }
 }
-pub(super) fn titlebar_double_click(window: &Window) {
+pub(super) enum NativeWindowAction {
+    TitlebarDoubleClick,
+    Minimize,
+    ToggleMaximize,
+}
+
+/// Let the current Winit callback return before starting a native animation.
+/// AppKit emits resize events during zoom; Winit queues them while a callback
+/// is borrowed, leaving the old frame stretched for the entire animation.
+/// The main queue lets each resize reenter Winit and present synchronously.
+pub(super) fn defer_window_action(window: &Arc<Window>, action: NativeWindowAction) {
+    // Queued actions must not keep a closed window alive. Resolve native handles
+    // only on the main thread, and check capabilities again when the action runs.
+    let window = Arc::downgrade(window);
+    dispatch2::DispatchQueue::main().exec_async(move || {
+        let Some(window) = window.upgrade() else {
+            return;
+        };
+        match action {
+            NativeWindowAction::TitlebarDoubleClick if window.fullscreen().is_none() => {
+                titlebar_double_click(&window);
+            }
+            NativeWindowAction::Minimize
+                if window
+                    .enabled_buttons()
+                    .contains(winit::window::WindowButtons::MINIMIZE) =>
+            {
+                window.set_minimized(true);
+            }
+            NativeWindowAction::ToggleMaximize
+                if window.is_resizable() && window.fullscreen().is_none() =>
+            {
+                window.set_maximized(!window.is_maximized());
+            }
+            _ => {}
+        }
+    });
+}
+
+fn titlebar_double_click(window: &Window) {
     let Some(view) = native_view(window) else {
         return;
     };

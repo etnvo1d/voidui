@@ -96,6 +96,14 @@ on Linux. Right-click requests Winit's window menu where supported. Linux client
 resize edges show resize cursors and call `drag_resize_window`; maximized and
 fullscreen windows disable those edges.
 
+On macOS, titlebar double-clicks and queued minimize/maximize actions start on the
+native main queue after the current Winit callback returns. Starting AppKit's zoom
+animation inside that callback causes Winit to postpone resize delivery until the
+animation ends, stretching the previous frame. Deferring the action lets each
+intermediate size use the existing synchronous, transaction-bound resize draw.
+Deferred actions hold a weak window reference and recheck window capabilities at
+execution time; they do not keep a dropped window alive.
+
 ## Reactive window state
 
 Call `window_context()` inside a component to get a weak window handle.

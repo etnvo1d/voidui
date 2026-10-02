@@ -102,8 +102,12 @@ Scrolling and width reflow still use the captured plan while the pointer is held
 
 Preedit uses the same composed-source coordinate space as the platform input client.
 Replacements intersecting composition are temporarily revealed; surviving ranges
-are mapped around preedit. Composition retains its input style. Commit still makes
-one ordinary history operation.
+are mapped around preedit. Composition retains its document input style and
+overlays the insertion context's highlights and projection styles for display.
+Style boundaries follow the same caret affinity as ordinary rich-text typing;
+replacing a selection inherits from its first source character. Derived styles
+never enter the document or clipboard. Commit still makes one ordinary history
+operation.
 
 ## Register an extension
 
@@ -318,6 +322,13 @@ arrangement API below.
 
 ## Paragraphs and custom blocks
 
+`ParagraphStyle.hanging_prefix` measures a text-only source prefix lazily using
+the effective fonts and projected text (including expanded tabs). Its width is
+added to the left inset and subtracted from the first-line indent: the prefix
+occupies the gutter and wrapped rows align with the body. Do not also add a fixed
+inset for the same prefix. Font changes and replacement changes remeasure it;
+caret, hit-testing and selection use the resolved geometry.
+
 `ParagraphStyle` supplies alignment, left/right insets, first-line indentation,
 spacing before/after, a background and a leading rule. Negative first-line indent
 creates hanging text inside the leading gutter. These properties participate in
@@ -467,7 +478,11 @@ Cache targets retain the visible working set if it exceeds the requested count.
 ### Composition geometry and captured selection scrolling
 
 `ProjectionSnapshot::composing` distinguishes transient display text from a
-committed snapshot without changing document identity. Source-backed layouts can
+committed snapshot without changing document identity. Ending preedit rebuilds
+committed geometry even when an extension reports that selection changes do not
+affect its projection. Document change maps are used only between committed
+snapshots; equal revisions do not make preedit byte positions interchangeable
+with document positions. Source-backed layouts can
 use `BlockMeasure::composition_cells()` to preserve widths and minimum heights
 across IME candidates. The viewport measures its source anchor before resolving
 visible indices, including when the anchor is inside a tall compound block.

@@ -40,7 +40,7 @@ impl Engine {
                 .filter(|i| *i < self.blocks.len())
             {
                 let b = &self.blocks[i];
-                if b.style != old_block.style
+                if b.authored_style != old_block.authored_style
                     || b.view != old_block.view
                     || b.empty_height != old_block.empty_height
                 {
@@ -84,6 +84,7 @@ impl Engine {
                         i,
                         cached.height + b.style.space_before + b.style.space_after,
                     );
+                    self.blocks[i].style = old_block.style.clone();
                     break;
                 }
                 let projected =
@@ -105,6 +106,11 @@ impl Engine {
                     && visually_equal
                     && projected.objects == cached.projected.objects
                 {
+                    // Measured insets travel with retained glyphs. Comparing
+                    // authored styles above avoids treating a resolved prefix
+                    // as a different decoration after every selection change.
+                    self.blocks[i].style = old_block.style.clone();
+                    let b = &self.blocks[i];
                     if self.options.width == old.options.width && b.body == old_block.body {
                         self.cache.insert(i, cached.clone());
                         self.heights.set(
@@ -183,7 +189,7 @@ impl Engine {
     }
 
     fn same_block_inputs(&self, block: &Block, old: &Engine, previous: &Block) -> bool {
-        block.style == previous.style
+        block.authored_style == previous.authored_style
             && block.view == previous.view
             && block.empty_height == previous.empty_height
             && local_styles(&self.projection, &block.range)

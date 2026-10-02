@@ -23,10 +23,7 @@ impl TextInputClient for TextEdit {
             return EventResponse::CONTINUE;
         }
         let view = self.view.borrow();
-        let origin = Point::new(
-            bounds.origin.x - view.scroll.x,
-            bounds.origin.y - view.scroll.y,
-        );
+        let origin = view.origin(bounds);
         let point = Point::new(event.position.x - origin.x, event.position.y - origin.y);
         let target = view
             .text
@@ -155,6 +152,11 @@ impl TextInputClient for TextEdit {
         let changed = self.style != *style
             || self.placeholder_style != placeholder
             || self.selection_colors != selection;
+        if self.style.caret_shape != style.caret_shape {
+            // A mode switch must reveal its new shape even during blink-off.
+            self.caret_visible = true;
+            self.blink_at = None;
+        }
         if changed {
             self.style = style.clone();
             self.placeholder_style = placeholder;
@@ -238,7 +240,11 @@ impl TextInputClient for TextEdit {
             };
             let mut bounds = view.text.caret(range.start, bias, width, align)?;
             if range.is_empty() {
-                return Some(view::viewport_caret(bounds, cx.bounds, view.scroll));
+                return Some(view::viewport_caret(
+                    bounds,
+                    cx.bounds,
+                    view.origin(cx.bounds),
+                ));
             }
             let end = view.text.caret(range.end, Bias::Before, width, align)?;
             bounds.size.width = if end.origin.y == bounds.origin.y {
@@ -249,8 +255,9 @@ impl TextInputClient for TextEdit {
             if end.origin.y == bounds.origin.y {
                 bounds.origin.x = bounds.origin.x.min(end.origin.x);
             }
-            bounds.origin.x += cx.bounds.origin.x - view.scroll.x;
-            bounds.origin.y += cx.bounds.origin.y - view.scroll.y;
+            let origin = view.origin(cx.bounds);
+            bounds.origin.x += origin.x;
+            bounds.origin.y += origin.y;
             Some(bounds)
         })
     }
@@ -451,10 +458,8 @@ impl TextInputClient for TextEdit {
                         .projection_snapshot()
                         .map(|plan| Box::new((revision, plan)));
                 }
-                let point = Point::new(
-                    position.x - cx.bounds.origin.x + view.scroll.x,
-                    position.y - cx.bounds.origin.y + view.scroll.y,
-                );
+                let origin = view.origin(cx.bounds);
+                let point = Point::new(position.x - origin.x, position.y - origin.y);
                 // Compare in content coordinates: unchanged native notifications
                 // preserve the selection, while scrolling can move its target.
                 if *phase == PointerPhase::Move && self.drag_position == Some(point) {

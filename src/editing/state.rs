@@ -197,17 +197,7 @@ impl EditorState {
     fn input_style(&self, selection: Selection) -> InlineStyle {
         self.typing_style.as_deref().cloned().unwrap_or_else(|| {
             self.document
-                .style_at(
-                    selection.text_range().start,
-                    if selection.is_caret()
-                        && selection.affinity == Bias::After
-                        && selection.head > 0
-                    {
-                        Bias::Before
-                    } else {
-                        Bias::After
-                    },
-                )
+                .style_at(selection.text_range().start, selection.input_style_bias())
                 .unwrap()
         })
     }
@@ -387,12 +377,18 @@ impl EditorState {
         let Some(composition) = &self.composition else {
             return spans;
         };
-        let edit = Edit::new(composition.range.clone(), &composition.text);
-        let mapped = format::map_spans(&spans, &[edit]);
-        Cow::Owned(format::patch(
-            &mapped,
-            composition.range.start..composition.range.start + composition.text.len(),
-            &StylePatch::replace(composition.style.clone()),
+        // Derived colors and typography also apply to candidates, but remain
+        // display-only. Keep the frozen document input style for committing.
+        let highlight = format::style_at(
+            self.highlights(),
+            composition.range.start,
+            self.selection.primary().input_style_bias() == Bias::Before,
+        );
+        Cow::Owned(format::compose_spans(
+            &spans,
+            composition.range.clone(),
+            composition.text.len(),
+            composition.style.overlay(&highlight),
         ))
     }
     /// Text edits invalidate derived analysis, including undo/redo. Formatting
@@ -842,7 +838,6 @@ impl EditorState {
         result
     }
 }
-
 
 #[cfg(test)]
 mod history_tests {

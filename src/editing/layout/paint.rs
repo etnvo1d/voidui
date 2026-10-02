@@ -160,6 +160,9 @@ impl EditorLayout {
                             .iter()
                             .any(|s| s.start < source.end && s.end > source.start)
                         {
+                            // Paragraph backgrounds leave this rectangle clear.
+                            // Paint the object's only tint after its own content,
+                            // including opaque images and widget backgrounds.
                             paint_rect(painter, r, selection_background);
                         }
                     }

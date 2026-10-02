@@ -5,7 +5,7 @@ use crate::{
         declaration::{Property, PropertyMask},
         paint::PaintStyle,
         properties::{LayoutKeyword, LayoutProperty},
-        text::{FontSize, LineHeight, TextAlignment, TextStyle},
+        text::{CaretShape, FontSize, LineHeight, TextAlignment, TextStyle},
         value::CssValue,
     },
 };
@@ -23,6 +23,7 @@ pub struct Style {
     pub color: CssValue<Color>,
     pub caret_color: CssValue<Color>,
     pub caret_animation: CssValue<bool>,
+    pub caret_shape: CssValue<CaretShape>,
     pub font_family: CssValue<SharedString>,
     pub font_weight: CssValue<FontWeight>,
     pub font_style: CssValue<FontStyle>,
@@ -71,6 +72,7 @@ impl Default for Style {
             color: CssValue::Unset,
             caret_color: CssValue::Unset,
             caret_animation: CssValue::Unset,
+            caret_shape: CssValue::Unset,
             font_family: CssValue::Unset,
             font_weight: CssValue::Unset,
             font_style: CssValue::Unset,
@@ -339,6 +341,9 @@ impl Style {
                 &initial.caret_animation,
                 true,
             ),
+            caret_shape: self
+                .caret_shape
+                .resolve(&parent.caret_shape, &initial.caret_shape, true),
             // On color itself, currentColor is equivalent to inherited color.
             color: self
                 .color

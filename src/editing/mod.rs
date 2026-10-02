@@ -13,7 +13,7 @@ pub use state::{
 };
 
 pub(crate) mod handle;
-pub use handle::Editor;
+pub use handle::{Editor, SelectionFilter};
 
 mod flow;
 mod height_index;

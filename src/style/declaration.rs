@@ -4,7 +4,7 @@ use crate::style::{
     color::Color,
     properties::{LayoutKeyword, LayoutProperty},
     style::Style,
-    text::{FontSize, LineHeight, TextAlignment},
+    text::{CaretShape, FontSize, LineHeight, TextAlignment},
     value::CssValue,
 };
 use voidui_gpui_wgpu::{FontFallbacks, FontFeatures, FontStyle, FontWeight, SharedString};
@@ -23,7 +23,7 @@ macro_rules! define_declarations {
             $($plain($pty),)* $($optional(Option<$oty>),)* $($length($lty),)*
             FlexGrow(f32), FlexShrink(f32), AspectRatio(Option<f32>), OverflowX(Overflow), OverflowY(Overflow),
             Display(Display),
-            CaretColor(CssValue<Color>), CaretAnimation(CssValue<bool>),
+            CaretColor(CssValue<Color>), CaretAnimation(CssValue<bool>), CaretShape(CssValue<CaretShape>),
             Color(CssValue<Color>), Background(CssValue<Color>), BorderColor(CssValue<Color>), BorderRadius(CssValue<f32>),
             FontFamily(CssValue<SharedString>), FontWeight(CssValue<FontWeight>), FontStyle(CssValue<FontStyle>),
             FontFeatures(CssValue<FontFeatures>), FontFallbacks(CssValue<Option<FontFallbacks>>),
@@ -75,6 +75,7 @@ macro_rules! define_declarations {
                     Self::Cursor(_) => Property::Cursor,
                     Self::CaretColor(_) => Property::CaretColor,
                     Self::CaretAnimation(_) => Property::CaretAnimation,
+                    Self::CaretShape(_) => Property::CaretShape,
 
                     Self::Transform(_) => Property::Transform,
                     Self::TransformOrigin(_) => Property::TransformOrigin,
@@ -164,6 +165,7 @@ macro_rules! define_declarations {
                     Self::Cursor(v) => target.cursor = *v,
                     Self::CaretColor(v) => target.caret_color = *v,
                     Self::CaretAnimation(v) => target.caret_animation = *v,
+                    Self::CaretShape(v) => target.caret_shape = *v,
                     Self::LayoutKeyword(_, _) => unreachable!(),
                 }
             }
@@ -241,7 +243,7 @@ ZIndex => z_index,
 Isolation => isolation,
 Visibility => visibility,
 PointerEvents => pointer_events,UserSelect => user_select,Cursor => cursor,
-CaretColor => caret_color, CaretAnimation => caret_animation }
+CaretColor => caret_color, CaretAnimation => caret_animation, CaretShape => caret_shape }
 
 /// Fixed-size tracking: no per-setter allocations and explicit `auto`/`unset` survives cascade.
 #[derive(Debug, Clone, Copy, Default, PartialEq)]

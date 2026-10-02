@@ -1,6 +1,32 @@
 //! Retained editor geometry, clipping, scrolling, and paint-only updates.
 use super::*;
 
+/// Single-line controls center their line box, including clipped oversized text.
+/// Multiline controls keep their first line at the content area's top edge.
+pub(super) fn vertical_offset(single_line: bool, height: f32, text_height: f32) -> f32 {
+    if single_line {
+        (height - text_height) * 0.5
+    } else {
+        0.0
+    }
+}
+
+impl ViewLayout {
+    /// One transform for glyphs, selection, pointer hits and native IME anchors.
+    /// Alignment is not scrolling: it must not enlarge the scrollable document.
+    pub(super) fn origin(&self, bounds: Rect<f32>) -> Point<f32> {
+        Point::new(
+            bounds.origin.x - self.scroll.x,
+            bounds.origin.y - self.scroll.y
+                + vertical_offset(
+                    self.single_line,
+                    bounds.size.height,
+                    self.text.size().height,
+                ),
+        )
+    }
+}
+
 impl TextEdit {
     pub(super) fn prepare(
         &self,
@@ -15,23 +41,30 @@ impl TextEdit {
             line_height: style.line_height.resolve(style.font_size),
             width: (self.multiline && style.wrap).then_some(bounds.size.width.max(0.0)),
         };
-        let key = (
-            state.revision(),
-            state.highlight_revision(),
-            state.projection_revision(),
-            (state.composition().is_some()
+        let key = SourceLayoutKey {
+            revision: state.revision(),
+            highlights: state.highlight_revision(),
+            projection: state.projection_revision(),
+            generation: (state.composition().is_some()
                 || state.projection_revision() != 0
                 || !self.extensions.is_empty())
             .then(|| state.generation()),
-        );
+            composing: state.composition().is_some(),
+        };
         let mut view = self.view.borrow_mut();
+        view.single_line = !self.multiline;
         // Selection-only changes can reuse geometry when every extension
         // confirms that its revealed syntax is unchanged. Composition always
-        // uses the normal path, including its source-coordinate mapping.
-        if state.composition().is_none()
+        // uses the normal path, including when the previous geometry still
+        // contains preedit after cancellation or an empty commit.
+        if !key.composing
             && view.pointer_projection.is_none()
             && view.source.is_some_and(|old| {
-                old.0 == key.0 && old.1 == key.1 && old.2 == key.2 && old.3 != key.3
+                !old.composing
+                    && old.revision == key.revision
+                    && old.highlights == key.highlights
+                    && old.projection == key.projection
+                    && old.generation != key.generation
             })
             && self
                 .extension_host
@@ -96,7 +129,7 @@ impl TextEdit {
                     )
                 };
                 if let Some(c) = state.composition() {
-                    projection.compose(c.range.clone(), c.text.len());
+                    projection.compose(state.selections().primary(), c.text.len());
                 }
                 let mut snapshot = state.display_snapshot();
                 snapshot.spans =
@@ -201,7 +234,15 @@ impl TextEdit {
                     }
                     view.placeholder.paint(
                         painter,
-                        cx.content_bounds.origin,
+                        Point::new(
+                            cx.content_bounds.origin.x,
+                            cx.content_bounds.origin.y
+                                + vertical_offset(
+                                    !self.multiline,
+                                    cx.content_bounds.size.height,
+                                    view.placeholder.size().height,
+                                ),
+                        ),
                         cx.content_bounds,
                         cx.content_bounds.size.width,
                         cx.text_align,
@@ -226,10 +267,7 @@ impl TextEdit {
                             .map(|s| s.text_range())
                             .collect()
                     };
-                    let origin = Point::new(
-                        cx.content_bounds.origin.x - view.scroll.x,
-                        cx.content_bounds.origin.y - view.scroll.y,
-                    );
+                    let origin = view.origin(cx.content_bounds);
                     let width = cx.content_bounds.size.width.max(view.text.size().width);
                     view.text.paint(
                         painter,
@@ -271,22 +309,49 @@ impl TextEdit {
                             .filter(|_| composed_selection.is_none()),
                     );
                     if !state.composition().is_some_and(|c| c.cursor.is_none()) {
-                        for selection in selections.filter(|s| s.is_caret()) {
+                        // Preedit keeps the native insertion bar and candidate
+                        // anchor even when the configured source caret is wide.
+                        let shape = if state.composition().is_some() {
+                            crate::style::text::CaretShape::Bar
+                        } else {
+                            self.style.caret_shape
+                        };
+                        let fallback = if shape == crate::style::text::CaretShape::Bar {
+                            0.0
+                        } else {
+                            let system = painter.text_system();
+                            let font = system.resolve_font(&self.style.font);
+                            f32::from(
+                                system
+                                    .ch_advance(font, render::px(self.style.font_size))
+                                    .unwrap_or(render::px(self.style.font_size * 0.5)),
+                            )
+                        };
+                        for selection in selections.filter(|s| caret::visible_for(s, shape)) {
                             let width = cx.content_bounds.size.width.max(view.text.size().width);
-                            if let Some(caret) = view.text.caret(
-                                selection.head,
-                                selection.affinity,
+                            if let Some(caret) = caret::geometry(
+                                state,
+                                &view.text,
+                                *selection,
+                                shape,
                                 width,
                                 cx.text_align,
+                                fallback,
                             ) {
-                                let bounds = viewport_caret(caret, cx.content_bounds, view.scroll);
+                                let bounds = viewport_caret(
+                                    caret,
+                                    cx.content_bounds,
+                                    view.origin(cx.content_bounds),
+                                );
+                                let mut color =
+                                    render::Hsla::from(self.style.caret_color.resolve(cx.color));
+                                // The block overlays glyphs, so translucent ink
+                                // keeps the character underneath legible.
+                                if shape == crate::style::text::CaretShape::Block {
+                                    color.a *= 0.4;
+                                }
                                 painter.paint_caret(
-                                    render::fill(
-                                        native_rect(bounds),
-                                        render::Hsla::from(
-                                            self.style.caret_color.resolve(cx.color),
-                                        ),
-                                    ),
+                                    render::fill(native_rect(bounds), color),
                                     self.caret_visible || !self.style.caret_animation,
                                 );
                             }
@@ -312,10 +377,15 @@ pub(super) fn clamp_scroll(view: &mut ViewLayout, bounds: Rect<f32>) {
         .scroll
         .x
         .clamp(0.0, (view.text.size().width - bounds.size.width).max(0.0));
-    view.scroll.y = view
-        .scroll
-        .y
-        .clamp(0.0, (view.text.size().height - bounds.size.height).max(0.0));
+    // A single line clips symmetrically when too tall; caret reveal and wheel
+    // input must not shift it vertically as text or composition changes.
+    view.scroll.y = if view.single_line {
+        0.0
+    } else {
+        view.scroll
+            .y
+            .clamp(0.0, (view.text.size().height - bounds.size.height).max(0.0))
+    };
 }
 /// Scroll a drag only when its pointer leaves the viewport. Selecting a range
 /// inside it must not pull an offscreen selection endpoint into view.
@@ -331,10 +401,10 @@ pub(super) fn reveal_drag_point(view: &mut ViewLayout, point: Point<f32>, bounds
 pub(super) fn viewport_caret(
     mut caret: Rect<f32>,
     bounds: Rect<f32>,
-    scroll: Point<f32>,
+    origin: Point<f32>,
 ) -> Rect<f32> {
-    caret.origin.x += bounds.origin.x - scroll.x;
-    caret.origin.y += bounds.origin.y - scroll.y;
+    caret.origin.x += origin.x;
+    caret.origin.y += origin.y;
     let width = bounds.size.width.max(0.0);
     let right = bounds.origin.x + width;
     if caret.origin.x >= bounds.origin.x && caret.origin.x <= right {

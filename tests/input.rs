@@ -24,8 +24,14 @@ use voidui::{
     *,
 };
 use winit::keyboard::{Key, ModifiersState, NamedKey};
+#[path = "input/alignment.rs"]
+mod alignment;
+#[path = "input/caret.rs"]
+mod caret;
 #[path = "input/embedded.rs"]
 mod embedded;
+#[path = "input/line_height.rs"]
+mod line_height;
 fn cache() -> TextLayoutCache {
     let fonts = ParleyTextSystem::new_without_system_fonts("IBM Plex Sans");
     fonts
@@ -204,6 +210,107 @@ fn ime_keeps_committed_value_and_renders_without_history_until_commit() {
     assert!(editor.with(|s| s.composition().is_none()));
     assert_eq!(editor.text(), "abc");
 }
+
+#[test]
+fn ending_preedit_rebuilds_geometry_even_when_selection_does_not_affect_projection() {
+    use std::{cell::Cell, rc::Rc};
+    use voidui::editing::{
+        EditorExtension, EditorExtensions, ExtensionContext, Projection, ViewId,
+    };
+
+    struct StableProjection(Rc<Cell<usize>>);
+    impl EditorExtension for StableProjection {
+        fn selection_affects_projection(
+            &mut self,
+            _: &SelectionSet,
+            _: ExtensionContext<'_>,
+        ) -> bool {
+            false
+        }
+        fn project(
+            &mut self,
+            _: ExtensionContext<'_>,
+        ) -> Result<Projection, voidui::editing::EditError> {
+            self.0.set(self.0.get() + 1);
+            Ok(Projection::new())
+        }
+    }
+
+    for preedit in ["n", "你", "first\nsecond"] {
+        for ending in [
+            vec![InputEvent::CancelComposition],
+            vec![InputEvent::Commit(String::new())],
+            vec![
+                InputEvent::Preedit(String::new(), Some((0, 0))),
+                InputEvent::CancelComposition,
+            ],
+        ] {
+            let source = "head\n\nend";
+            let editor = Editor::new(source);
+            editor
+                .update(|s| s.select(SelectionSet::single(Selection::caret(5))))
+                .unwrap();
+            let projects = Rc::new(Cell::new(0));
+            let counter = projects.clone();
+            let extensions = EditorExtensions::new().register(ViewId(1), 0, move || {
+                Box::new(StableProjection(counter.clone()))
+            });
+            let (mut tree, cache) = build(
+                rich_editor(&editor).id("edit").extensions(extensions),
+                "#edit { height: 240px; }",
+            );
+            let edit = id(&tree, "edit");
+            tree.set_focused(Some(edit));
+            paint(&mut tree, &cache);
+            let before = tree.input_bounds_for_range(edit, 6..6, &cache).unwrap();
+            tree.dispatch_input(
+                edit,
+                &InputEvent::Preedit(preedit.into(), Some((preedit.len(), preedit.len()))),
+                &cache,
+            );
+            paint(&mut tree, &cache);
+            assert_eq!(editor.text(), source);
+            let composed_projects = projects.get();
+            for event in ending {
+                tree.dispatch_input(edit, &event, &cache);
+                paint(&mut tree, &cache);
+            }
+            assert!(
+                projects.get() > composed_projects,
+                "ending preedit must rebuild its projection"
+            );
+            assert!(editor.with(|s| s.composition().is_none()));
+            assert!(!editor.with(|s| s.can_undo()));
+            assert_eq!(
+                tree.input_bounds_for_range(edit, 6..6, &cache).unwrap(),
+                before,
+                "preedit={preedit:?}"
+            );
+
+            // Ordinary caret movement must still use the selection-only fast
+            // path after the committed geometry has been restored.
+            let committed_projects = projects.get();
+            for caret in [6, 5] {
+                editor
+                    .update(|s| s.select(SelectionSet::single(Selection::caret(caret))))
+                    .unwrap();
+                paint(&mut tree, &cache);
+                assert_eq!(projects.get(), committed_projects);
+            }
+            tree.dispatch_input(
+                edit,
+                &key(NamedKey::Backspace, ModifiersState::empty()),
+                &cache,
+            );
+            assert_eq!(editor.text(), "head\nend");
+            paint(&mut tree, &cache);
+            editor.update(|s| s.undo()).unwrap();
+            paint(&mut tree, &cache);
+            assert_eq!(editor.text(), source);
+        }
+    }
+}
+
 #[test]
 fn standard_css_placeholder_caret_selection_and_readonly_selectors() {
     let editor = Editor::default();

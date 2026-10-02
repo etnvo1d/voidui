@@ -100,6 +100,16 @@ macro_rules! numeric_text_values {
 }
 numeric_text_values!(i32, u32, f32, f64);
 
+/// Text insertion shape. Block and underline carets cover one source grapheme;
+/// the insertion bar remains the default for ordinary controls and IME preedit.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum CaretShape {
+    #[default]
+    Bar,
+    Block,
+    Underline,
+}
+
 /// Computed inherited properties. Relative font sizes have already become pixels.
 #[derive(Debug, Clone, PartialEq)]
 pub struct TextStyle {
@@ -107,6 +117,7 @@ pub struct TextStyle {
     /// The auto policy follows currentColor without changing text shaping.
     pub caret_color: Color,
     pub caret_animation: bool,
+    pub caret_shape: CaretShape,
     pub font: Font,
     pub font_size: f32,
     pub line_height: LineHeight,
@@ -121,6 +132,7 @@ impl Default for TextStyle {
             color: Rgba8::from_rgb8(0, 0, 0).into(),
             caret_color: Color::CurrentColor,
             caret_animation: true,
+            caret_shape: CaretShape::Bar,
             font: Font::default(),
             font_size: 16.0,
             line_height: LineHeight::Normal,

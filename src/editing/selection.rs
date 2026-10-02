@@ -28,6 +28,15 @@ impl Selection {
     pub fn is_caret(self) -> bool {
         self.anchor == self.head
     }
+    /// Continue the preceding run at a downstream caret; a replacement takes
+    /// the first selected character's style, regardless of selection direction.
+    pub(crate) fn input_style_bias(self) -> Bias {
+        if self.is_caret() && self.affinity == Bias::After && self.head > 0 {
+            Bias::Before
+        } else {
+            Bias::After
+        }
+    }
     pub fn map(self, changes: &ChangeSet) -> Self {
         Self {
             anchor: changes.map(self.anchor, Bias::After),

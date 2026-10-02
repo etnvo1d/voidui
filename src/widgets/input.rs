@@ -35,6 +35,7 @@ use taffy::util::ResolveOrZero;
 use winit::keyboard::{Key, NamedKey, SmolStr};
 
 mod autoscroll;
+mod caret;
 mod client;
 mod embedded;
 mod keymap;
@@ -62,13 +63,25 @@ impl Default for EditorOptions {
         }
     }
 }
+/// Identity of the source used by the prepared geometry. Preedit shares the
+/// document revision, so its coordinate space must be recorded separately.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct SourceLayoutKey {
+    revision: u64,
+    highlights: u64,
+    projection: u64,
+    generation: Option<u64>,
+    composing: bool,
+}
+
 #[derive(Default)]
 struct ViewLayout {
+    single_line: bool,
     selection_drag: Option<Box<autoscroll::SelectionDrag>>,
     text: EditorLayout,
     placeholder: EditorLayout,
     options: Option<LayoutOptions>,
-    source: Option<(u64, u64, u64, Option<u64>)>,
+    source: Option<SourceLayoutKey>,
     // Only projection-enabled pointer gestures allocate this snapshot. Selection
     // changes must not move the text being targeted by the same gesture.
     pointer_projection: Option<Box<(u64, crate::editing::Projection)>>,
@@ -291,9 +304,13 @@ impl TextEdit {
             && self.view.borrow().text.focused_view().is_none()
             && self.style.caret_animation
             && !self.options.blink_interval.is_zero()
-            && self
-                .editor()
-                .with(|s| s.composition().is_none() && s.selections().iter().any(|s| s.is_caret()))
+            && self.editor().with(|s| {
+                s.composition().is_none()
+                    && !s.selections().is_structured()
+                    && s.selections()
+                        .iter()
+                        .any(|s| caret::visible_for(s, self.style.caret_shape))
+            })
     }
     fn normalized(&self, text: &str) -> String {
         if self.multiline {
@@ -526,12 +543,28 @@ impl Widget for TextEdit {
                 .border
                 .top
                 .resolve_or_zero(inputs.parent_size.width, crate::core::layout::resolve_calc);
+        let bottom = cx
+            .layout_style()
+            .padding
+            .bottom
+            .resolve_or_zero(inputs.parent_size.width, crate::core::layout::resolve_calc)
+            + cx.layout_style()
+                .border
+                .bottom
+                .resolve_or_zero(inputs.parent_size.width, crate::core::layout::resolve_calc);
+        // Baseline-aligned siblings follow the same centered line as the ink.
+        let offset = view::vertical_offset(
+            !self.multiline,
+            (out.size.height - top - bottom).max(0.0),
+            line_height,
+        );
         out.baselines.first = Some(
-            top + f32::from(system.baseline_offset(
-                em,
-                render::px(style.font_size),
-                render::px(line_height),
-            )),
+            top + offset
+                + f32::from(system.baseline_offset(
+                    em,
+                    render::px(style.font_size),
+                    render::px(line_height),
+                )),
         );
         out.baselines.last = out.baselines.first;
         out

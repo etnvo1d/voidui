@@ -730,3 +730,6 @@ fn source_backed_decorations_share_geometry_mounting_capture_and_reflow() {
     assert_eq!(h.layout.captured_view(), None);
     assert_eq!(count(&log, Event::Unmount(b'n' as u32)), 1);
 }
+
+#[path = "editor_widgets/selection.rs"]
+mod selection;

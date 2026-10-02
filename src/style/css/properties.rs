@@ -307,6 +307,18 @@ pub(crate) fn parse_static_property(name: &str, raw: &str) -> Result<Vec<Declara
             }
             .into()
         }),
+        "caret-shape" => D::CaretShape(if let Some(v) = wide(value) {
+            v
+        } else {
+            use crate::style::text::CaretShape;
+            match value {
+                "auto" | "bar" => CaretShape::Bar,
+                "block" => CaretShape::Block,
+                "underscore" => CaretShape::Underline,
+                _ => return Err("expected auto, bar, block or underscore".into()),
+            }
+            .into()
+        }),
         "caret-color" => D::CaretColor(if let Some(v) = wide(value) {
             v
         } else if value == "auto" {

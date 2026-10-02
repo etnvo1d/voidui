@@ -149,10 +149,7 @@ fn highlighting_during_ime_preserves_preedit_and_never_becomes_committed_style()
     let composition = state.composition().cloned();
     state.set_highlights(0, [marked(0..3)]).unwrap();
     assert_eq!(state.composition(), composition.as_ref());
-    assert_eq!(
-        state.display_spans().as_ref(),
-        &[marked(0..1), marked(7..8)]
-    );
+    assert_eq!(state.display_spans().as_ref(), &[marked(0..8)]);
     assert_eq!(state.document().text(), "abc");
     state.commit_composition("中文").unwrap();
     assert_eq!(state.text(), "a中文c");
@@ -160,6 +157,37 @@ fn highlighting_during_ime_preserves_preedit_and_never_becomes_committed_style()
     assert!(state.document().spans().is_empty());
     assert_eq!(state.undo().unwrap().len(), 1);
     assert_eq!(state.text(), "abc");
+}
+#[test]
+fn preedit_overlays_highlights_on_frozen_input_style_and_cancels_cleanly() {
+    let mut state = EditorState::new("a中文z");
+    let input = InlineStyle::new().bold().italic();
+    state
+        .select(SelectionSet::single(Selection::range(7, 1)))
+        .unwrap();
+    state.set_typing_style(Some(input.clone())).unwrap();
+    state.set_highlights(0, [marked(1..7)]).unwrap();
+    for candidate in ["n", "ni", "你", ""] {
+        state
+            .set_composition(candidate, Some((candidate.len(), candidate.len())))
+            .unwrap();
+        let expected = if candidate.is_empty() {
+            vec![]
+        } else {
+            vec![StyleSpan::new(
+                1..1 + candidate.len(),
+                input.clone().color(render::white()),
+            )]
+        };
+        assert_eq!(state.display_spans().as_ref(), expected);
+        assert_eq!(state.composition().unwrap().style, input);
+        assert_eq!(state.document().text(), "a中文z");
+        assert!(!state.can_undo());
+    }
+    state.cancel_composition();
+    assert_eq!(state.display_spans().as_ref(), &[marked(1..7)]);
+    assert_eq!(state.typing_style(), Some(&input));
+    assert!(!state.can_undo());
 }
 #[test]
 fn rejected_text_edit_keeps_highlights_and_display_key() {

@@ -7,7 +7,7 @@ pub use crate::{
         color::Color,
         declaration::Property,
         properties::{LayoutKeyword, LayoutProperty},
-        text::{FontSize, LineHeight, TextAlignment},
+        text::{CaretShape, FontSize, LineHeight, TextAlignment},
         value::{CssValue, IntoCssLength},
     },
 };
@@ -78,6 +78,8 @@ macro_rules! text_setters {
     };
 }
 text_setters! {
+    /// Choose the text caret shape without changing selection or IME geometry.
+    CaretShape => caret_shape(CaretShape) => caret_shape;
     /// Set inherited color, or use CssValue::{Inherit, Initial, Unset}.
     Color => color(Color) => color;
     /// Set only font-family; inherited weight/style are preserved.

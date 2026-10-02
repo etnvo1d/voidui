@@ -220,6 +220,26 @@ pub(crate) fn map_spans(spans: &[StyleSpan], edits: &[Edit]) -> Vec<StyleSpan> {
     result
 }
 
+/// Map one transient replacement and fill its bytes with the resolved input
+/// style. Preedit has no document format delta, so mapping alone leaves a gap.
+pub(crate) fn compose_spans(
+    spans: &[StyleSpan],
+    range: Range<usize>,
+    length: usize,
+    style: InlineStyle,
+) -> Vec<StyleSpan> {
+    let mut result = Vec::with_capacity(spans.len() + 2);
+    let mut index = 0;
+    copy_segment(&mut result, spans, &mut index, 0..range.start, 0);
+    let end = range.start + length;
+    push(&mut result, range.start..end, style);
+    let source_end = spans
+        .last()
+        .map_or(range.end, |s| s.range.end.max(range.end));
+    copy_segment(&mut result, spans, &mut index, range.end..source_end, end);
+    result
+}
+
 /// Emit just a patched interval, retaining independent fields in spans and gaps.
 fn patch_segment(
     out: &mut Vec<StyleSpan>,

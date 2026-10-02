@@ -74,6 +74,198 @@ fn close(actual: f32, expected: f32) {
 }
 
 #[test]
+fn measured_prefix_aligns_body_rows_and_survives_reuse_resize_and_font_changes() {
+    let system = system();
+    let mut layout = EditorLayout::default();
+    for prefix in ["> ", "> > ", "  > ", "前缀 "] {
+        let text = format!("{prefix}one two three four five six seven eight nine ten");
+        let state = EditorState::new(&text);
+        for family in ["IBM Plex Sans", "Ahem"] {
+            for size in [12.0, 24.0] {
+                let font = render::font(family);
+                let measured = system
+                    .shape_paragraph(
+                        prefix.to_owned().into(),
+                        &[render::TextRun {
+                            len: prefix.len(),
+                            font: font.clone(),
+                            ..Default::default()
+                        }],
+                        size,
+                        32.0,
+                        None,
+                        None,
+                    )
+                    .unwrap()
+                    .width();
+                for width in [220.0, 160.0, 220.0] {
+                    let opts = LayoutOptions {
+                        font: font.clone(),
+                        font_size: size,
+                        line_height: 32.0,
+                        width: Some(width),
+                    };
+                    let mut projection = Projection::new().paragraph(
+                        0..text.len(),
+                        ParagraphStyle {
+                            hanging_prefix: prefix.len(),
+                            ..Default::default()
+                        },
+                    );
+                    for color in [render::transparent_black(), render::black()] {
+                        projection.styles = vec![StyleSpan::new(
+                            0..prefix.len(),
+                            InlineStyle::new().color(color),
+                        )];
+                        // Repeating identical inputs covers both reuse shortcuts.
+                        for _ in 0..2 {
+                            prepare_prefix(
+                                &mut layout,
+                                &state,
+                                projection.clone(),
+                                &system,
+                                opts.clone(),
+                            );
+                            let start = caret(&layout, 0);
+                            let body = caret(&layout, prefix.len());
+                            close(start.origin.x, 0.0);
+                            close(body.origin.x, measured);
+                            let mut previous = body.origin.y;
+                            let mut wrapped = false;
+                            for byte in prefix.len()..text.len() {
+                                let r = caret(&layout, byte);
+                                if r.origin.y > previous {
+                                    close(r.origin.x, measured);
+                                    wrapped = true;
+                                    previous = r.origin.y;
+                                }
+                            }
+                            assert!(wrapped);
+                            let hit = layout.hit_test(
+                                Point::new(
+                                    start.origin.x,
+                                    start.origin.y + start.size.height * 0.5,
+                                ),
+                                width,
+                                TextAlign::Left,
+                            );
+                            assert_eq!(hit.head, 0);
+                        }
+                    }
+                    layout.reflow(Some(width - 20.0));
+                    close(caret(&layout, prefix.len()).origin.x, measured);
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn measured_prefix_uses_projected_text_and_styles() {
+    let system = system();
+    let state = EditorState::new(">\tbody words that wrap over more than one line");
+    let mut layout = EditorLayout::default();
+    let prefix = ">    ";
+    let runs = [render::TextRun {
+        len: prefix.len(),
+        font: render::font("Ahem"),
+        font_size: Some(20.0),
+        ..Default::default()
+    }];
+    let measured = system
+        .shape_paragraph(prefix.into(), &runs, 16.0, 26.0, None, None)
+        .unwrap()
+        .width();
+    let projection = Projection::new()
+        .paragraph(
+            0..state.document().len(),
+            ParagraphStyle {
+                hanging_prefix: 2,
+                ..Default::default()
+            },
+        )
+        .style(StyleSpan::new(
+            0..2,
+            InlineStyle::new()
+                .font(render::font("Ahem"))
+                .font_size(20.0),
+        ))
+        .replace(Replacement::text(ViewId(1), 1..2, "    "));
+    prepare_prefix(&mut layout, &state, projection.clone(), &system, options());
+    close(caret(&layout, 2).origin.x, measured);
+    prepare_prefix(&mut layout, &state, projection.clone(), &system, options());
+    close(caret(&layout, 2).origin.x, measured);
+    let mut changed = projection;
+    changed.replacements = vec![Replacement::text(ViewId(1), 1..2, "  ")];
+    prepare_prefix(&mut layout, &state, changed, &system, options());
+    close(caret(&layout, 2).origin.x, measured * 3.0 / 5.0);
+}
+
+#[test]
+fn measured_prefix_remeasures_after_source_edits() {
+    let system = system();
+    let mut state = EditorState::new("> body words that wrap onto another row");
+    let mut layout = EditorLayout::default();
+    for prefix in ["> ", "> > ", "> "] {
+        let previous = state.text().find("body").unwrap();
+        state
+            .transact(Transaction::new(
+                state.revision(),
+                [Edit::new(0..previous, prefix)],
+            ))
+            .unwrap();
+        let p = Projection::new().paragraph(
+            0..state.document().len(),
+            ParagraphStyle {
+                hanging_prefix: prefix.len(),
+                ..Default::default()
+            },
+        );
+        prepare_prefix(&mut layout, &state, p, &system, options());
+        let expected = system
+            .shape_paragraph(
+                prefix.into(),
+                &[render::TextRun {
+                    len: prefix.len(),
+                    font: options().font,
+                    ..Default::default()
+                }],
+                options().font_size,
+                options().line_height,
+                None,
+                None,
+            )
+            .unwrap()
+            .width();
+        close(caret(&layout, prefix.len()).origin.x, expected);
+        close(caret(&layout, 0).origin.x, 0.0);
+    }
+}
+
+fn prepare_prefix(
+    layout: &mut EditorLayout,
+    state: &EditorState,
+    projection: Projection,
+    system: &Arc<TextSystem>,
+    opts: LayoutOptions,
+) {
+    // The widget merges display styles before calling EditorLayout; these
+    // fixtures have no committed styles, so the projection supplies all spans.
+    let mut snapshot = state.snapshot();
+    snapshot.spans = projection.styles.clone().into();
+    layout
+        .prepare_snapshot(
+            snapshot,
+            projection,
+            opts,
+            system.clone(),
+            None,
+            Default::default(),
+        )
+        .unwrap();
+}
+
+#[test]
 fn line_typography_matches_editor_defaults_and_preserves_inline_overrides() {
     let state = EditorState::new("abc def ghi jkl mno pqr");
     let system = system();

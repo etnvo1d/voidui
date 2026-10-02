@@ -623,6 +623,21 @@ impl AppWindow {
         self.viewport.logical()
     }
 
+    /// Logical window bounds of a source byte range in a text control, the same
+    /// rectangle the IME candidate window uses. An empty range is a caret.
+    /// Completion popups and other overlays can anchor themselves to it.
+    pub fn input_bounds_for_range(
+        &mut self,
+        id: crate::core::widget::WidgetId,
+        range: std::ops::Range<usize>,
+    ) -> Option<crate::core::geometry::Rect<f32>> {
+        if self.tree.requires_layout() {
+            return None;
+        }
+        self.tree
+            .input_bounds_for_range(id, range, &self.text_layout)
+    }
+
     /// Schedule layout and scene construction after content/typography changes.
     pub fn invalidate_layout(&mut self) {
         self.layout_dirty = true;

@@ -28,6 +28,93 @@ fn options() -> LayoutOptions {
         width: Some(240.0),
     }
 }
+
+#[test]
+fn committed_edits_do_not_map_ranges_from_preedit_layout() {
+    let fonts = system();
+    for preedit in ["n", "你", "拼\n音"] {
+        for selected in [5..5, 5..6] {
+            for commit in [false, true] {
+                let mut state = EditorState::new("head\n\nend");
+                state
+                    .select(SelectionSet::single(Selection::range(
+                        selected.start,
+                        selected.end,
+                    )))
+                    .unwrap();
+                state
+                    .set_composition(preedit, Some((preedit.len(), preedit.len())))
+                    .unwrap();
+                let mut layout = EditorLayout::default();
+                // A preedit display shares the committed revision, but its byte
+                // positions differ. A later document delta cannot map them.
+                let mut composing = state.snapshot();
+                composing.composing = true;
+                composing.change = None;
+                let mut display = state.text().to_owned();
+                display.replace_range(selected.clone(), preedit);
+                composing.text = TextSnapshot::from_text(&display);
+                layout
+                    .prepare_snapshot(
+                        composing,
+                        Projection::new(),
+                        options(),
+                        fonts.clone(),
+                        None,
+                        Default::default(),
+                    )
+                    .unwrap();
+                if commit {
+                    state.commit_composition("中").unwrap();
+                } else {
+                    state.cancel_composition();
+                    state
+                        .transact(Transaction::new(state.revision(), [Edit::new(4..5, "")]))
+                        .unwrap();
+                }
+                let result = layout.prepare_snapshot(
+                    state.snapshot(),
+                    Projection::new(),
+                    options(),
+                    fonts.clone(),
+                    None,
+                    Default::default(),
+                );
+                assert!(
+                    result.is_ok(),
+                    "preedit={preedit:?}, selection={selected:?}, commit={commit}: {result:?}"
+                );
+                // Compare every caret against a fresh layout, not just whether
+                // preparation avoided an InvalidRange error.
+                let mut fresh = EditorLayout::default();
+                fresh
+                    .prepare_snapshot(
+                        state.snapshot(),
+                        Projection::new(),
+                        options(),
+                        fonts.clone(),
+                        None,
+                        Default::default(),
+                    )
+                    .unwrap();
+                assert_eq!(layout.paragraph_count(), fresh.paragraph_count());
+                assert_eq!(layout.size(), fresh.size());
+                for byte in state
+                    .text()
+                    .char_indices()
+                    .map(|(at, _)| at)
+                    .chain([state.text().len()])
+                {
+                    assert_eq!(
+                        layout.caret(byte, Bias::After, 240.0, TextAlign::Left),
+                        fresh.caret(byte, Bias::After, 240.0, TextAlign::Left)
+                    );
+                }
+            }
+        }
+    }
+}
+
 fn prepare(state: &EditorState, p: Projection) -> EditorLayout {
     let mut l = EditorLayout::default();
     l.prepare_snapshot(

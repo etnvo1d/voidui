@@ -9,6 +9,9 @@ pub struct KeyContext<'a> {
     pub bounds: Rect<f32>,
     pub align: render::TextAlign,
     pub scroll: Point<f32>,
+    /// Global text origin after content alignment and scrolling. Use this when
+    /// translating custom layout geometry into window coordinates.
+    pub text_origin: Point<f32>,
 }
 impl std::ops::Deref for KeyContext<'_> {
     type Target = Editor;
@@ -48,7 +51,7 @@ impl KeyContext<'_> {
             self.bounds.size.width.max(self.layout.size().width),
             self.align,
         )?;
-        Some(view::viewport_caret(caret, self.bounds, self.scroll))
+        Some(view::viewport_caret(caret, self.bounds, self.text_origin))
     }
 }
 
@@ -93,6 +96,7 @@ impl TextEdit {
                     bounds: cx.bounds,
                     align: cx.style.align.resolve(cx.style.direction),
                     scroll: view.scroll,
+                    text_origin: view.origin(cx.bounds),
                 },
             ) {
                 return true;

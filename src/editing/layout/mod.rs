@@ -93,6 +93,8 @@ struct Block {
     range: Range<usize>,
     body: Range<usize>,
     style: ParagraphStyle,
+    /// Unmeasured decoration inputs, retained separately from resolved insets.
+    authored_style: ParagraphStyle,
     view: Option<ViewId>,
     empty_height: f32,
 }
@@ -281,11 +283,16 @@ impl EditorLayout {
         let same_document = old.is_some_and(|old| {
             old.document_id == snapshot.document_id && snapshot.document_id != 0
         });
-        let consecutive = old.filter(|_| same_document).and_then(|old| {
-            change.as_ref().filter(|change| {
-                change.before_revision == old.revision && change.revision == snapshot.revision
-            })
-        });
+        // Document deltas address committed source. Preedit can change byte
+        // offsets without changing the revision, so either transient endpoint
+        // rules out mapping those deltas onto the retained layout.
+        let consecutive = old
+            .filter(|old| same_document && !old.composing && !snapshot.composing)
+            .and_then(|old| {
+                change.as_ref().filter(|change| {
+                    change.before_revision == old.revision && change.revision == snapshot.revision
+                })
+            });
         let mapped_changes = consecutive.map(|change| &change.changes);
         // Keep the old source position on screen while previews change. The
         // incoming pixel offset still belongs to the previous height index.
@@ -400,6 +407,9 @@ impl EditorLayout {
                 for i in dirty {
                     old.cache.remove(&i);
                     old.arrangements.remove(&i);
+                    // A text replacement inside a measured prefix changes
+                    // its width even when the paragraph decoration is equal.
+                    old.blocks[i].style = old.blocks[i].authored_style.clone();
                 }
                 old.views.borrow_mut().descriptions = old.descriptions.clone();
                 let prepared = (|| {
@@ -503,6 +513,9 @@ impl EditorLayout {
             {
                 next.blocks = old.blocks.clone();
                 for b in &mut next.blocks {
+                    // Font or source-style changes require fresh prefix metrics.
+                    // Reuse restores resolved insets only with matching inputs.
+                    b.style = b.authored_style.clone();
                     // A nonempty source line may also project to an empty row.
                     b.empty_height = Engine::empty_height(
                         &next.source,
@@ -512,13 +525,7 @@ impl EditorLayout {
                     );
                 }
                 next.reset_estimates();
-            } else if let Some(change) = change.as_ref().filter(|c| {
-                old.document_id == next.document_id
-                    && next.document_id != 0
-                    && c.before_revision == old.revision
-                    && c.revision == next.revision
-                    && !c.changes.edits().is_empty()
-            }) {
+            } else if let Some(change) = consecutive.filter(|c| !c.changes.edits().is_empty()) {
                 if !next.index_changed(old, &change.changes)? {
                     next.index_blocks()?;
                 }

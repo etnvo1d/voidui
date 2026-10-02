@@ -71,6 +71,7 @@ impl Engine {
             .find(|b| b.range.start <= range.start && b.range.end >= body.end)
             .map(|b| b.id);
         Block {
+            authored_style: style.clone(),
             style,
             range,
             body,
@@ -171,6 +172,7 @@ impl Engine {
         // text window. Refresh their metadata without materializing the text.
         for b in &mut self.blocks {
             b.style = self.projection.paragraph_style(b.range.start);
+            b.authored_style = b.style.clone();
             b.empty_height = Self::empty_height(
                 &self.source,
                 &self.styles,
@@ -235,6 +237,7 @@ impl Engine {
         Ok(())
     }
     pub(super) fn ensure(&mut self, i: usize) -> render::Result<()> {
+        self.resolve_hanging_prefix(i)?;
         if let Some(cached) = self.cache.get(&i) {
             self.mount_decoration(i, cached)?;
             let mut refresh = cached.window.is_some()
@@ -489,6 +492,50 @@ impl Engine {
             cached.height + b.style.space_before + b.style.space_after,
         );
         self.cache.insert(i, Rc::new(cached));
+        Ok(())
+    }
+    /// Resolve hanging indentation only for blocks requested by the viewport.
+    /// Prefix width belongs to layout: font changes, zoom and tab replacements
+    /// must use the same shaping service as the rest of the paragraph.
+    fn resolve_hanging_prefix(&mut self, i: usize) -> render::Result<()> {
+        let b = &self.blocks[i];
+        if b.style.hanging_prefix == 0 || b.view.is_some() {
+            return Ok(());
+        }
+        let end = b
+            .body
+            .start
+            .saturating_add(b.style.hanging_prefix)
+            .min(b.body.end);
+        let prefix = self
+            .projection
+            .project(&self.source, b.body.start..end, &self.styles)?;
+        anyhow::ensure!(
+            prefix.objects.is_empty(),
+            "hanging prefix must contain text only"
+        );
+        let options = self.flow_options(b);
+        let runs = crate::core::rich_text::resolve_runs(
+            &prefix.text,
+            &prefix.spans,
+            0..prefix.text.len(),
+            &options.font,
+        );
+        let paragraph = self.system.shape_paragraph(
+            prefix.text.into(),
+            &runs,
+            options.font_size,
+            options.line_height,
+            None,
+            None,
+        )?;
+        let width = paragraph.width();
+        let style = &mut self.blocks[i].style;
+        // padding-left = prefix width; text-indent = -prefix width.
+        // The prefix occupies the gutter; both body rows begin at the padding.
+        style.inset_left += width;
+        style.first_line_indent -= width;
+        style.hanging_prefix = 0;
         Ok(())
     }
     pub(super) fn block_at(&self, byte: usize) -> Option<usize> {

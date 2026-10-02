@@ -53,10 +53,12 @@ fn formatting_only_reshapes_its_paragraph_and_plain_transition_reuses_neighbors(
     let mut layout = EditorLayout::default();
     layout.prepare(text, options(), system.clone()).unwrap();
     let mut shaped = system.stats().paragraphs_shaped;
-    for style in [
-        InlineStyle::new().font_size(30.0),
-        InlineStyle::new().font_size(36.0),
-        InlineStyle::new().font_size(36.0).color(render::black()),
+    // A new font size resolves its primary-font metrics once for CSS line
+    // sizing. Subsequent paint-only styles reuse that cached metric probe.
+    for (style, shapes) in [
+        (InlineStyle::new().font_size(30.0), 2),
+        (InlineStyle::new().font_size(36.0), 2),
+        (InlineStyle::new().font_size(36.0).color(render::black()), 1),
     ] {
         layout
             .prepare_styled(
@@ -66,8 +68,8 @@ fn formatting_only_reshapes_its_paragraph_and_plain_transition_reuses_neighbors(
                 system.clone(),
             )
             .unwrap();
-        assert_eq!(system.stats().paragraphs_shaped, shaped + 1);
-        shaped += 1;
+        assert_eq!(system.stats().paragraphs_shaped, shaped + shapes);
+        shaped += shapes;
     }
     layout.prepare(text, options(), system.clone()).unwrap();
     assert_eq!(system.stats().paragraphs_shaped, shaped + 1);
@@ -469,7 +471,9 @@ fn distant_format_changes_retain_the_middle_of_a_thousand_rich_paragraphs() {
     layout
         .prepare_styled(&text, &spans, options(), system.clone())
         .unwrap();
-    assert_eq!(system.stats().paragraphs_shaped, before + 2);
+    // Both changed paragraphs share one cold primary-font metric probe at
+    // 26px. The other 998 paragraphs retain their shaped text unchanged.
+    assert_eq!(system.stats().paragraphs_shaped, before + 3);
     let before = system.stats().paragraphs_shaped;
     layout
         .prepare_styled(&text, &spans, options(), system.clone())

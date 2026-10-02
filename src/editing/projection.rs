@@ -104,6 +104,11 @@ pub struct ParagraphStyle {
     pub space_after: f32,
     /// Additional first-line indent. Negative values create hanging indentation.
     pub first_line_indent: f32,
+    /// Source bytes at the start of a paragraph whose displayed width supplies
+    /// a hanging indent. Measured with the paragraph's actual fonts and text
+    /// replacements; wrapped rows align with the text after this prefix.
+    /// The prefix must contain text only and end at a UTF-8 boundary.
+    pub hanging_prefix: usize,
     pub background: Option<crate::render::Hsla>,
     pub leading_rule: Option<(f32, crate::render::Hsla)>,
 }
@@ -339,7 +344,8 @@ impl Projection {
         });
         out
     }
-    pub(crate) fn compose(&mut self, range: Range<usize>, length: usize) {
+    pub(crate) fn compose(&mut self, selection: Selection, length: usize) {
+        let range = selection.text_range();
         let map = |p: usize, bias: Bias| {
             if p < range.start || (p == range.start && bias == Bias::Before) {
                 p
@@ -366,8 +372,14 @@ impl Projection {
         for p in &mut self.paragraphs {
             p.range = map(p.range.start, Bias::Before)..map(p.range.end, Bias::After);
         }
-        let edits = [super::Edit::new(range, " ".repeat(length))];
-        self.styles = super::format::map_spans(&self.styles, &edits);
+        // Resolve context in committed coordinates before moving its spans.
+        // Every candidate update starts from the same source projection.
+        let style = super::format::style_at(
+            &self.styles,
+            range.start,
+            selection.input_style_bias() == Bias::Before,
+        );
+        self.styles = super::format::compose_spans(&self.styles, range, length, style);
     }
     /// Look up a source line's container style after validating the projection.
     pub fn paragraph_style(&self, byte: usize) -> ParagraphStyle {
@@ -688,12 +700,81 @@ pub struct ProjectionSnapshot {
 mod composition_tests {
     use super::*;
     #[test]
+    fn preedit_respects_style_boundaries_and_selection_direction() {
+        let left = crate::InlineStyle::new().bold();
+        let right = crate::InlineStyle::new().italic();
+        let styles = vec![
+            StyleSpan::new(0..3, left.clone()),
+            StyleSpan::new(3..6, right.clone()),
+        ];
+        for (selection, expected) in [
+            (Selection::caret(0), left.clone()),
+            (Selection::caret(3), left.clone()),
+            (
+                Selection {
+                    affinity: Bias::Before,
+                    ..Selection::caret(3)
+                },
+                right.clone(),
+            ),
+            (Selection::range(3, 6), right.clone()),
+            (Selection::range(6, 3), right.clone()),
+            (Selection::caret(6), right.clone()),
+            (Selection::caret(7), crate::InlineStyle::default()),
+        ] {
+            let mut projection = Projection {
+                styles: styles.clone(),
+                ..Projection::default()
+            };
+            projection.compose(selection, 6);
+            for byte in selection.text_range().start..selection.text_range().start + 6 {
+                assert_eq!(
+                    super::super::format::style_at(&projection.styles, byte, false),
+                    expected
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn preedit_inherits_projected_context_without_changing_source_styles() {
+        let style = crate::InlineStyle::new()
+            .bold()
+            .italic()
+            .font(crate::render::font("monospace"))
+            .font_size(28.0)
+            .line_height(36.0)
+            .color(crate::render::white())
+            .background(crate::render::black())
+            .metadata("href", "https://example.test");
+        let original = vec![StyleSpan::new(1..7, style.clone())];
+        for range in [4..4, 4..7, 1..7] {
+            for length in [0, 1, 6] {
+                let mut projection = Projection {
+                    styles: original.clone(),
+                    ..Projection::default()
+                };
+                projection.compose(Selection::range(range.start, range.end), length);
+                // Both surviving text and every candidate byte keep the style.
+                assert_eq!(
+                    projection.styles,
+                    vec![StyleSpan::new(1..7 - range.len() + length, style.clone())]
+                        .into_iter()
+                        .filter(|span| !span.range.is_empty())
+                        .collect::<Vec<_>>()
+                );
+                assert_eq!(original, vec![StyleSpan::new(1..7, style.clone())]);
+            }
+        }
+    }
+
+    #[test]
     fn source_backed_blocks_survive_preedit_and_map_both_edges() {
         for range in [0..0, 3..3, 2..5] {
             let mut projection = Projection::new()
                 .block_view(BlockView::new(ViewId(1), 0..10).source_backed())
                 .block(ViewId(2), 12..16);
-            projection.compose(range.clone(), 6);
+            projection.compose(Selection::range(range.start, range.end), 6);
             assert_eq!(projection.blocks.len(), 2);
             assert_eq!(projection.blocks[0].range, 0..10 - range.len() + 6);
             assert_eq!(
@@ -702,7 +783,7 @@ mod composition_tests {
             );
         }
         let mut opaque = Projection::new().block(ViewId(1), 0..10);
-        opaque.compose(3..3, 6);
+        opaque.compose(Selection::caret(3), 6);
         assert!(opaque.blocks.is_empty());
     }
     #[test]
@@ -711,7 +792,7 @@ mod composition_tests {
             .replace(Replacement::text(ViewId(1), 1..5, "\n"))
             .replace(Replacement::text(ViewId(2), 5..5, "hint"));
         let mut active = plan.active(&SelectionSet::single(Selection::caret(5)), Some(5..5));
-        active.compose(5..5, 6);
+        active.compose(Selection::caret(5), 6);
         assert_eq!(active.replacements[0].range, 1..5);
         assert_eq!(active.replacements[1].range, 11..11);
     }

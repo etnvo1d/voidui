@@ -18,10 +18,7 @@ impl TextEdit {
         let view = self.view.borrow();
         let width = bounds.size.width.max(view.text.size().width);
         let align = self.style.align.resolve(self.style.direction);
-        let origin = Point::new(
-            bounds.origin.x - view.scroll.x,
-            bounds.origin.y - view.scroll.y,
-        );
+        let origin = view.origin(bounds);
         let target = view.text.captured_view().or_else(|| {
             let point = position?;
             view.text
@@ -62,10 +59,7 @@ impl TextEdit {
         }
         let width = cx.bounds.size.width.max(view.text.size().width);
         let align = cx.style.align.resolve(cx.style.direction);
-        let origin = Point::new(
-            cx.bounds.origin.x - view.scroll.x,
-            cx.bounds.origin.y - view.scroll.y,
-        );
+        let origin = view.origin(cx.bounds);
         let target = if let InputEvent::Pointer {
             position, phase, ..
         } = event

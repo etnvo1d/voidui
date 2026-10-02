@@ -94,6 +94,12 @@ properties for prefixes, suffixes and textarea headers/footers.
 
 ## Input behavior
 
+Single-line inputs vertically center their text inside the content box, after
+padding and borders. Placeholder text, selections, carets, pointer targeting and
+IME anchors follow this alignment. Oversized lines remain centered and clipped;
+single-line inputs scroll horizontally, not vertically. Textareas and rich editors
+start at the top of the content box and retain vertical scrolling.
+
 - Input is single-line, with horizontal caret-following scroll. Textarea supports
   soft wrapping, explicit paragraphs, vertical scroll and optional unwrapped text.
   Textareas use shared CSS scrollbars and chain wheel input at their boundary; see
@@ -258,3 +264,36 @@ editing/Tab traversal. IME text remains a separate input protocol.
 An ancestor's automatic drag does not steal selection from an input. Attaching
 `on_drag` directly to the input explicitly opts it into that gesture. See
 [Events and dragging](events.md) for capture and async callback lifetime rules.
+
+
+### Caret shapes
+
+Use `.caret_shape(voidui::style::text::CaretShape::Block)` on a text control,
+or set the inherited CSS property `caret-shape` to `bar`, `block`, or
+`underscore`. `auto` uses the default bar; CSS-wide keywords are supported.
+`CaretShape::Underline` corresponds to `underscore` in CSS.
+
+Blocks and underlines cover one source grapheme using its rendered selection
+rectangle. At a line ending or empty line, they use the font's character advance.
+Blocks use translucent caret color to leave the glyph readable. Nonempty
+selections show their included endpoint with wide shapes; the ordinary bar
+retains the existing selection behavior. Preedit always uses a bar.
+
+Shape changes repaint the caret without reshaping text or changing the insertion
+bounds used by IME and completion. Carets remain in the retained blinking layer,
+with the same focus, clipping and scroll rules as the insertion bar.
+
+
+### Modal selection policies
+
+`Editor::filter_selections` installs a selection-only policy for a shared session.
+Keep its returned guard alive for as long as the policy is needed. The callback
+runs after session mutations, including pointer navigation and undo/redo, before
+views receive their update. It reads the final state and returns a replacement
+`SelectionSet`, or `None` to keep the selection. Invalid results are rejected.
+
+Policies must be idempotent and must not read or update the same `Editor` handle
+from their callback. Active IME preedit bypasses filters until composition ends.
+Dropping the guard removes the policy. A modal keymap can share its current mode
+with the callback, applying character-caret constraints only in Normal mode
+while leaving insertion points and selected ranges intact in other modes.

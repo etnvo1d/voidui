@@ -253,3 +253,57 @@ fn extension_commit_transaction_is_atomic_and_restores_rejected_preedit() {
     state.redo().unwrap();
     assert_eq!(state.text(), "row\n\n中文");
 }
+
+#[test]
+fn shared_selection_filters_cover_edits_history_and_guard_lifetime() {
+    let editor = Editor::new("abc");
+    let alias = editor.clone();
+    editor
+        .update(|s| s.select(SelectionSet::single(Selection::caret(3))))
+        .unwrap();
+    let guard = editor.filter_selections(|state| {
+        let head = state.selections().primary().head;
+        (head != 0).then(|| SelectionSet::single(Selection::caret(0)))
+    });
+    assert_eq!(alias.with(|s| s.selections().primary().head), 0);
+    alias
+        .update(|s| s.replace_selections("x", EditKind::Typing))
+        .unwrap();
+    assert_eq!(editor.text(), "xabc");
+    assert_eq!(editor.with(|s| s.selections().primary().head), 0);
+    alias.update(|s| s.undo()).unwrap();
+    assert_eq!(editor.text(), "abc");
+    alias.update(|s| s.redo()).unwrap();
+    assert_eq!(editor.text(), "xabc");
+    assert_eq!(editor.with(|s| s.selections().primary().head), 0);
+    drop(guard);
+    alias
+        .update(|s| s.select(SelectionSet::single(Selection::caret(4))))
+        .unwrap();
+    assert_eq!(editor.with(|s| s.selections().primary().head), 4);
+}
+
+#[test]
+fn selection_filters_wait_until_composition_ends() {
+    let editor = Editor::new("abc");
+    let _guard = editor.filter_selections(|_| Some(SelectionSet::single(Selection::caret(0))));
+    editor
+        .update(|s| s.set_composition("ni", Some((2, 2))))
+        .unwrap();
+    assert!(editor.with(|s| s.composition().is_some()));
+    editor.update(|s| s.commit_composition("你")).unwrap();
+    assert_eq!(editor.text(), "你abc");
+    assert_eq!(editor.with(|s| s.selections().primary().head), 0);
+}
+
+#[test]
+fn invalid_selection_filters_preserve_valid_state() {
+    let editor = Editor::new("中");
+    let _guard = editor.filter_selections(|_| Some(SelectionSet::single(Selection::caret(1))));
+    assert_eq!(editor.with(|s| s.selections().primary().head), 0);
+    editor
+        .update(|s| s.select(SelectionSet::single(Selection::caret(3))))
+        .unwrap();
+    assert_eq!(editor.with(|s| s.selections().primary().head), 3);
+    assert_eq!(editor.text(), "中");
+}

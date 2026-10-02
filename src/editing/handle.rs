@@ -1,15 +1,21 @@
 //! Cheap shared ownership of a session. Reading borrows the document; text copies
 //! and subscriptions are explicit. Only mounted views receive invalidations.
-use super::EditorState;
+use super::{EditorState, SelectionSet};
 use crate::core::updates::WidgetInvalidator;
 use std::{
     cell::RefCell,
     rc::{Rc, Weak},
 };
 
+/// A selection-only policy applied after each shared-session mutation. Return
+/// None to keep the selection. Policies must be idempotent and must not borrow
+/// or update the same Editor; the supplied state is already borrowed.
+pub type SelectionFilter = dyn Fn(&EditorState) -> Option<SelectionSet>;
+
 struct Shared {
     state: RefCell<EditorState>,
     observers: RefCell<Vec<Weak<Observer>>>,
+    selection_filters: RefCell<Vec<Weak<SelectionFilter>>>,
 }
 pub(crate) struct Observer {
     invalidate: WidgetInvalidator,
@@ -27,6 +33,7 @@ impl Editor {
         Self(Rc::new(Shared {
             state: RefCell::new(state),
             observers: RefCell::new(Vec::new()),
+            selection_filters: RefCell::new(Vec::new()),
         }))
     }
     /// Explicit rich snapshot. Borrow document spans with `with` for rendering.
@@ -44,6 +51,7 @@ impl Editor {
             let old = state.generation();
             let empty = state.document().is_empty() && state.composition().is_none();
             let result = edit(&mut state);
+            self.filter_selection(&mut state);
             (
                 result,
                 state.generation() != old,
@@ -68,8 +76,45 @@ impl Editor {
     /// The owning widget already has a queued invalidation when applying its
     /// external String binding; avoid recursively queuing the same view again.
     pub(crate) fn synchronize<R>(&self, update: impl FnOnce(&mut EditorState) -> R) -> R {
-        update(&mut self.0.state.borrow_mut())
+        let mut state = self.0.state.borrow_mut();
+        let result = update(&mut state);
+        self.filter_selection(&mut state);
+        result
     }
+    /// Keep the returned guard alive to enforce a selection policy after edits,
+    /// pointer navigation and history restoration, before views are notified.
+    /// Policies run in registration order; corrections add no document edits or undo entries.
+    /// Preedit owns its temporary selection, so filters wait until it ends.
+    pub fn filter_selections(
+        &self,
+        filter: impl Fn(&EditorState) -> Option<SelectionSet> + 'static,
+    ) -> Rc<SelectionFilter> {
+        let filter: Rc<SelectionFilter> = Rc::new(filter);
+        self.0
+            .selection_filters
+            .borrow_mut()
+            .push(Rc::downgrade(&filter));
+        self.update(|_| {});
+        filter
+    }
+
+    fn filter_selection(&self, state: &mut EditorState) {
+        if state.composition().is_some() {
+            return;
+        }
+        self.0.selection_filters.borrow_mut().retain(|weak| {
+            let Some(filter) = weak.upgrade() else {
+                return false;
+            };
+            if let Some(selection) = filter(state)
+                && let Err(error) = state.select(selection)
+            {
+                log::error!("editor selection filter rejected: {error}");
+            }
+            true
+        });
+    }
+
     pub fn same_session(&self, other: &Self) -> bool {
         Rc::ptr_eq(&self.0, &other.0)
     }

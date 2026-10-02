@@ -17,6 +17,7 @@ use voidui_gpui_wgpu::{Font, FontFallbacks, FontFeatures, FontStyle, FontWeight,
 pub struct Style {
     pub(crate) custom_properties:
         std::collections::BTreeMap<String, std::rc::Rc<super::css::values::Tokens>>,
+    pub(crate) important: PropertyMask,
     pub(crate) deferred: Vec<(Property, std::rc::Rc<super::css::values::PendingValue>)>,
     pub scroll: super::scroll::ScrollDeclarations,
     pub media: crate::style::media::MediaStyle,
@@ -41,6 +42,19 @@ pub struct Style {
     pub border_radius: CssValue<f32>,
     pub background_image: CssValue<crate::style::gradient::BackgroundImages>,
     pub box_shadow: CssValue<crate::style::shadow::BoxShadows>,
+    pub animation_name:
+        CssValue<crate::style::list::StyleList<crate::style::animation::AnimationName>>,
+    pub animation_duration: CssValue<crate::style::list::StyleList<f64>>,
+    pub animation_delay: CssValue<crate::style::list::StyleList<f64>>,
+    pub animation_timing_function:
+        CssValue<crate::style::list::StyleList<crate::style::transition::Easing>>,
+    pub animation_iteration_count: CssValue<crate::style::list::StyleList<f64>>,
+    pub animation_direction:
+        CssValue<crate::style::list::StyleList<crate::style::animation::AnimationDirection>>,
+    pub animation_fill_mode:
+        CssValue<crate::style::list::StyleList<crate::style::animation::AnimationFillMode>>,
+    pub animation_play_state:
+        CssValue<crate::style::list::StyleList<crate::style::animation::AnimationPlayState>>,
     pub transition_property:
         CssValue<crate::style::list::StyleList<crate::style::transition::TransitionProperty>>,
     pub transition_duration: CssValue<crate::style::list::StyleList<f64>>,
@@ -66,6 +80,7 @@ impl Default for Style {
     fn default() -> Self {
         Self {
             custom_properties: Default::default(),
+            important: Default::default(),
             deferred: Vec::new(),
             scroll: Default::default(),
             media: Default::default(),
@@ -88,6 +103,14 @@ impl Default for Style {
             border_radius: CssValue::Unset,
             background_image: CssValue::Unset,
             box_shadow: CssValue::Unset,
+            animation_name: CssValue::Unset,
+            animation_duration: CssValue::Unset,
+            animation_delay: CssValue::Unset,
+            animation_timing_function: CssValue::Unset,
+            animation_iteration_count: CssValue::Unset,
+            animation_direction: CssValue::Unset,
+            animation_fill_mode: CssValue::Unset,
+            animation_play_state: CssValue::Unset,
             transition_property: CssValue::Unset,
             transition_duration: CssValue::Unset,
             transition_delay: CssValue::Unset,
@@ -280,6 +303,49 @@ impl Style {
             border_radius: self.border_radius.resolve(
                 &parent.border_radius,
                 &initial.border_radius,
+                false,
+            ),
+        }
+    }
+
+    pub(crate) fn resolve_animations(
+        &self,
+        parent: &crate::style::animation::AnimationStyle,
+    ) -> crate::style::animation::AnimationStyle {
+        let initial = crate::style::animation::AnimationStyle::default();
+        crate::style::animation::AnimationStyle {
+            names: self
+                .animation_name
+                .resolve(&parent.names, &initial.names, false),
+            durations: self.animation_duration.resolve(
+                &parent.durations,
+                &initial.durations,
+                false,
+            ),
+            delays: self
+                .animation_delay
+                .resolve(&parent.delays, &initial.delays, false),
+            easing: self
+                .animation_timing_function
+                .resolve(&parent.easing, &initial.easing, false),
+            iterations: self.animation_iteration_count.resolve(
+                &parent.iterations,
+                &initial.iterations,
+                false,
+            ),
+            directions: self.animation_direction.resolve(
+                &parent.directions,
+                &initial.directions,
+                false,
+            ),
+            fill_modes: self.animation_fill_mode.resolve(
+                &parent.fill_modes,
+                &initial.fill_modes,
+                false,
+            ),
+            play_states: self.animation_play_state.resolve(
+                &parent.play_states,
+                &initial.play_states,
                 false,
             ),
         }

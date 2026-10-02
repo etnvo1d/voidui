@@ -31,6 +31,14 @@ macro_rules! define_declarations {
             Direction(CssValue<Direction>), TextWrap(CssValue<bool>),
             BackgroundImage(CssValue<crate::style::gradient::BackgroundImages>),
             BoxShadow(CssValue<crate::style::shadow::BoxShadows>),
+            AnimationName(CssValue<crate::style::list::StyleList<crate::style::animation::AnimationName>>),
+            AnimationDuration(CssValue<crate::style::list::StyleList<f64>>),
+            AnimationDelay(CssValue<crate::style::list::StyleList<f64>>),
+            AnimationTimingFunction(CssValue<crate::style::list::StyleList<crate::style::transition::Easing>>),
+            AnimationIterationCount(CssValue<crate::style::list::StyleList<f64>>),
+            AnimationDirection(CssValue<crate::style::list::StyleList<crate::style::animation::AnimationDirection>>),
+            AnimationFillMode(CssValue<crate::style::list::StyleList<crate::style::animation::AnimationFillMode>>),
+            AnimationPlayState(CssValue<crate::style::list::StyleList<crate::style::animation::AnimationPlayState>>),
             TransitionProperty(CssValue<crate::style::list::StyleList<crate::style::transition::TransitionProperty>>),
             TransitionDuration(CssValue<crate::style::list::StyleList<f64>>),
             TransitionDelay(CssValue<crate::style::list::StyleList<f64>>),
@@ -87,6 +95,14 @@ macro_rules! define_declarations {
 
                     Self::BackgroundImage(_) => Property::BackgroundImage,
                     Self::BoxShadow(_) => Property::BoxShadow,
+                    Self::AnimationName(_) => Property::AnimationName,
+                    Self::AnimationDuration(_) => Property::AnimationDuration,
+                    Self::AnimationDelay(_) => Property::AnimationDelay,
+                    Self::AnimationTimingFunction(_) => Property::AnimationTimingFunction,
+                    Self::AnimationIterationCount(_) => Property::AnimationIterationCount,
+                    Self::AnimationDirection(_) => Property::AnimationDirection,
+                    Self::AnimationFillMode(_) => Property::AnimationFillMode,
+                    Self::AnimationPlayState(_) => Property::AnimationPlayState,
                     Self::TransitionProperty(_) => Property::TransitionProperty,
                     Self::TransitionDuration(_) => Property::TransitionDuration,
                     Self::TransitionDelay(_) => Property::TransitionDelay,
@@ -150,6 +166,14 @@ macro_rules! define_declarations {
                     Self::Direction(v) => target.direction = *v, Self::TextWrap(v) => target.text_wrap = *v,
                     Self::BackgroundImage(v) => target.background_image.clone_from(v),
                     Self::BoxShadow(v) => target.box_shadow.clone_from(v),
+                    Self::AnimationName(v) => target.animation_name.clone_from(v),
+                    Self::AnimationDuration(v) => target.animation_duration.clone_from(v),
+                    Self::AnimationDelay(v) => target.animation_delay.clone_from(v),
+                    Self::AnimationTimingFunction(v) => target.animation_timing_function.clone_from(v),
+                    Self::AnimationIterationCount(v) => target.animation_iteration_count.clone_from(v),
+                    Self::AnimationDirection(v) => target.animation_direction.clone_from(v),
+                    Self::AnimationFillMode(v) => target.animation_fill_mode.clone_from(v),
+                    Self::AnimationPlayState(v) => target.animation_play_state.clone_from(v),
                     Self::TransitionProperty(v) => target.transition_property.clone_from(v),
                     Self::TransitionDuration(v) => target.transition_duration.clone_from(v),
                     Self::TransitionDelay(v) => target.transition_delay.clone_from(v),
@@ -232,6 +256,14 @@ FontFeatures => font_features, FontFallbacks => font_fallbacks, FontSize => font
 TextAlign => text_align, Direction => direction, TextWrap => text_wrap,
 BackgroundImage => background_image,
 BoxShadow => box_shadow,
+AnimationName => animation_name,
+AnimationDuration => animation_duration,
+AnimationDelay => animation_delay,
+AnimationTimingFunction => animation_timing_function,
+AnimationIterationCount => animation_iteration_count,
+AnimationDirection => animation_direction,
+AnimationFillMode => animation_fill_mode,
+AnimationPlayState => animation_play_state,
 TransitionProperty => transition_property,
 TransitionDuration => transition_duration,
 TransitionDelay => transition_delay,
@@ -249,6 +281,9 @@ CaretColor => caret_color, CaretAnimation => caret_animation, CaretShape => care
 #[derive(Debug, Clone, Copy, Default, PartialEq)]
 pub(crate) struct PropertyMask(u128);
 impl PropertyMask {
+    pub(crate) fn union(self, other: Self) -> Self {
+        Self(self.0 | other.0)
+    }
     pub(crate) fn insert(&mut self, p: Property) {
         if !matches!(
             p,

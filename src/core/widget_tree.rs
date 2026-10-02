@@ -1,5 +1,5 @@
 use crate::{
-    core::animation::Transitions,
+    core::animation::{Animations, Transitions},
     style::{computed::ComputedStyle, transition::TransitionStyle},
 };
 use slotmap::SlotMap;
@@ -56,6 +56,7 @@ pub(crate) struct Node {
     pub(crate) highlight: Option<Box<crate::style::selection::HighlightState>>,
     paint_cache: crate::core::paint::PaintCache,
     transitions: Option<Box<Transitions>>,
+    animations: Option<Box<Animations>>,
     subtree_animating: bool,
     pub(crate) rendered: bool,
     pub layout: Layout,
@@ -434,6 +435,7 @@ impl WidgetTree {
             highlight: None,
             paint_cache: Default::default(),
             transitions: None,
+            animations: None,
             subtree_animating: false,
             rendered: false,
             layout: Layout::default(),
@@ -1048,7 +1050,7 @@ impl WidgetTree {
         }
     }
 
-    /// Resolve dirty styles and sample active transitions without running layout.
+    /// Resolve dirty styles and sample transitions/keyframes without running layout.
     /// A clean, non-animating tree returns immediately without traversing nodes.
     pub fn update_styles(&mut self, now: Instant) -> StyleChange {
         self.flush_updates();
@@ -1281,8 +1283,8 @@ impl WidgetTree {
         frame.changes
     }
 
-    /// A future deadline while all transitions are delayed, or `now` while any
-    /// transition is playing. Empty trees and completed animations return None.
+    /// A future deadline while motion is delayed, or `now` while it is playing.
+    /// Paused and completed animations do not request frames.
     pub fn next_animation_frame(&self, now: Instant) -> Option<Instant> {
         fn visit(tree: &WidgetTree, id: WidgetId, now: Instant) -> Option<Instant> {
             let node = &tree.nodes[id];
@@ -1293,6 +1295,7 @@ impl WidgetTree {
                 .as_ref()
                 .and_then(|s| s.next_frame(now))
                 .into_iter()
+                .chain(node.animations.as_ref().and_then(|s| s.next_frame(now)))
                 .chain(node.children.iter().filter_map(|id| visit(tree, *id, now)))
                 .min()
         }
@@ -1335,6 +1338,23 @@ impl WidgetTree {
         let mut resolved =
             ComputedStyle::resolve_values(values, parent, self.is_top_layer(id), self.css_viewport);
         let visible = visible && resolved.layout.display != Display::None;
+        let mut animations = self.nodes[id].animations.take();
+        let animated = Animations::update(
+            &mut animations,
+            self.cascaded_style(id),
+            parent,
+            &mut resolved,
+            &self.stylesheets,
+            frame.now,
+            visible,
+            restyle,
+            self.is_top_layer(id),
+            [
+                self.nodes[id].layout.size.width,
+                self.nodes[id].layout.size.height,
+            ],
+        );
+        self.nodes[id].animations = animations;
         let parent_highlight = self.nodes[id]
             .parent
             .and_then(|p| self.nodes[p].highlight.as_ref())
@@ -1406,6 +1426,7 @@ impl WidgetTree {
             frame.style_change && restyle && self.styles_ready && node.rendered,
             visible,
             [node.layout.size.width, node.layout.size.height],
+            animated,
         );
         if self.root == Some(id) {
             resolved.root_font_size = resolved.text.font_size;
@@ -1448,7 +1469,11 @@ impl WidgetTree {
             self.selection.get_mut().invalidate(false);
         }
         node.computed = resolved.clone();
-        let mut animating = node.transitions.is_some();
+        let mut animating = node.transitions.is_some()
+            || node
+                .animations
+                .as_ref()
+                .is_some_and(|s| s.next_frame(frame.now).is_some());
         let propagate = changed
             || transition_changed
             || was_visible != visible

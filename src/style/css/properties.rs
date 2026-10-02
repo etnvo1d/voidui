@@ -293,6 +293,9 @@ pub(crate) fn parse_static_property(name: &str, raw: &str) -> Result<Vec<Declara
     if let Some(p) = crate::style::scroll::ScrollProperty::from_name(&name) {
         return Ok(vec![super::scroll::parse(p, value)?]);
     }
+    if name == "animation" || name.starts_with("animation-") {
+        return super::animation::parse(&name, &raw);
+    }
     let declaration = match name.as_str() {
         "user-select" | "-webkit-user-select" => D::UserSelect(if let Some(v) = wide(value) {
             v

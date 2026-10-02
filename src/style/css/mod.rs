@@ -20,3 +20,5 @@ pub(crate) mod transform;
 
 #[doc(hidden)]
 pub mod values;
+
+mod animation;

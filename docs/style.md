@@ -60,6 +60,7 @@ Taffy helpers remain convenient for typed grid tracks and low-level style struct
 | Typography | `color`, `font`, `font_family`, `font_options`, `font_weight`, `font_style`, `font_features`, `font_fallbacks`, `font_size`, `line_height`, `text_align`, `direction`, `wrap`, `bold`, `italic` |
 | Stacking/input | `z_index`, `isolation`, `visibility`, `pointer_events` |
 | Paint | `background`, `background_image`, `box_shadow`, `border_color`, `border_radius` |
+| Animations | `animation`, `animation_name`, `animation_duration`, `animation_delay`, `animation_timing_function`, `animation_iteration_count`, `animation_direction`, `animation_fill_mode`, `animation_play_state` |
 | Transitions | `transition`, `transition_property`, `transition_duration`, `transition_delay`, `transition_timing_function` |
 
 `flex_row` and `flex_col` set both display and direction. `flex_direction` changes
@@ -160,3 +161,5 @@ See [Stacking and overlays](overlays.md) for stacking contexts, Rust top-layer l
 
 For standard CSS scrolling and the Rust-only `scrollbar_mode` preference, see
 [Scrolling](scrolling.md).
+
+See [CSS keyframe animations](animations.md) for looping effects, multiple animations and playback controls.

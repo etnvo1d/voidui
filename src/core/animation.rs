@@ -1,4 +1,5 @@
-//! Deterministic CSS transition state. The clock is supplied by the caller, so
+//! Shared CSS value interpolation and transition state. Keyframe playback lives
+//! in its own module. The clock is supplied by the caller, so
 //! interruption, reversal, delay and completion are testable without sleeping.
 use crate::{
     core::layout::*,
@@ -13,6 +14,9 @@ use crate::{
     },
 };
 use std::time::{Duration, Instant};
+
+mod keyframes;
+pub(crate) use keyframes::Animations;
 use taffy::Dimension;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -240,6 +244,7 @@ impl Transitions {
         style_change: bool,
         visible: bool,
         size: [f32; 2],
+        animated: crate::style::declaration::PropertyMask,
     ) {
         if !visible {
             *state = None;
@@ -250,6 +255,14 @@ impl Transitions {
         }
         if style_change {
             for &(property, name) in PROPERTIES {
+                if animated.contains(property) {
+                    if spec.timing(name).is_none()
+                        && let Some(state) = state
+                    {
+                        state.running.retain(|r| r.property != property);
+                    }
+                    continue;
+                }
                 let existing = state
                     .as_ref()
                     .and_then(|s| s.running.iter().position(|r| r.property == property));
@@ -329,6 +342,11 @@ impl Transitions {
         }
         if let Some(state) = state {
             for r in &mut state.running {
+                // A completed transition no longer masks a keyframe effect at
+                // the same timestamp; reveal that animation's current sample.
+                if r.finished(now) && animated.contains(r.property) {
+                    continue;
+                }
                 // Percentage matrix suffixes use the latest reference box during resize.
                 for value in [&mut r.from, &mut r.to] {
                     if let Value::Transform(_, basis) = value {

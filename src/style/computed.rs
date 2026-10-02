@@ -8,6 +8,7 @@ pub struct ComputedStyle {
     pub(crate) custom_properties: super::css::values::CustomProperties,
     pub(crate) root_font_size: f32,
     pub(crate) viewport_size: [f32; 2],
+    pub animation: super::animation::AnimationStyle,
     pub transform: super::transform::Transform,
     pub transform_origin: super::transform::TransformOrigin,
     pub(crate) sticky_inset:
@@ -27,6 +28,7 @@ impl Default for ComputedStyle {
             custom_properties: Default::default(),
             root_font_size: TextStyle::default().font_size,
             viewport_size: [0.0; 2],
+            animation: Default::default(),
             transform: Default::default(),
             transform_origin: Default::default(),
             sticky_inset: None,
@@ -116,6 +118,7 @@ impl ComputedStyle {
             custom_properties: values.custom,
             root_font_size: values.root_font,
             viewport_size: viewport,
+            animation: style.resolve_animations(&parent.animation),
             transform: style
                 .transform
                 .resolve(&parent.transform, &Default::default(), false),

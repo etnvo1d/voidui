@@ -27,6 +27,7 @@ pub struct Stylesheet(Rc<CompiledSheet>);
 #[derive(Debug)]
 struct CompiledSheet {
     rules: Vec<Rule>,
+    keyframes: HashMap<String, Rc<super::parser::Keyframes>>,
     normal: RuleIndex,
     backdrop: RuleIndex,
     selection: RuleIndex,
@@ -129,11 +130,20 @@ impl Stylesheet {
         crate::core::widget::WidgetStatus::from_bits_retain(self.0.uses_state)
     }
     pub(crate) fn same_rules(&self, other: &Self) -> bool {
-        Rc::ptr_eq(&self.0, &other.0) || self.0.rules == other.0.rules
+        Rc::ptr_eq(&self.0, &other.0)
+            || (self.0.rules == other.0.rules && self.0.keyframes == other.0.keyframes)
     }
-    pub(crate) fn compile(rules: Vec<Rule>, uses_state: u8) -> Self {
+    pub(crate) fn keyframes(&self, name: &str) -> Option<&Rc<super::parser::Keyframes>> {
+        self.0.keyframes.get(name)
+    }
+    pub(crate) fn compile(
+        rules: Vec<Rule>,
+        uses_state: u8,
+        keyframes: HashMap<String, Rc<super::parser::Keyframes>>,
+    ) -> Self {
         let mut sheet = CompiledSheet {
             rules,
+            keyframes,
             normal: Default::default(),
             backdrop: Default::default(),
             selection: Default::default(),
@@ -229,6 +239,7 @@ pub(crate) fn cascade_nodes(
         for &(_, s, r) in &matches {
             for (decl, important) in sheet_at(s).0.rules[r].declarations.iter() {
                 if *important {
+                    style.important.insert(decl.property());
                     decl.apply(&mut style);
                 }
             }
@@ -236,6 +247,7 @@ pub(crate) fn cascade_nodes(
         if let Some(doc) = element.document() {
             for (decl, important) in doc.node(0).inline.iter() {
                 if *important {
+                    style.important.insert(decl.property());
                     decl.apply(&mut style);
                 }
             }

@@ -452,6 +452,121 @@ impl<'a> StyleBuilder<'a> {
         self.style.box_shadow = shadows;
         self
     }
+    /// Replace all CSS animation longhands; an empty name list disables animation.
+    pub fn animation(self, value: crate::style::animation::AnimationStyle) -> Self {
+        self.animation_name(value.names)
+            .animation_duration(value.durations)
+            .animation_delay(value.delays)
+            .animation_timing_function(value.easing)
+            .animation_iteration_count(value.iterations)
+            .animation_direction(value.directions)
+            .animation_fill_mode(value.fill_modes)
+            .animation_play_state(value.play_states)
+    }
+    /// Set CSS animation-name; shorter lists repeat to match animation names.
+    pub fn animation_name(
+        self,
+        value: impl Into<
+            CssValue<crate::style::list::StyleList<crate::style::animation::AnimationName>>,
+        >,
+    ) -> Self {
+        let value = value.into();
+        crate::style::declaration::Declaration::AnimationName(value).apply(self.style);
+        self
+    }
+    /// Set CSS animation-duration; shorter lists repeat to match animation names.
+    pub fn animation_duration(
+        self,
+        value: impl Into<CssValue<crate::style::list::StyleList<f64>>>,
+    ) -> Self {
+        let value = value.into();
+        if let CssValue::Value(values) = &value {
+            assert!(
+                values.iter().all(|v| v.is_finite() && *v >= 0.0),
+                "invalid animation-duration"
+            );
+        }
+        crate::style::declaration::Declaration::AnimationDuration(value).apply(self.style);
+        self
+    }
+    /// Set CSS animation-delay; shorter lists repeat to match animation names.
+    pub fn animation_delay(
+        self,
+        value: impl Into<CssValue<crate::style::list::StyleList<f64>>>,
+    ) -> Self {
+        let value = value.into();
+        if let CssValue::Value(values) = &value {
+            assert!(
+                values.iter().all(|v| v.is_finite()),
+                "invalid animation-delay"
+            );
+        }
+        crate::style::declaration::Declaration::AnimationDelay(value).apply(self.style);
+        self
+    }
+    /// Set CSS animation-timing-function; shorter lists repeat to match animation names.
+    pub fn animation_timing_function(
+        self,
+        value: impl Into<CssValue<crate::style::list::StyleList<crate::style::transition::Easing>>>,
+    ) -> Self {
+        let value = value.into();
+        if let CssValue::Value(values) = &value {
+            assert!(
+                values.iter().all(|v| v.is_valid()),
+                "invalid animation-timing_function"
+            );
+        }
+        crate::style::declaration::Declaration::AnimationTimingFunction(value).apply(self.style);
+        self
+    }
+    /// Set CSS animation-iteration-count; shorter lists repeat to match animation names.
+    pub fn animation_iteration_count(
+        self,
+        value: impl Into<CssValue<crate::style::list::StyleList<f64>>>,
+    ) -> Self {
+        let value = value.into();
+        if let CssValue::Value(values) = &value {
+            assert!(
+                values.iter().all(|v| !v.is_nan() && *v >= 0.0),
+                "invalid animation-iteration_count"
+            );
+        }
+        crate::style::declaration::Declaration::AnimationIterationCount(value).apply(self.style);
+        self
+    }
+    /// Set CSS animation-direction; shorter lists repeat to match animation names.
+    pub fn animation_direction(
+        self,
+        value: impl Into<
+            CssValue<crate::style::list::StyleList<crate::style::animation::AnimationDirection>>,
+        >,
+    ) -> Self {
+        let value = value.into();
+        crate::style::declaration::Declaration::AnimationDirection(value).apply(self.style);
+        self
+    }
+    /// Set CSS animation-fill-mode; shorter lists repeat to match animation names.
+    pub fn animation_fill_mode(
+        self,
+        value: impl Into<
+            CssValue<crate::style::list::StyleList<crate::style::animation::AnimationFillMode>>,
+        >,
+    ) -> Self {
+        let value = value.into();
+        crate::style::declaration::Declaration::AnimationFillMode(value).apply(self.style);
+        self
+    }
+    /// Set CSS animation-play-state; shorter lists repeat to match animation names.
+    pub fn animation_play_state(
+        self,
+        value: impl Into<
+            CssValue<crate::style::list::StyleList<crate::style::animation::AnimationPlayState>>,
+        >,
+    ) -> Self {
+        let value = value.into();
+        crate::style::declaration::Declaration::AnimationPlayState(value).apply(self.style);
+        self
+    }
     /// Set all transition longhands together, following CSS shorthand semantics.
     pub fn transition(
         self,

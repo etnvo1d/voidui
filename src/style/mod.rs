@@ -20,6 +20,7 @@ pub mod paint;
 pub mod css;
 pub mod declaration;
 
+pub mod animation;
 pub mod gradient;
 pub mod list;
 pub mod shadow;

@@ -172,12 +172,13 @@ The current property adapter covers the implemented UI layout and painting model
 - z-index, isolation, visibility and pointer-events; see [Stacking and overlays](overlays.md).
 - Standard overflow, scrollbar-width/color/gutter and overscroll-behavior; see [Scrolling](scrolling.md).
 - CSS Color 4 spaces, gradients, box-shadow, and transitions; see [CSS effects](effects.md).
+- `@keyframes` and the eight animation longhands; see [CSS animations](animations.md).
 - inherit/initial/unset where the corresponding typed property supports them.
 
 Unsupported syntax returns a line/column error and does not partially replace the
 stylesheet. This strict loading policy differs from a browser's error recovery.
-At-rules (including @media, @import, @property and @font-face), nested rules,
-keyframe animations, cascade layers/revert, generated content,
+At-rules other than @keyframes (including @media, @import, @property and @font-face), nested rules,
+cascade layers/revert, generated content,
 per-side border colors/styles, elliptical corner radii, full
 white-space processing and inline formatting are not implemented. The adapter does
 not fetch URLs or install fonts. Typography and position limitations documented in

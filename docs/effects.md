@@ -50,6 +50,9 @@ duration/delay longhand lists use seconds. An empty `transition(...)` list disab
 transitions. `background(color)` remains an alias for setting background-color;
 CSS's `background` shorthand resets both background-color and background-image.
 
+For looping, staged or explicitly controlled motion, see
+[CSS keyframe animations](animations.md).
+
 ## Transitions and invalidation
 
 The four transition longhands and the `transition` shorthand support comma-separated
@@ -79,7 +82,7 @@ Unknown transition-property names remain in the list but do not animate anything
 Discrete values (including background-image, auto/intrinsic dimensions and inset
 mismatches in shadow lists) change immediately. Mixed px/percentage interpolation
 requires a calc-capable layout representation and is not implemented. Group opacity,
-3D transforms, transition-behavior:allow-discrete, @starting-style, @keyframes, and
+3D transforms, transition-behavior:allow-discrete, @starting-style, and
 DOM TransitionEvent dispatch are not implemented. This is a native widget subset,
 not a claim of complete browser CSS conformance.
 

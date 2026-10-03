@@ -78,6 +78,8 @@ pub struct FrameStats {
     pub gpu_recoveries: u64,
     pub last_layout_time: Duration,
     pub last_scene_time: Duration,
+    /// CPU time spent resizing the surface, including the backend's GPU wait.
+    pub last_surface_resize_time: Duration,
     pub last_present_time: Duration,
     pub renderer: crate::render::RenderStats,
 }
@@ -829,7 +831,9 @@ impl AppWindow {
         }
         // Atlas reset invalidates scene tile IDs even when the widget tree is clean.
         self.scene_dirty |= renderer.needs_redraw();
+        let started = Instant::now();
         renderer.update_drawable_size(self.viewport.device_size());
+        self.stats.last_surface_resize_time = started.elapsed();
         let logical = self.viewport.logical();
         if self.layout_dirty {
             let started = Instant::now();

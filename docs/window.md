@@ -90,7 +90,9 @@ compatibility is still tested. The inherited override is retained for compatibil
 with the renderer fork. VSync/FIFO remains the default; there is no uncapped loop.
 
 `FrameStats` records layout passes, scene builds, presentations, failures, and
-last-pass CPU durations. It does not measure GPU execution time or total system
+last-pass CPU durations. `last_surface_resize_time` includes the CPU wait inside
+WGPU surface reconfiguration, separately from layout, scene building, and
+presentation. It does not measure GPU execution time or total system
 power consumption. Layout's internal cache currently reuses measurements within
 each reflow; the window skips that entire reflow when content is unchanged.
 
@@ -103,7 +105,7 @@ GPUI application runtime or its native renderers.
 | Platform | Adaptation |
 | --- | --- |
 | macOS | AppKit main-thread loop; disable unsupported automatic native tabbing; synchronous resize drawing with CAMetalLayer `presentsWithTransaction`; allow drawable acquisition timeout; park on occlusion. |
-| Windows | Enable Winit's per-monitor DPI awareness before HWND creation; process physical resize/scale events; skip minimized windows; retain resources between exposure redraws. |
+| Windows | Enable Winit's per-monitor DPI awareness before HWND creation; request a redraw during resize events so native sizing loops can present; prefer DX12 when GPU preferences tie; skip minimized windows; retain resources between exposure redraws. |
 | Wayland | Supply app_id; notify Winit immediately before a successful presentation so compositor frame callbacks can pace requests; do not force an X11 backend. |
 | X11 | Supply WM_CLASS; handle exposure/resize through Winit and use the same event-driven, bounded-retry scheduler. |
 
@@ -117,6 +119,20 @@ properties under the layer mutex. WGPU's Metal backend performs its existing
 `waitUntilScheduled` plus drawable-present sequence for transactional frames.
 Normal frames return to non-transactional presentation. There is no separate
 CoreVideo callback thread or duplicate display-link lifecycle.
+
+Windows' native sizing loop can dispatch resize and paint messages without
+returning to `about_to_wait`. Resize events request a paint immediately through
+the existing frame scheduler; drawing still happens on `RedrawRequested`, and
+duplicate requests coalesce. DX12 takes precedence over Vulkan on otherwise
+equally ranked Windows adapters. Explicit device preferences, compositor matches,
+integrated-GPU preference, and compatibility fallback still apply.
+
+DX12 presents through WGPU's DirectComposition visual. Its retained frame keeps
+its original pixel size while the HWND changes size, so fixed-position elements
+do not stretch and then jump back when the new frame arrives. The default HWND
+swapchain stretches old content to the current client size during that gap.
+For GPU tooling that requires an HWND swapchain, set
+`WGPU_DX12_PRESENTATION_SYSTEM=hwnd`; this restores that backend's resize scaling.
 
 Backgrounds, solid borders, uniform rounded corners, and per-axis rectangular
 overflow clipping are painted by the shared box painter. Border color defaults
@@ -182,7 +198,11 @@ context, and the idle smoke test. A two-second
 process sample placed the main thread entirely in the OS event wait; a separate
 idle `ps` sample reported 0.0% CPU. These observations are not a sustained power
 benchmark. Windows GNU and Linux GNU targets pass `cargo check --all-targets`;
-no Windows/Linux hardware or compositor testing has been performed.
+Linux compositor testing has not been performed. On Windows with an AMD Radeon
+890M, native resize checks presented 60/60 frames with both system and
+custom decorations. With the same minimal scene and debug build, Vulkan averaged
+185 ms per resize (176 ms in surface reconfiguration); DX12 averaged 16 ms.
+These observations describe this machine and driver, not every Windows GPU.
 
 For native macOS UI automation, `scripts/bundle-macos.sh` creates `target/Voidui.app`
 without installing it. Override `VOIDUI_BUNDLE_PATH` and `VOIDUI_BUNDLE_ID` if needed.

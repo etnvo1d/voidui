@@ -1188,9 +1188,8 @@ impl WgpuRenderer {
                 return;
             };
 
-            // WGPU tracks in-flight texture references and synchronizes surface
-            // reconfiguration. Avoid an additional unbounded device-wide CPU wait
-            // on every live-resize event; retire the old textures through WGPU.
+            // Surface::configure already waits for in-flight GPU work before
+            // recreating the swapchain. Do not add a second device-wide wait.
             // Destroy old textures before allocating new ones to avoid GPU memory spikes
             if let Some(ref texture) = resources.path_intermediate_texture {
                 texture.destroy();

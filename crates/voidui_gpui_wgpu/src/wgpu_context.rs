@@ -292,11 +292,22 @@ impl WgpuContext {
 
     #[cfg(not(target_family = "wasm"))]
     pub fn instance(display: Box<dyn wgpu::wgt::WgpuHasDisplayHandle>) -> wgpu::Instance {
+        let backend_options = wgpu::BackendOptions {
+            #[cfg(target_os = "windows")]
+            dx12: wgpu::Dx12BackendOptions {
+                // Keep the previous frame at its own pixel size while the HWND
+                // resizes. HWND swapchains stretch it before the next paint,
+                // making fixed-position content jump back and forth.
+                presentation_system: wgpu::Dx12SwapchainKind::DxgiFromVisual.with_env(),
+                ..Default::default()
+            },
+            ..Default::default()
+        };
         wgpu::Instance::new(wgpu::InstanceDescriptor {
             // Standalone use includes macOS/Windows; upstream used this only on Linux.
             backends: wgpu::Backends::all(),
             flags: wgpu::InstanceFlags::default(),
-            backend_options: wgpu::BackendOptions::default(),
+            backend_options,
             memory_budget_thresholds: wgpu::MemoryBudgetThresholds::default(),
             display: Some(display),
         })
@@ -391,9 +402,14 @@ impl WgpuContext {
                 }
             };
 
+            // Prefer the Windows presentation backend when GPU preferences tie.
+            // Vulkan swapchain recreation can stall live resizing on Windows;
+            // DX12 uses DXGI's native path. Keep every adapter as a fallback and
+            // still honor explicit device/compositor choices before this rank.
             let backend_priority: u8 = match info.backend {
-                wgpu::Backend::Vulkan | wgpu::Backend::Metal | wgpu::Backend::Dx12 => 0,
-                _ => 1,
+                wgpu::Backend::Dx12 if cfg!(target_os = "windows") => 0,
+                wgpu::Backend::Vulkan | wgpu::Backend::Metal | wgpu::Backend::Dx12 => 1,
+                _ => 2,
             };
 
             (

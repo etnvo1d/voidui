@@ -344,6 +344,11 @@ impl ApplicationHandler<RuntimeEvent> for Runtime {
             }
             WindowEvent::Resized(_) => {
                 window.update_viewport();
+                // Windows dispatches live-resize messages inside a native sizing
+                // loop that does not reach AboutToWait. Queue WM_PAINT now so
+                // each changed viewport can draw while the pointer is held.
+                #[cfg(target_os = "windows")]
+                window.request_if_needed(Instant::now());
                 if platform::SYNCHRONOUS_RESIZE {
                     self.draw(event_loop, id, true);
                 }

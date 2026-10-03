@@ -49,4 +49,10 @@ relies on WGPU synchronization instead of an extra unbounded device poll; device
 recovery retry delays belong to the host scheduler instead of a blocking sleep.
 Path/MSAA intermediate textures are allocated only when the scene contains paths.
 Adapter selection prefers integrated GPUs after explicit/compositor matches to
-avoid waking a discrete GPU for ordinary UI work. Existing licenses remain intact.
+avoid waking a discrete GPU for ordinary UI work. Equally ranked Windows adapters
+prefer DX12 to avoid costly Vulkan swapchain recreation during live resize;
+compatibility testing and fallback to other adapters remain available.
+Windows DX12 presentation uses WGPU's DirectComposition visual to retain old
+frames at their pixel size while the window resizes. The standard
+`WGPU_DX12_PRESENTATION_SYSTEM` environment override remains available for tooling.
+Existing licenses remain intact.

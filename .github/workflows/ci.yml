@@ -25,7 +25,11 @@ jobs:
         run: rustup toolchain install stable --profile minimal
       - name: Test all features and documentation
         run: cargo +stable test --workspace --all-features --locked
-      - name: Test without the editing engine
+      - name: Test default features
+        run: cargo +stable test --workspace --locked
+      - name: Test liquid glass without editing
+        run: cargo +stable test --workspace --no-default-features --features liquid-glass --locked
+      - name: Test without optional features
         run: cargo +stable test --workspace --no-default-features --locked
       - name: Test the retained file tree example
         run: cargo +stable test --example file_tree --locked
@@ -58,5 +62,5 @@ jobs:
         run: rustup toolchain install stable --profile minimal
       - name: Check all targets and features
         run: cargo +stable check --workspace --all-targets --all-features --locked
-      - name: Check without the editing engine
+      - name: Check without optional features
         run: cargo +stable check --workspace --all-targets --no-default-features --locked

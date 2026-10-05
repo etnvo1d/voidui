@@ -778,3 +778,40 @@ pub use {
     __voidui_base_styles, __voidui_layout_styles, __voidui_media_styles, __voidui_svg_styles,
     __voidui_text_styles,
 };
+
+// Select the macro in this crate, not at its expansion site: a consumer may
+// rename voidui and need not declare its own `liquid-glass` feature.
+#[cfg(feature = "liquid-glass")]
+#[voidui_macros::style_methods(__voidui_glass_styles)]
+impl<'a> StyleBuilder<'a> {
+    /// Apply a portable glass material beneath the box background and its children.
+    /// Use `None` to remove it; an opaque background hides the optical effect.
+    pub fn liquid_glass(
+        self,
+        material: impl Into<CssValue<Option<voidui_gpui_wgpu::GlassMaterial>>>,
+    ) -> Self {
+        let material = material.into();
+        if let CssValue::Value(Some(value)) = material {
+            assert!(value.is_valid(), "invalid glass material");
+        }
+        self.style.mark(Property::LiquidGlass);
+        // Keep optical parameters out of every ordinary widget's inline style.
+        self.style.liquid_glass = match material {
+            CssValue::Value(value) => CssValue::Value(value.map(std::sync::Arc::new)),
+            CssValue::Inherit => CssValue::Inherit,
+            CssValue::Initial => CssValue::Initial,
+            CssValue::Unset => CssValue::Unset,
+        };
+        self
+    }
+}
+
+#[cfg(not(feature = "liquid-glass"))]
+#[doc(hidden)]
+#[macro_export]
+macro_rules! __voidui_glass_styles {
+    ($($excluded:ident),* $(,)?) => {};
+}
+
+#[doc(hidden)]
+pub use __voidui_glass_styles;

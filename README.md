@@ -24,6 +24,7 @@ been removed. Use `hello`, `cargo test --test layout`, and `file_tree` respectiv
 - [CSS selectors and optional hot reload](docs/css.md)
 - [Stacking, top layer and tooltips](docs/overlays.md)
 - [Transitions, color spaces, gradients and shadows](docs/effects.md)
+- [Experimental portable liquid glass and adhesion](docs/liquid-glass.md) (opt-in `liquid-glass` feature)
 - [Fluent styles and inheritance](docs/style.md)
 - [Tailwind-style classes and Rust utility methods](docs/tailwind.md)
 - [CSS layout](docs/layout.md)

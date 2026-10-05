@@ -210,3 +210,15 @@ fallback.
 ## Parley migration
 
 The former GPUI line-layout/wrapper APIs were removed. See [the migration guide](../../docs/parley.md) for the replacement paragraph APIs, cache ownership and source-offset rules.
+
+## Optional liquid glass
+
+Enable `liquid-glass` to use `GlassMaterial` and the painter's glass surfaces and
+shared-backdrop groups. The default build excludes the glass shader sources,
+pipelines and scratch resources. The feature is independent of VoidUI's editing
+engine and does not require native Apple APIs. See the [usage and limitations](../../docs/liquid-glass.md)
+and [native research record](../../docs/liquid-glass-research.md).
+
+```sh
+cargo run -p voidui_gpui_wgpu --features liquid-glass --example glass_verify --release
+```

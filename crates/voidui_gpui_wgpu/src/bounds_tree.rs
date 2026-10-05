@@ -121,10 +121,16 @@ where
     ///
     /// The ordering is one greater than the maximum ordering of any
     /// existing bounds that intersect with the new bounds.
+    #[cfg(test)]
     pub fn insert(&mut self, new_bounds: Bounds<U>) -> u32 {
+        self.insert_after(new_bounds, 0)
+    }
+
+    /// A backdrop read is an ordering barrier, including for disjoint bounds.
+    pub fn insert_after(&mut self, new_bounds: Bounds<U>, minimum: u32) -> u32 {
         // Find maximum ordering among intersecting bounds
         let max_intersecting = self.find_max_ordering(&new_bounds);
-        let ordering = max_intersecting + 1;
+        let ordering = (max_intersecting + 1).max(minimum);
 
         // Insert the new leaf
         let new_leaf_idx = self.insert_leaf(new_bounds, ordering);

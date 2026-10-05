@@ -44,8 +44,8 @@ pub mod tailwind;
 // keep the same names visible to rustc and rust-analyzer without macro_use hops.
 #[doc(hidden)]
 pub use builder::{
-    __voidui_base_styles, __voidui_layout_styles, __voidui_media_styles, __voidui_svg_styles,
-    __voidui_text_styles,
+    __voidui_base_styles, __voidui_glass_styles, __voidui_layout_styles, __voidui_media_styles,
+    __voidui_svg_styles, __voidui_text_styles,
 };
 #[doc(hidden)]
 pub use tailwind::{
@@ -67,6 +67,7 @@ macro_rules! __voidui_style_methods {
     ($($excluded:ident),* $(,)?) => {
         $crate::style::__voidui_layout_styles!($($excluded),*);
         $crate::style::__voidui_text_styles!($($excluded),*);
+        $crate::style::__voidui_glass_styles!($($excluded),*);
         $crate::style::__voidui_base_styles!($($excluded),*);
         $crate::style::__voidui_media_styles!($($excluded),*);
         $crate::style::__voidui_svg_styles!($($excluded),*);

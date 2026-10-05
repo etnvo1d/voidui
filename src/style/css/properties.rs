@@ -470,6 +470,20 @@ pub(crate) fn parse_static_property(name: &str, raw: &str) -> Result<Vec<Declara
         } else {
             super::gradient::images(&raw)?.into()
         }),
+        #[cfg(feature = "liquid-glass")]
+        "-voidui-liquid-glass" => D::LiquidGlass(if let Some(v) = wide(value) {
+            v
+        } else {
+            let material = match raw.trim().to_ascii_lowercase().as_str() {
+                "none" => None,
+                "regular" => Some(std::sync::Arc::new(
+                    voidui_gpui_wgpu::GlassMaterial::regular(),
+                )),
+                "clear" => Some(std::sync::Arc::new(voidui_gpui_wgpu::GlassMaterial::clear())),
+                _ => return Err("expected none, regular, or clear glass".into()),
+            };
+            material.into()
+        }),
         "box-shadow" => D::BoxShadow(if let Some(v) = wide(value) {
             v
         } else {

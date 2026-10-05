@@ -48,7 +48,13 @@ pub struct Scene {
     pub(crate) spatial_id: u32,
     pub(crate) paint_operations: Vec<PaintOperation>,
     primitive_bounds: BoundsTree<ScaledPixels>,
-    layer_stack: Vec<DrawOrder>,
+    layer_stack: Vec<(DrawOrder, Bounds<ScaledPixels>)>,
+    #[cfg(feature = "liquid-glass")]
+    glass_group: Option<DrawOrder>,
+    order_floor: DrawOrder,
+    max_order: DrawOrder,
+    #[cfg(feature = "liquid-glass")]
+    pub glasses: Vec<crate::Glass>,
     pub shadows: Vec<Shadow>,
     pub gradient_data: Vec<[u32; 4]>,
     pub quads: Vec<Quad>,
@@ -63,6 +69,13 @@ pub struct Scene {
 
 impl Scene {
     pub fn clear(&mut self) {
+        #[cfg(feature = "liquid-glass")]
+        {
+            self.glass_group = None;
+            self.glasses.clear();
+        }
+        self.order_floor = 0;
+        self.max_order = 0;
         self.atlas_leases.clear();
         self.spatial.clear();
         self.spatial_id = 0;
@@ -86,8 +99,9 @@ impl Scene {
     }
 
     pub fn push_layer(&mut self, bounds: Bounds<ScaledPixels>) {
-        let order = self.primitive_bounds.insert(bounds);
-        self.layer_stack.push(order);
+        let order = self.primitive_bounds.insert_after(bounds, self.order_floor);
+        self.max_order = self.max_order.max(order);
+        self.layer_stack.push((order, bounds));
         self.paint_operations
             .push(PaintOperation::StartLayer(bounds));
     }
@@ -95,6 +109,18 @@ impl Scene {
     pub fn pop_layer(&mut self) {
         self.layer_stack.pop();
         self.paint_operations.push(PaintOperation::EndLayer);
+    }
+
+    #[cfg(feature = "liquid-glass")]
+    pub(crate) fn start_glass_group(&mut self) {
+        debug_assert!(self.glass_group.is_none());
+        self.glass_group = Some(self.max_order + 1);
+        self.paint_operations.push(PaintOperation::StartGlassGroup);
+    }
+    #[cfg(feature = "liquid-glass")]
+    pub(crate) fn end_glass_group(&mut self) {
+        self.glass_group = None;
+        self.paint_operations.push(PaintOperation::EndGlassGroup);
     }
 
     pub fn insert_primitive(&mut self, primitive: impl Into<Primitive>) {
@@ -115,12 +141,42 @@ impl Scene {
             return;
         }
 
-        let order = self
-            .layer_stack
-            .last()
-            .copied()
-            .unwrap_or_else(|| self.primitive_bounds.insert(clipped_bounds));
+        // Glass reads earlier pixels outside its own shape. Global barriers keep
+        // later foreground out of that capture even when batching disjoint boxes.
+        #[cfg(feature = "liquid-glass")]
+        let is_glass = matches!(primitive, Primitive::Glass(_));
+        let order = match &primitive {
+            #[cfg(feature = "liquid-glass")]
+            Primitive::Glass(_) => self.glass_group.unwrap_or(self.max_order + 1),
+            _ => self
+                .layer_stack
+                .last()
+                .map(|(o, _)| (*o).max(self.order_floor))
+                .unwrap_or_else(|| {
+                    self.primitive_bounds
+                        .insert_after(clipped_bounds, self.order_floor)
+                }),
+        };
+        self.max_order = self.max_order.max(order);
+        #[cfg(feature = "liquid-glass")]
+        if is_glass {
+            self.order_floor = order + 1;
+            // A layer opened before a capture now has foreground in a later epoch.
+            // Publish its bounds at that epoch, or a following outside quad could
+            // tie with (and be batched underneath) text inside the old layer.
+            for (layer_order, bounds) in &mut self.layer_stack {
+                *layer_order = self
+                    .primitive_bounds
+                    .insert_after(*bounds, self.order_floor);
+                self.max_order = self.max_order.max(*layer_order);
+            }
+        }
         match &mut primitive {
+            #[cfg(feature = "liquid-glass")]
+            Primitive::Glass(glass) => {
+                glass.quad.order = order;
+                self.glasses.push(glass.clone());
+            }
             Primitive::Shadow(shadow) => {
                 shadow.order = order;
                 self.shadows.push(*shadow);
@@ -213,6 +269,10 @@ impl Scene {
                 }
                 PaintOperation::StartLayer(bounds) => self.push_layer(*bounds),
                 PaintOperation::EndLayer => self.pop_layer(),
+                #[cfg(feature = "liquid-glass")]
+                PaintOperation::StartGlassGroup => self.start_glass_group(),
+                #[cfg(feature = "liquid-glass")]
+                PaintOperation::EndGlassGroup => self.end_glass_group(),
             }
         }
         self.spatial_id = saved_space;
@@ -221,6 +281,8 @@ impl Scene {
     pub fn finish(&mut self) {
         static SERIAL: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
         self.revision = SERIAL.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        #[cfg(feature = "liquid-glass")]
+        self.glasses.sort_by_key(|g| g.quad.order);
         self.shadows.sort_by_key(|shadow| shadow.order);
         self.quads.sort_by_key(|quad| quad.order);
         self.paths.sort_by_key(|path| path.order);
@@ -236,6 +298,10 @@ impl Scene {
 
     pub fn batches(&self) -> impl Iterator<Item = PrimitiveBatch> + '_ {
         BatchIterator {
+            #[cfg(feature = "liquid-glass")]
+            glasses_start: 0,
+            #[cfg(feature = "liquid-glass")]
+            glasses_iter: self.glasses.iter().peekable(),
             shadows_start: 0,
             shadows_iter: self.shadows.iter().peekable(),
             quads_start: 0,
@@ -258,6 +324,8 @@ impl Scene {
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Ord, PartialOrd, Default)]
 pub(crate) enum PrimitiveKind {
+    #[cfg(feature = "liquid-glass")]
+    Glass,
     Shadow,
     #[default]
     Quad,
@@ -271,12 +339,18 @@ pub(crate) enum PrimitiveKind {
 
 pub(crate) enum PaintOperation {
     Primitive(Primitive),
+    #[cfg(feature = "liquid-glass")]
+    StartGlassGroup,
+    #[cfg(feature = "liquid-glass")]
+    EndGlassGroup,
     StartLayer(Bounds<ScaledPixels>),
     EndLayer,
 }
 
 #[derive(Clone)]
 pub enum Primitive {
+    #[cfg(feature = "liquid-glass")]
+    Glass(crate::Glass),
     Shadow(Shadow),
     Quad(Quad),
     Path(Path<ScaledPixels>),
@@ -290,6 +364,8 @@ pub enum Primitive {
 impl Primitive {
     fn set_spatial_id(&mut self, id: u32) {
         match self {
+            #[cfg(feature = "liquid-glass")]
+            Self::Glass(p) => p.quad.spatial_id = id,
             Self::Shadow(p) => p.spatial_id = id,
             Self::Quad(p) => p.spatial_id = id,
             Self::Path(p) => p.spatial_id = id,
@@ -302,6 +378,8 @@ impl Primitive {
     }
     fn spatial_id(&self) -> u32 {
         match self {
+            #[cfg(feature = "liquid-glass")]
+            Self::Glass(p) => p.quad.spatial_id,
             Self::Shadow(p) => p.spatial_id,
             Self::Quad(p) => p.spatial_id,
             Self::Path(p) => p.spatial_id,
@@ -315,6 +393,10 @@ impl Primitive {
 
     pub fn bounds(&self) -> Bounds<ScaledPixels> {
         match self {
+            #[cfg(feature = "liquid-glass")]
+            Primitive::Glass(g) => g.quad.bounds.dilate(ScaledPixels(
+                g.smoothing * 0.25 + g.material.background.map_or(0., |p| p.paint_padding()),
+            )),
             Primitive::Shadow(shadow) => shadow.paint_bounds(),
             Primitive::Quad(quad) => quad.bounds,
             Primitive::Path(path) => path.bounds,
@@ -328,6 +410,8 @@ impl Primitive {
 
     pub fn content_mask(&self) -> &ContentMask<ScaledPixels> {
         match self {
+            #[cfg(feature = "liquid-glass")]
+            Primitive::Glass(g) => &g.quad.content_mask,
             Primitive::Shadow(shadow) => &shadow.content_mask,
             Primitive::Quad(quad) => &quad.content_mask,
             Primitive::Path(path) => &path.content_mask,
@@ -341,6 +425,10 @@ impl Primitive {
 }
 
 struct BatchIterator<'a> {
+    #[cfg(feature = "liquid-glass")]
+    glasses_start: usize,
+    #[cfg(feature = "liquid-glass")]
+    glasses_iter: Peekable<slice::Iter<'a, crate::Glass>>,
     shadows_start: usize,
     shadows_iter: Peekable<slice::Iter<'a, Shadow>>,
     quads_start: usize,
@@ -364,6 +452,11 @@ impl<'a> Iterator for BatchIterator<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         let mut orders_and_kinds = [
+            #[cfg(feature = "liquid-glass")]
+            (
+                self.glasses_iter.peek().map(|g| g.quad.order),
+                PrimitiveKind::Glass,
+            ),
             (
                 self.shadows_iter.peek().map(|s| s.order),
                 PrimitiveKind::Shadow,
@@ -402,6 +495,20 @@ impl<'a> Iterator for BatchIterator<'a> {
         };
 
         match batch_kind {
+            #[cfg(feature = "liquid-glass")]
+            PrimitiveKind::Glass => {
+                let first = self.glasses_iter.next().unwrap();
+                let start = self.glasses_start;
+                self.glasses_start += 1;
+                while self
+                    .glasses_iter
+                    .next_if(|g| g.quad.order == first.quad.order)
+                    .is_some()
+                {
+                    self.glasses_start += 1;
+                }
+                Some(PrimitiveBatch::Glass(start..self.glasses_start))
+            }
             PrimitiveKind::Shadow => {
                 let shadows_start = self.shadows_start;
                 let mut shadows_end = shadows_start + 1;
@@ -542,6 +649,8 @@ impl<'a> Iterator for BatchIterator<'a> {
 #[derive(Debug)]
 #[allow(missing_docs)]
 pub enum PrimitiveBatch {
+    #[cfg(feature = "liquid-glass")]
+    Glass(Range<usize>),
     Shadows(Range<usize>),
     Quads(Range<usize>),
     Paths(Range<usize>),
@@ -565,6 +674,8 @@ pub enum PrimitiveBatch {
 impl PrimitiveBatch {
     pub fn label(&self) -> String {
         match self {
+            #[cfg(feature = "liquid-glass")]
+            Self::Glass(range) => format!("glass ({})", range.len()),
             Self::Shadows(range) => format!("shadows ({})", range.len()),
             Self::Quads(range) => format!("quads ({})", range.len()),
             Self::Paths(range) => format!("paths ({})", range.len()),

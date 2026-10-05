@@ -373,3 +373,16 @@ fn root_kind_changes_keep_the_invocation_overlay_and_hooks() {
     assert_eq!(tree.component_count(), 1);
     assert_eq!(tree.state_count(), 1);
 }
+
+#[cfg(feature = "liquid-glass")]
+#[test]
+fn generated_component_builder_forwards_the_glass_material() {
+    let material = voidui::GlassMaterial::clear();
+    let tree = build(label().liquid_glass(Some(material)));
+    assert_eq!(
+        tree.paint_style(tree.root().unwrap())
+            .liquid_glass
+            .as_deref(),
+        Some(&material)
+    );
+}

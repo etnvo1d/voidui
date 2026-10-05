@@ -24,6 +24,15 @@ const INSTANCE_TEXTURE_TEXEL_SIZE: u64 = 16;
 
 /// Shader variant for backends with storage buffer support: the shared shader
 /// logic plus the storage-buffer instance transport.
+#[cfg(feature = "liquid-glass")]
+const STORAGE_BUFFER_SHADERS: &str = concat!(
+    include_str!("shaders.wgsl"),
+    include_str!("glass_math.wgsl"),
+    include_str!("glass_background.wgsl"),
+    include_str!("glass.wgsl"),
+    include_str!("shaders_storage.wgsl"),
+);
+#[cfg(not(feature = "liquid-glass"))]
 const STORAGE_BUFFER_SHADERS: &str = concat!(
     include_str!("shaders.wgsl"),
     include_str!("shaders_storage.wgsl"),
@@ -31,6 +40,15 @@ const STORAGE_BUFFER_SHADERS: &str = concat!(
 
 /// Shader variant for WebGL2, which has no storage buffers: the shared shader
 /// logic plus the texture-based instance transport.
+#[cfg(feature = "liquid-glass")]
+const WEBGL_SHADERS: &str = concat!(
+    include_str!("shaders.wgsl"),
+    include_str!("glass_math.wgsl"),
+    include_str!("glass_background.wgsl"),
+    include_str!("glass.wgsl"),
+    include_str!("shaders_webgl.wgsl"),
+);
+#[cfg(not(feature = "liquid-glass"))]
 const WEBGL_SHADERS: &str = concat!(
     include_str!("shaders.wgsl"),
     include_str!("shaders_webgl.wgsl"),
@@ -39,6 +57,17 @@ const WEBGL_SHADERS: &str = concat!(
 /// Subpixel text rendering requires dual-source blending, which WebGL2 lacks, so
 /// this variant only ever runs with the storage-buffer transport. The `enable`
 /// directive must precede all declarations.
+#[cfg(feature = "liquid-glass")]
+const SUBPIXEL_SHADERS: &str = concat!(
+    "enable dual_source_blending;\n",
+    include_str!("shaders.wgsl"),
+    include_str!("glass_math.wgsl"),
+    include_str!("glass_background.wgsl"),
+    include_str!("glass.wgsl"),
+    include_str!("shaders_storage.wgsl"),
+    include_str!("shaders_subpixel.wgsl"),
+);
+#[cfg(not(feature = "liquid-glass"))]
 const SUBPIXEL_SHADERS: &str = concat!(
     "enable dual_source_blending;\n",
     include_str!("shaders.wgsl"),
@@ -132,6 +161,10 @@ pub struct WgpuSurfaceConfig {
 }
 
 struct WgpuPipelines {
+    #[cfg(feature = "liquid-glass")]
+    glass: wgpu::RenderPipeline,
+    #[cfg(feature = "liquid-glass")]
+    glass_optical: wgpu::RenderPipeline,
     quads: wgpu::RenderPipeline,
     shadows: wgpu::RenderPipeline,
     path_rasterization: wgpu::RenderPipeline,
@@ -156,6 +189,8 @@ struct InstanceBinding {
 }
 
 struct InstanceBindings {
+    #[cfg(feature = "liquid-glass")]
+    glass: InstanceBinding,
     quads: InstanceBinding,
     shadows: InstanceBinding,
     underlines: InstanceBinding,
@@ -165,6 +200,8 @@ struct InstanceBindings {
 }
 
 struct WgpuBindGroupLayouts {
+    #[cfg(feature = "liquid-glass")]
+    glass: wgpu::BindGroupLayout,
     globals: wgpu::BindGroupLayout,
     instances: wgpu::BindGroupLayout,
     gradients: wgpu::BindGroupLayout,
@@ -189,6 +226,8 @@ enum InstanceData {
 
 /// GPU resources that must be dropped together during device recovery.
 struct WgpuResources {
+    #[cfg(feature = "liquid-glass")]
+    glass: Option<crate::glass_renderer::GlassRenderer>,
     frame_cache: Option<crate::frame_cache::FrameCache>,
     device: Arc<wgpu::Device>,
     queue: Arc<wgpu::Queue>,
@@ -214,6 +253,10 @@ struct WgpuResources {
 impl WgpuResources {
     fn invalidate_intermediate_textures(&mut self) {
         self.frame_cache = None;
+        #[cfg(feature = "liquid-glass")]
+        {
+            self.glass = None;
+        }
         self.path_intermediate_texture = None;
         self.path_intermediate_view = None;
         self.path_msaa_texture = None;
@@ -225,12 +268,17 @@ impl WgpuResources {
 /// they exceed the budget; inactive glyph tiles are evicted at frame boundaries.
 #[derive(Clone, Copy, Debug)]
 pub struct RenderCacheOptions {
+    /// Maximum glass scratch allocation; zero uses the material tint fallback.
+    #[cfg(feature = "liquid-glass")]
+    pub glass_bytes: u64,
     pub frame_bytes: u64,
     pub glyph_bytes: usize,
 }
 impl Default for RenderCacheOptions {
     fn default() -> Self {
         Self {
+            #[cfg(feature = "liquid-glass")]
+            glass_bytes: 128 * 1024 * 1024,
             frame_bytes: 32 * 1024 * 1024,
             glyph_bytes: 16 * 1024 * 1024,
         }
@@ -238,6 +286,14 @@ impl Default for RenderCacheOptions {
 }
 #[derive(Clone, Copy, Debug, Default)]
 pub struct RenderStats {
+    #[cfg(feature = "liquid-glass")]
+    pub glass_bytes: u64,
+    #[cfg(feature = "liquid-glass")]
+    pub glass_captures: u64,
+    #[cfg(feature = "liquid-glass")]
+    pub glass_filter_pixels: u64,
+    #[cfg(feature = "liquid-glass")]
+    pub glass_fallbacks: u64,
     pub scene_submissions: u64,
     pub retained_presentations: u64,
     pub instance_upload_bytes: u64,
@@ -275,6 +331,8 @@ pub struct WgpuRenderer {
     device_lost: std::sync::Arc<std::sync::atomic::AtomicBool>,
     surface_configured: bool,
     needs_redraw: bool,
+    #[cfg(feature = "liquid-glass")]
+    glass_budget: u64,
     frame_cache_budget: u64,
     stats: RenderStats,
     path_bounds: [f32; 4],
@@ -573,6 +631,8 @@ impl WgpuRenderer {
         let gradient_bind_group =
             Self::gradient_binding(&device, &bind_group_layouts.gradients, &gradient_data);
         let resources = WgpuResources {
+            #[cfg(feature = "liquid-glass")]
+            glass: None,
             frame_cache: None,
             device,
             queue,
@@ -621,6 +681,8 @@ impl WgpuRenderer {
             device_lost: context.device_lost_flag(),
             surface_configured: true,
             needs_redraw: false,
+            #[cfg(feature = "liquid-glass")]
+            glass_budget: RenderCacheOptions::default().glass_bytes,
             frame_cache_budget: RenderCacheOptions::default().frame_bytes,
             stats: Default::default(),
             path_bounds: [0., 0., 1., 1.],
@@ -776,7 +838,53 @@ impl WgpuRenderer {
             ],
         });
 
+        #[cfg(feature = "liquid-glass")]
+        let glass = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("glass_layout"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: NonZeroU64::new(
+                            crate::glass_renderer::GLASS_UNIFORM_BYTES,
+                        ),
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+            ],
+        });
         WgpuBindGroupLayouts {
+            #[cfg(feature = "liquid-glass")]
+            glass,
             globals,
             instances,
             gradients,
@@ -940,6 +1048,40 @@ impl WgpuRenderer {
             })
         };
 
+        #[cfg(feature = "liquid-glass")]
+        let glass = create_pipeline(
+            "glass",
+            "vs_glass",
+            "fs_glass",
+            &layouts.globals,
+            &layouts.instances,
+            Some(&layouts.glass),
+            wgpu::PrimitiveTopology::TriangleStrip,
+            &[Some(wgpu::ColorTargetState {
+                format: surface_format,
+                blend: None,
+                write_mask: wgpu::ColorWrites::ALL,
+            })],
+            1,
+            &shader_module,
+        );
+        #[cfg(feature = "liquid-glass")]
+        let glass_optical = create_pipeline(
+            "glass_optical",
+            "vs_glass",
+            "fs_glass",
+            &layouts.globals,
+            &layouts.instances,
+            Some(&layouts.glass),
+            wgpu::PrimitiveTopology::TriangleStrip,
+            &[Some(wgpu::ColorTargetState {
+                format: surface_format,
+                blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+                write_mask: wgpu::ColorWrites::ALL,
+            })],
+            1,
+            &shader_module,
+        );
         let quads = create_pipeline(
             "quads",
             "vs_quad",
@@ -1100,6 +1242,10 @@ impl WgpuRenderer {
         );
 
         WgpuPipelines {
+            #[cfg(feature = "liquid-glass")]
+            glass,
+            #[cfg(feature = "liquid-glass")]
+            glass_optical,
             quads,
             shadows,
             path_rasterization,
@@ -1325,6 +1471,11 @@ impl WgpuRenderer {
     }
 
     pub fn set_cache_options(&mut self, options: RenderCacheOptions) {
+        #[cfg(feature = "liquid-glass")]
+        {
+            self.glass_budget = options.glass_bytes;
+            self.resources_mut().glass = None;
+        }
         self.set_frame_cache_budget(options.frame_bytes);
         self.atlas.set_glyph_budget(options.glyph_bytes);
     }
@@ -1335,6 +1486,10 @@ impl WgpuRenderer {
         let Some(resources) = self.resources.as_ref() else {
             return stats;
         };
+        #[cfg(feature = "liquid-glass")]
+        {
+            stats.glass_bytes = resources.glass.as_ref().map_or(0, |g| g.bytes);
+        }
         if let Some(cache) = resources.frame_cache.as_ref() {
             stats.frame_bytes = cache
                 .textures
@@ -1713,6 +1868,46 @@ impl WgpuRenderer {
 
     fn record_frame(&mut self, scene: &Scene, frame_view: &wgpu::TextureView) -> Result<()> {
         self.stats.scene_submissions += 1;
+        #[cfg(feature = "liquid-glass")]
+        {
+            let dimensions = (self.surface_config.width, self.surface_config.height);
+            let use_glass = !scene.glasses.is_empty()
+                && crate::glass_renderer::GlassRenderer::required_bytes(dimensions)
+                    <= self.glass_budget;
+            if use_glass {
+                if self
+                    .resources()
+                    .glass
+                    .as_ref()
+                    .is_none_or(|g| g.size != dimensions)
+                {
+                    let glass = crate::glass_renderer::GlassRenderer::new(
+                        &self.resources().device,
+                        self.surface_config.format,
+                        dimensions,
+                    );
+                    self.resources_mut().glass = Some(glass);
+                }
+            } else {
+                self.resources_mut().glass = None;
+                self.stats.glass_fallbacks += scene.glasses.len() as u64;
+            }
+            let resources = self.resources_mut();
+            if let Some(glass) = &mut resources.glass {
+                glass.prepare(
+                    &resources.device,
+                    &resources.queue,
+                    &resources.bind_group_layouts.glass,
+                    scene,
+                );
+            }
+        }
+        #[cfg(feature = "liquid-glass")]
+        let output_view = frame_view;
+        #[cfg(feature = "liquid-glass")]
+        let glass_frame = self.resources().glass.as_ref().map(|g| g.frame.clone());
+        #[cfg(feature = "liquid-glass")]
+        let frame_view = glass_frame.as_ref().unwrap_or(output_view);
         self.write_gradients(&scene.gradient_data)?;
         self.write_spatial(&scene.spatial.words)?;
         let mut instance_offset = 0;
@@ -1738,6 +1933,10 @@ impl WgpuRenderer {
                     label: Some("main_encoder"),
                 });
 
+        #[cfg(feature = "liquid-glass")]
+        let mut glass_captures = 0;
+        #[cfg(feature = "liquid-glass")]
+        let mut glass_filter_pixels = 0;
         {
             let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("main_pass"),
@@ -1756,6 +1955,52 @@ impl WgpuRenderer {
 
             for batch in scene.batches() {
                 match batch {
+                    #[cfg(feature = "liquid-glass")]
+                    PrimitiveBatch::Glass(range) => {
+                        if let Some(glass) = &self.resources().glass {
+                            drop(pass);
+                            glass_filter_pixels +=
+                                glass.capture(glass_captures as usize, &mut encoder);
+                            let binding = glass.binding(glass_captures as usize);
+                            glass_captures += 1;
+                            pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                                label: Some("glass_composite"),
+                                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                                    view: frame_view,
+                                    resolve_target: None,
+                                    depth_slice: None,
+                                    ops: wgpu::Operations {
+                                        load: wgpu::LoadOp::Load,
+                                        store: wgpu::StoreOp::Store,
+                                    },
+                                })],
+                                ..Default::default()
+                            });
+                            pass.set_bind_group(2, binding, &[]);
+                            self.draw_instances(
+                                &instance_bindings.glass,
+                                if scene.glasses[range.start].material.background.is_some() {
+                                    &self.resources().pipelines.glass_optical
+                                } else {
+                                    &self.resources().pipelines.glass
+                                },
+                                instance_range(if scene.glasses[range.start].merge {
+                                    range.start..range.start + 1
+                                } else {
+                                    range
+                                }),
+                                &mut pass,
+                            );
+                        } else {
+                            pass.set_bind_group(2, &self.resources().gradient_bind_group, &[]);
+                            self.draw_instances(
+                                &instance_bindings.glass,
+                                &self.resources().pipelines.quads,
+                                instance_range(range),
+                                &mut pass,
+                            );
+                        }
+                    }
                     PrimitiveBatch::Quads(range) => {
                         pass.set_bind_group(2, &self.resources().gradient_bind_group, &[]);
                         self.draw_instances(
@@ -1851,6 +2096,19 @@ impl WgpuRenderer {
         self.resources()
             .queue
             .submit(std::iter::once(encoder.finish()));
+        #[cfg(feature = "liquid-glass")]
+        if let Some(glass) = &self.resources().glass {
+            glass.present(
+                &self.resources().device,
+                &self.resources().queue,
+                output_view,
+            );
+        }
+        #[cfg(feature = "liquid-glass")]
+        {
+            self.stats.glass_captures += glass_captures;
+            self.stats.glass_filter_pixels += glass_filter_pixels;
+        }
         Ok(())
     }
 
@@ -1877,7 +2135,34 @@ impl WgpuRenderer {
         } else {
             &scene.quads[..]
         };
+        #[cfg(feature = "liquid-glass")]
+        let glasses: Vec<_> = scene
+            .glasses
+            .iter()
+            .map(|g| {
+                let mut quad = g.quad;
+                let [mut r, mut green, mut b, mut a] = g.material.tint;
+                if let Some(tone) = g.material.tone {
+                    // Without capture memory, use the material's neutral face color.
+                    // An opaque fallback also provides a reduced-transparency mode.
+                    let matrix = tone.matrix();
+                    [r, green, b] =
+                        matrix.map(|row| ((row[0] + row[1] + row[2]) * 0.5 + row[3]).clamp(0., 1.));
+                    a = 1.;
+                }
+                quad.background = crate::Rgba {
+                    r,
+                    g: green,
+                    b,
+                    a: a * g.material.opacity,
+                }
+                .into();
+                quad
+            })
+            .collect();
         Ok(InstanceBindings {
+            #[cfg(feature = "liquid-glass")]
+            glass: self.write_instance_binding("glass_instances", instance_offset, &glasses)?,
             quads: self.write_instance_binding("quads_bind_group", instance_offset, quads)?,
             shadows: self.write_instance_binding(
                 "shadows_bind_group",
@@ -2616,6 +2901,8 @@ impl WgpuRenderer {
         self.resources = None;
         self.atlas.handle_device_lost(context);
 
+        #[cfg(feature = "liquid-glass")]
+        let glass_budget = self.glass_budget;
         *self = Self::new_internal(
             Some(gpu_context.clone()),
             context,
@@ -2625,6 +2912,10 @@ impl WgpuRenderer {
             self.atlas.clone(),
         )?;
 
+        #[cfg(feature = "liquid-glass")]
+        {
+            self.glass_budget = glass_budget;
+        }
         log::info!("GPU recovery complete");
         Ok(())
     }
@@ -2685,7 +2976,29 @@ mod tests {
     use crate::{MonochromeSprite, PolychromeSprite, Quad, Shadow, SubpixelSprite, Underline};
 
     #[test]
+    fn glass_shader_entry_points_follow_the_feature() {
+        for source in [STORAGE_BUFFER_SHADERS, WEBGL_SHADERS, SUBPIXEL_SHADERS] {
+            assert_eq!(
+                source.contains("fn fs_glass("),
+                cfg!(feature = "liquid-glass")
+            );
+            assert_eq!(
+                source.contains("fn vs_glass("),
+                cfg!(feature = "liquid-glass")
+            );
+        }
+    }
+
+    #[test]
     fn retained_frame_shader_is_valid() {
+        #[cfg(feature = "liquid-glass")]
+        validate_wgsl(
+            concat!(
+                include_str!("glass_math.wgsl"),
+                include_str!("glass_filter.wgsl")
+            ),
+            naga::valid::Capabilities::empty(),
+        );
         validate_wgsl(
             include_str!("frame_cache.wgsl"),
             naga::valid::Capabilities::empty(),

@@ -6,6 +6,8 @@ edition = "2024"
 [features]
 default = ["editing"]
 editing = ["dep:ropey"]
+# Portable backdrop optics and fluid shape merging; omitted from default builds.
+liquid-glass = ["voidui_gpui_wgpu/liquid-glass"]
 
 [dependencies]
 ropey = { version = "=2.0.0-beta.1", optional = true, default-features = false, features = ["metric_lines_unicode"] }
@@ -139,3 +141,7 @@ test = false
 name = "tasks"
 harness = false
 test = false
+
+[[example]]
+name = "liquid_glass"
+required-features = ["liquid-glass"]

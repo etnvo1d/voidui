@@ -1,0 +1,204 @@
+CONTAINER spacing=20 gap=10
+OS Version 26.5 (Build 25F71)
+STATE style=regular active=1 key=1 reducedTransparency=0 appearance=NSAppearanceNameAqua
+IMAGE NSGlassEffectView /System/Library/Frameworks/AppKit.framework/Versions/C/AppKit
+IMAGE CAFilter /System/Library/Frameworks/QuartzCore.framework/Versions/A/QuartzCore
+IMAGE CABackdropLayer /System/Library/Frameworks/QuartzCore.framework/Versions/A/QuartzCore
+IMAGE CASDFLayer /System/Library/Frameworks/QuartzCore.framework/Versions/A/QuartzCore
+IMAGE CASDFKeyFillHighlightEffect /System/Library/Frameworks/QuartzCore.framework/Versions/A/QuartzCore
+NSViewBackingLayer
+name = NSView
+  NSViewBackingLayer
+  name = NSGlassEffectContainerView
+    NSViewBackingLayer
+    name = NSView
+      NSViewBackingLayer
+      name = NSGlassEffectView
+        CALayer
+        name = contentHolderView
+          NSViewBackingLayer
+          name = NSTextField
+            NSViewBackingLayer
+            name = _TtC6AppKitP33_72EBFCF981BE77E1C6F26FD717D0893922NSTextFieldSimpleLabel
+              _TtCC6AppKit26NSViewBackingLayerContentsP33_936B6E90B4E319ADDB011517F9EF5EC612ContentLayer
+        NSViewBackingLayer
+        name = _TtGC6AppKit18_NSCoreHostingViewVES_CSo17NSGlassEffectViewP10$19396e6c88RootView_
+      NSViewBackingLayer
+      name = NSGlassEffectView
+        CALayer
+        name = contentHolderView
+          NSViewBackingLayer
+          name = NSTextField
+            NSViewBackingLayer
+            name = _TtC6AppKitP33_72EBFCF981BE77E1C6F26FD717D0893922NSTextFieldSimpleLabel
+              _TtCC6AppKit26NSViewBackingLayerContentsP33_936B6E90B4E319ADDB011517F9EF5EC612ContentLayer
+        NSViewBackingLayer
+        name = _TtGC6AppKit18_NSCoreHostingViewVES_CSo17NSGlassEffectViewP10$19396e6c88RootView_
+    NSViewBackingLayer
+    name = NSEffects
+      SwiftUI.SDFLayer
+        CALayer
+          CALayer
+            filter CAFilter
+            filter inputColorMatrix = {length = 80, bytes = 0x58044f3f 12cd24bf 5bed84bd 00000000 ... 00000000 00000000 }
+            filter inputBackdropAware = 1
+            filter inputClamp = null
+            filter inputClampPreserveHue = null
+          CAPortalLayer
+          CALayer
+            filter CAFilter
+            filter inputColorMatrix = {length = 80, bytes = 0x58044f3f 12cd24bf 5bed84bd 00000000 ... 00000000 00000000 }
+            filter inputBackdropAware = 1
+            filter inputClamp = null
+            filter inputClampPreserveHue = null
+          CAPortalLayer
+        CALayer
+          CABackdropLayer
+          mt_colorMatrixDrivenOpacity = 1
+          mt_colorMatrixDrivenInoperativeOpacity = 1
+          enabled = 1
+          groupName = null
+          usesGlobalGroupNamespace = 0
+          groupNamespace = owningContext
+          scale = 0.25
+          backdropRect = NSRect: {{0, 0}, {0, 0}}
+          marginWidth = 83
+          disablesOccludedBackdropBlurs = 0
+          captureOnly = 0
+          allowsInPlaceFiltering = 0
+          reducesCaptureBitDepth = 0
+          ignoresScreenClip = 0
+          preallocatesScreenArea = 0
+          inverseMeshed = 0
+          bleedAmount = 0
+          windowServerAware = 1
+          allowsSubstituteColor = 0
+          substituteColor = null
+          ignoresOffscreenGroups = 0
+          zoom = 0
+          disableFilterCache = 0
+          updateRate = 0
+          tracksLuma = 0
+          tracksLumaWhileHidden = 0
+          lumaUpdateRate = 0.25
+          allowsFilteredLuma = 1
+          lumaSubrect = NSRect: {{0, 0}, {0, 0}}
+          delegate = SwiftUI.SDFLayer
+          name = @0
+            filter CAFilter
+            filter inputSourceSublayerName = @0
+            filter inputInnerRefractionAmount = -60
+            filter inputInnerRefractionHeight = 20
+            filter inputOuterRefractionAmount = 28
+            filter inputOuterRefractionHeight = 17.5
+            filter inputRefractionDistance0 = -1
+            filter inputRefractionDistance1 = -0.5
+            filter inputRefractionOpacity = 0.3
+            filter inputBlurRadius = 3.523809523809524
+            filter inputBlurOpacity0 = 1
+            filter inputBlurOpacity1 = 0.5
+            filter inputBlurOpacity2 = 0.5
+            filter inputBlurOpacity3 = 1
+            filter inputBlurOpacity4 = 1
+            filter inputBlurDistance0 = -70
+            filter inputBlurDistance1 = -1
+            filter inputBlurDistance2 = 0
+            filter inputBlurDistance3 = 0
+            filter inputBlurDistance4 = 28
+            filter inputFaceOpacity = 1
+            filter inputFaceColorMatrixWhite = 1.03
+            filter inputFaceColorMatrixBlack = 0.5
+            filter inputFaceColorMatrixSaturation = 1
+            filter inputFaceColorMatrixFillColor = color (     1,     1,     1,     "0.4000000059604645" )
+            filter inputBleedAmount = 49
+            filter inputBleedHeight = 49
+            filter inputBleedBlurRadius = 98
+            filter inputBleedDistance0 = 1
+            filter inputBleedDistance1 = 0
+            filter inputBleedOpacity = 0.3958333
+            filter inputBleedDarkenBlend = 1
+            filter inputBleedColorMatrixWhite = 1
+            filter inputBleedColorMatrixBlack = 0.9
+            filter inputBleedColorMatrixSaturation = 1.2
+            filter inputBleedColorMatrixFillColor = null
+            filter inputShadowOffset = NSSize: {0, 8}
+            filter inputShadowAmount = 75
+            filter inputShadowHeight = 56
+            filter inputShadowOpacity = 0.2946429
+            filter inputShadowColorMatrixWhite = 1
+            filter inputShadowColorMatrixBlack = 0
+            filter inputShadowColorMatrixSaturation = 1.8
+            filter inputShadowColorMatrixFillColor = color (     0,     0,     0,     "0.119999997317791" )
+            filter inputShadowDistanceOffset = 0
+            filter inputShadowBlurRadius = 40
+            filter inputShadowRadius = 24
+            filter inputSDRHoldingToneEnabled = 1
+            filter inputSDRHoldingToneWhite = 0.97
+            filter inputSDRGradientDistance0 = -1
+            filter inputSDRGradientDistance1 = -0.5
+            filter inputSDRShadowOpacity = 0.2114286
+            filter inputMaxHeadroom = 9999
+            filter inputShadowVibrancyContribution = 0.7916666666666666
+            filter inputClamp = 1.06961
+            filter inputClampPreserveHue = 0
+            CASDFLayer
+            effect = CASDFOutputEffect
+            smoothness = 20
+            gaussianRadius = 0
+            effectOffset = 0
+            mergeElements = 0
+              effect CASDFOutputEffect
+              effect minimum = -10000
+              effect maximum = 35.66909208895316
+            name = @0
+              CALayer
+                CASDFElementLayer
+                mode = bounds
+                contentsZeroValueDistance = 0
+                contentsOneValueDistance = 1
+                operation = union
+                gradientOvalization = 0.5
+                hitTestsAsFill = 1
+                CASDFElementLayer
+                mode = bounds
+                contentsZeroValueDistance = 0
+                contentsOneValueDistance = 1
+                operation = union
+                gradientOvalization = 0.5
+                hitTestsAsFill = 1
+          _TtC7SwiftUIP33_05C1F5BE6EE7940FED05100EA822F7B314SDFPortalLayer
+          name = @1
+          CASDFLayer
+          effect = CASDFKeyFillHighlightEffect
+          smoothness = 20
+          gaussianRadius = 0
+          effectOffset = 0
+          mergeElements = 0
+            effect CASDFKeyFillHighlightEffect
+            effect keyColor = color (     1,     1,     1,     1 )
+            effect keyHeightScale = 1
+            effect keyHeightOffset = 0
+            effect keySpreadScale = 1
+            effect keySpreadOffset = 0
+            effect fillColor = color (     1,     1,     1,     1 )
+            effect fillHeightScale = 1
+            effect fillHeightOffset = 0
+            effect fillSpreadScale = 1
+            effect fillSpreadOffset = 0
+            effect keyHeight = 1
+            effect keyAngle = -0.7853981633974483
+            effect keySpread = 1.570796326794897
+            effect keyAmount = 0.5
+            effect fillHeight = 1
+            effect fillAngle = 2.356194490192345
+            effect fillSpread = 1.570796326794897
+            effect fillAmount = 0.5
+            effect curvature = 0.7
+            effect global = 0
+          name = @2
+            filter CAFilter
+            filter inputColorMatrix = {length = 80, bytes = 0x3ee8993f e02d80bf 16d9cebd 00000000 ... 0000803f 00000000 }
+            filter inputBackdropAware = null
+            filter inputClamp = 1
+            filter inputClampPreserveHue = null
+            _TtC7SwiftUIP33_05C1F5BE6EE7940FED05100EA822F7B314SDFPortalLayer

@@ -147,6 +147,85 @@ impl<'a> Painter<'a> {
         }
         self.scene.caret_visible = visible;
     }
+    /// Paint sibling lenses with one shared backdrop capture and one blur.
+    /// All shapes use the current coordinate space and material. Paint labels
+    /// after this call. Overlapping shapes share the pre-group background; they
+    /// do not refract one another or merge into a single fluid outline.
+    #[cfg(feature = "liquid-glass")]
+    pub fn paint_glass_group(
+        &mut self,
+        shapes: &[(Bounds<Pixels>, Corners<Pixels>)],
+        material: GlassMaterial,
+    ) {
+        assert!(material.is_valid(), "invalid glass material");
+        if shapes.is_empty() || material.opacity == 0. {
+            return;
+        }
+        self.scene.start_glass_group();
+        for &(bounds, corners) in shapes {
+            self.record_glass(bounds, corners, material, 0., false);
+        }
+        self.scene.end_glass_group();
+    }
+    /// Fuse nearby shapes using the recovered gradient-aware SDF union.
+    /// `spacing` is a logical-pixel smoothing width, not a gap threshold.
+    #[cfg(feature = "liquid-glass")]
+    pub fn paint_liquid_glass_group(
+        &mut self,
+        shapes: &[(Bounds<Pixels>, Corners<Pixels>)],
+        material: GlassMaterial,
+        spacing: f32,
+    ) {
+        assert!(material.is_valid(), "invalid glass material");
+        assert!(
+            spacing.is_finite() && spacing >= 0.,
+            "invalid glass spacing"
+        );
+        if shapes.is_empty() || material.opacity == 0. {
+            return;
+        }
+        self.scene.start_glass_group();
+        for &(bounds, corners) in shapes {
+            self.record_glass(bounds, corners, material, spacing, true);
+        }
+        self.scene.end_glass_group();
+    }
+    /// Sample previously painted content through a rounded, refractive surface.
+    /// Paint child content afterwards to keep text and icons sharp.
+    #[cfg(feature = "liquid-glass")]
+    pub fn paint_glass(
+        &mut self,
+        bounds: Bounds<Pixels>,
+        corners: Corners<Pixels>,
+        material: GlassMaterial,
+    ) {
+        self.record_glass(bounds, corners, material, 0., false);
+    }
+    #[cfg(feature = "liquid-glass")]
+    fn record_glass(
+        &mut self,
+        bounds: Bounds<Pixels>,
+        corners: Corners<Pixels>,
+        material: GlassMaterial,
+        spacing: f32,
+        merge: bool,
+    ) {
+        assert!(material.is_valid(), "invalid glass material");
+        if material.opacity == 0. {
+            return;
+        }
+        self.scene.insert_primitive(Glass {
+            quad: Quad {
+                bounds: bounds.scale(self.scale_factor),
+                corner_radii: corners.scale(self.scale_factor),
+                content_mask: self.mask.scale(self.scale_factor),
+                ..Default::default()
+            },
+            material: material.scaled(self.scale_factor),
+            smoothing: spacing * self.scale_factor,
+            merge,
+        });
+    }
     pub fn paint_quad(&mut self, quad: PaintQuad) {
         self.scene.insert_primitive(Quad {
             order: 0,

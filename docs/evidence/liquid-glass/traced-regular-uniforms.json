@@ -1,0 +1,372 @@
+{
+  "shader": "glass_background_lph",
+  "buffer_bytes": 224,
+  "payload_sha256": "d0d3be79657adc6d74727c9b9053b19b8cd7ab21e9184ff5b6828fa882efb001",
+  "layout": {
+    "displacement_mat": {
+      "offset": 0,
+      "size": 16,
+      "type": "float4"
+    },
+    "inner_refraction_amount": {
+      "offset": 16,
+      "size": 4,
+      "type": "float"
+    },
+    "inner_refraction_inv_height": {
+      "offset": 20,
+      "size": 4,
+      "type": "float"
+    },
+    "outer_refraction_amount": {
+      "offset": 24,
+      "size": 4,
+      "type": "float"
+    },
+    "outer_refraction_inv_height": {
+      "offset": 28,
+      "size": 4,
+      "type": "float"
+    },
+    "refraction_threshold0": {
+      "offset": 32,
+      "size": 4,
+      "type": "float"
+    },
+    "refraction_threshold1": {
+      "offset": 36,
+      "size": 4,
+      "type": "float"
+    },
+    "blur_radius": {
+      "offset": 40,
+      "size": 4,
+      "type": "float"
+    },
+    "edge_bleed_blur_radius": {
+      "offset": 44,
+      "size": 4,
+      "type": "float"
+    },
+    "edge_bleed_amount": {
+      "offset": 48,
+      "size": 4,
+      "type": "float"
+    },
+    "edge_bleed_inv_height": {
+      "offset": 52,
+      "size": 4,
+      "type": "float"
+    },
+    "shadow_amount": {
+      "offset": 56,
+      "size": 4,
+      "type": "float"
+    },
+    "shadow_inv_height": {
+      "offset": 60,
+      "size": 4,
+      "type": "float"
+    },
+    "shadow_offset": {
+      "offset": 64,
+      "size": 8,
+      "type": "float2"
+    },
+    "shadow_blur_radius": {
+      "offset": 72,
+      "size": 4,
+      "type": "float"
+    },
+    "shadow_inv_radius": {
+      "offset": 76,
+      "size": 4,
+      "type": "float"
+    },
+    "face_cm0": {
+      "offset": 80,
+      "size": 8,
+      "type": "half4"
+    },
+    "face_cm1": {
+      "offset": 88,
+      "size": 8,
+      "type": "half4"
+    },
+    "face_cm2": {
+      "offset": 96,
+      "size": 8,
+      "type": "half4"
+    },
+    "bleed_cm0": {
+      "offset": 104,
+      "size": 8,
+      "type": "half4"
+    },
+    "bleed_cm1": {
+      "offset": 112,
+      "size": 8,
+      "type": "half4"
+    },
+    "bleed_cm2": {
+      "offset": 120,
+      "size": 8,
+      "type": "half4"
+    },
+    "shadow_cm0": {
+      "offset": 128,
+      "size": 8,
+      "type": "half4"
+    },
+    "shadow_cm1": {
+      "offset": 136,
+      "size": 8,
+      "type": "half4"
+    },
+    "shadow_cm2": {
+      "offset": 144,
+      "size": 8,
+      "type": "half4"
+    },
+    "shadow_contribution": {
+      "offset": 152,
+      "size": 4,
+      "type": "float"
+    },
+    "shadow_face_opacity": {
+      "offset": 156,
+      "size": 4,
+      "type": "float"
+    },
+    "blur_alpha0": {
+      "offset": 160,
+      "size": 2,
+      "type": "half"
+    },
+    "blur_alpha1": {
+      "offset": 162,
+      "size": 2,
+      "type": "half"
+    },
+    "blur_alpha2": {
+      "offset": 164,
+      "size": 2,
+      "type": "half"
+    },
+    "blur_alpha3": {
+      "offset": 166,
+      "size": 2,
+      "type": "half"
+    },
+    "blur_dist0": {
+      "offset": 168,
+      "size": 2,
+      "type": "half"
+    },
+    "blur_dist1": {
+      "offset": 170,
+      "size": 2,
+      "type": "half"
+    },
+    "blur_dist2": {
+      "offset": 172,
+      "size": 2,
+      "type": "half"
+    },
+    "blur_dist3": {
+      "offset": 174,
+      "size": 2,
+      "type": "half"
+    },
+    "edge_bleed_dist0": {
+      "offset": 176,
+      "size": 2,
+      "type": "half"
+    },
+    "edge_bleed_dist1": {
+      "offset": 178,
+      "size": 2,
+      "type": "half"
+    },
+    "edge_bleed_opacity": {
+      "offset": 180,
+      "size": 2,
+      "type": "half"
+    },
+    "face_opacity": {
+      "offset": 182,
+      "size": 2,
+      "type": "half"
+    },
+    "bleed_darken": {
+      "offset": 184,
+      "size": 4,
+      "type": "half2"
+    },
+    "shadow_dist_offset": {
+      "offset": 188,
+      "size": 2,
+      "type": "half"
+    },
+    "shadow_opacity": {
+      "offset": 190,
+      "size": 2,
+      "type": "half"
+    },
+    "refraction_opacity": {
+      "offset": 192,
+      "size": 2,
+      "type": "half"
+    },
+    "holding_tone_opacity": {
+      "offset": 194,
+      "size": 2,
+      "type": "half"
+    },
+    "sdr_shadow_dist0": {
+      "offset": 196,
+      "size": 2,
+      "type": "half"
+    },
+    "sdr_shadow_dist1": {
+      "offset": 198,
+      "size": 2,
+      "type": "half"
+    },
+    "clamp_limit": {
+      "offset": 200,
+      "size": 2,
+      "type": "half"
+    },
+    "preserve_hue": {
+      "offset": 202,
+      "size": 2,
+      "type": "half"
+    },
+    "sdr_white_value": {
+      "offset": 204,
+      "size": 2,
+      "type": "half"
+    },
+    "x86_workaround": {
+      "offset": 206,
+      "size": 2,
+      "type": "half"
+    },
+    "complex_refraction": {
+      "offset": 208,
+      "size": 2,
+      "type": "half"
+    }
+  },
+  "values": {
+    "displacement_mat": [
+      0.0013020833721384406,
+      0.0,
+      0.0,
+      -0.0013020833721384406
+    ],
+    "inner_refraction_amount": -60.0,
+    "inner_refraction_inv_height": 0.05000000074505806,
+    "outer_refraction_amount": 28.0,
+    "outer_refraction_inv_height": 0.05714285746216774,
+    "refraction_threshold0": -1.0,
+    "refraction_threshold1": -0.5,
+    "blur_radius": 1.409523844718933,
+    "edge_bleed_blur_radius": 19.600000381469727,
+    "edge_bleed_amount": 49.0,
+    "edge_bleed_inv_height": 0.020408162847161293,
+    "shadow_amount": 75.0,
+    "shadow_inv_height": 0.01785714365541935,
+    "shadow_offset": [
+      0.0,
+      0.03125
+    ],
+    "shadow_blur_radius": 8.0,
+    "shadow_inv_radius": 0.0416666679084301,
+    "face_cm0": [
+      0.5400390625,
+      -0.2017822265625,
+      -0.0203094482421875,
+      0.7001953125
+    ],
+    "face_cm1": [
+      -0.0599365234375,
+      0.3984375,
+      -0.0203704833984375,
+      0.7001953125
+    ],
+    "face_cm2": [
+      -0.05999755859375,
+      -0.20166015625,
+      0.57958984375,
+      0.7001953125
+    ],
+    "bleed_cm0": [
+      0.96630859375,
+      -0.78662109375,
+      -0.079345703125,
+      0.89990234375
+    ],
+    "bleed_cm1": [
+      -0.23388671875,
+      0.413330078125,
+      -0.0794677734375,
+      0.89990234375
+    ],
+    "bleed_cm2": [
+      -0.23388671875,
+      -0.78662109375,
+      1.1201171875,
+      0.89990234375
+    ],
+    "shadow_cm0": [
+      1.08984375,
+      -0.382568359375,
+      -0.03851318359375,
+      0.0
+    ],
+    "shadow_cm1": [
+      -0.11370849609375,
+      0.82080078125,
+      -0.03863525390625,
+      0.0
+    ],
+    "shadow_cm2": [
+      -0.11376953125,
+      -0.382568359375,
+      1.1650390625,
+      0.0
+    ],
+    "shadow_contribution": 0.7916666865348816,
+    "shadow_face_opacity": 0.33142855763435364,
+    "blur_alpha0": 1.0,
+    "blur_alpha1": 0.5,
+    "blur_alpha2": 0.0,
+    "blur_alpha3": -0.5,
+    "blur_dist0": -70.0,
+    "blur_dist1": -1.0,
+    "blur_dist2": 0.0,
+    "blur_dist3": 0.0,
+    "edge_bleed_dist0": 1.0,
+    "edge_bleed_dist1": 0.0,
+    "edge_bleed_opacity": 0.395751953125,
+    "face_opacity": 1.0,
+    "bleed_darken": [
+      1.0,
+      0.0
+    ],
+    "shadow_dist_offset": 0.0,
+    "shadow_opacity": 0.294677734375,
+    "refraction_opacity": 0.300048828125,
+    "holding_tone_opacity": 1.0,
+    "sdr_shadow_dist0": -1.0,
+    "sdr_shadow_dist1": -0.5,
+    "clamp_limit": 1.03125,
+    "preserve_hue": 0.0,
+    "sdr_white_value": 0.97021484375,
+    "x86_workaround": 0.0,
+    "complex_refraction": 1.0
+  },
+  "scope": "Generic layer clone rendered in CARenderer on macOS 26.5 (25F71), M3, regular/light, spacing20 gap10, two140x140 shapes. Text contents omitted; not WindowServer capture."
+}

@@ -459,3 +459,81 @@ fn externally_positioned_glyphs_keep_ink_outside_the_line_box() {
         "baseline changes reuse the same glyph atlas entry"
     );
 }
+
+#[test]
+#[cfg(feature = "liquid-glass")]
+fn glass_is_a_read_barrier_even_inside_layers_and_survives_replay() {
+    let mut scene = Scene::default();
+    let atlas = CpuAtlas::default();
+    let mut painter = Painter::new(
+        &mut scene,
+        &atlas,
+        text_system(),
+        size(px(400.), px(400.)),
+        1.,
+    )
+    .unwrap();
+    let box_at = |x| Bounds::new(point(px(x), px(10.)), size(px(60.), px(80.)));
+    painter.paint_quad(fill(box_at(0.), rgb(0xff0000)));
+    painter.paint_layer(box_at(100.), |p| {
+        p.paint_quad(fill(box_at(100.), rgb(0x00ff00)));
+        p.paint_glass(
+            box_at(100.),
+            Corners::all(px(12.)),
+            GlassMaterial::regular(),
+        );
+        p.paint_quad(fill(box_at(100.), rgb(0x0000ff)));
+        p.paint_glass(box_at(110.), Corners::all(px(12.)), GlassMaterial::clear());
+    });
+    // Disjoint foreground still must not enter an earlier background capture.
+    painter.paint_quad(fill(box_at(300.), white()));
+    drop(painter);
+    scene.finish();
+    assert!(scene.quads[0].order < scene.glasses[0].quad.order);
+    assert!(scene.quads[1].order < scene.glasses[0].quad.order);
+    assert!(scene.quads[2].order > scene.glasses[0].quad.order);
+    assert!(scene.quads[2].order < scene.glasses[1].quad.order);
+    assert!(scene.quads[3].order > scene.glasses[1].quad.order);
+    let labels: Vec<_> = scene.batches().map(|b| b.label()).collect();
+    let mut replayed = Scene::default();
+    replayed.replay(0..scene.len(), &scene);
+    replayed.finish();
+    assert_eq!(
+        labels,
+        replayed.batches().map(|b| b.label()).collect::<Vec<_>>()
+    );
+    assert_eq!(scene.glasses[1].material, replayed.glasses[1].material);
+    replayed.clear();
+    assert!(replayed.glasses.is_empty());
+    assert_eq!(replayed.batches().count(), 0);
+}
+
+#[test]
+#[cfg(feature = "liquid-glass")]
+fn invalid_glass_parameters_are_rejected() {
+    assert!(GlassMaterial::regular().is_valid());
+    assert!(GlassMaterial::clear().is_valid());
+    for value in [f32::NAN, f32::INFINITY, -1.] {
+        assert!(
+            !GlassMaterial {
+                blur: value,
+                ..Default::default()
+            }
+            .is_valid()
+        );
+    }
+    assert!(
+        !GlassMaterial {
+            thickness: 0.,
+            ..Default::default()
+        }
+        .is_valid()
+    );
+    assert!(
+        !GlassMaterial {
+            opacity: 1.1,
+            ..Default::default()
+        }
+        .is_valid()
+    );
+}

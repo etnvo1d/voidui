@@ -30,6 +30,8 @@ macro_rules! define_declarations {
             FontSize(CssValue<FontSize>), LineHeight(CssValue<LineHeight>), TextAlign(CssValue<TextAlignment>),
             Direction(CssValue<Direction>), TextWrap(CssValue<bool>),
             BackgroundImage(CssValue<crate::style::gradient::BackgroundImages>),
+            #[cfg(feature = "liquid-glass")]
+            LiquidGlass(CssValue<Option<std::sync::Arc<voidui_gpui_wgpu::GlassMaterial>>>),
             BoxShadow(CssValue<crate::style::shadow::BoxShadows>),
             AnimationName(CssValue<crate::style::list::StyleList<crate::style::animation::AnimationName>>),
             AnimationDuration(CssValue<crate::style::list::StyleList<f64>>),
@@ -94,6 +96,8 @@ macro_rules! define_declarations {
                     Self::PointerEvents(_) => Property::PointerEvents,
 
                     Self::BackgroundImage(_) => Property::BackgroundImage,
+                    #[cfg(feature = "liquid-glass")]
+                    Self::LiquidGlass(_) => Property::LiquidGlass,
                     Self::BoxShadow(_) => Property::BoxShadow,
                     Self::AnimationName(_) => Property::AnimationName,
                     Self::AnimationDuration(_) => Property::AnimationDuration,
@@ -165,6 +169,8 @@ macro_rules! define_declarations {
                     Self::LineHeight(v) => target.line_height = *v, Self::TextAlign(v) => target.text_align = *v,
                     Self::Direction(v) => target.direction = *v, Self::TextWrap(v) => target.text_wrap = *v,
                     Self::BackgroundImage(v) => target.background_image.clone_from(v),
+                    #[cfg(feature = "liquid-glass")]
+                    Self::LiquidGlass(v) => target.liquid_glass.clone_from(v),
                     Self::BoxShadow(v) => target.box_shadow.clone_from(v),
                     Self::AnimationName(v) => target.animation_name.clone_from(v),
                     Self::AnimationDuration(v) => target.animation_duration.clone_from(v),
@@ -214,11 +220,11 @@ macro_rules! define_declarations {
 crate::style::properties::layout_properties!(define_declarations);
 
 macro_rules! style_properties {
-    ($( $name:ident => $($field:ident).+ ),* $(,)?) => {
+    ($( $(#[$attr:meta])* $name:ident => $($field:ident).+ ),* $(,)?) => {
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-        pub enum Property { Custom, Scroll(crate::style::scroll::ScrollProperty), Media(crate::style::media::MediaProperty), Layout(LayoutProperty), $($name),* }
+        pub enum Property { Custom, Scroll(crate::style::scroll::ScrollProperty), Media(crate::style::media::MediaProperty), Layout(LayoutProperty), $( $(#[$attr])* $name),* }
         impl Property {
-            pub(crate) const EXTRA: &'static [Self] = &[$(Self::$name),*];
+            pub(crate) const EXTRA: &'static [Self] = &[$( $(#[$attr])* Self::$name),*];
             fn index(self) -> usize {
                 match self {
                     Self::Custom | Self::Scroll(_) | Self::Media(_) => unreachable!("sparse properties track their own presence"),
@@ -241,11 +247,11 @@ macro_rules! style_properties {
                         }
                         if let Some(keyword) = source.layout_keyword(p) { target.set_layout_keyword(p, keyword); }
                     }
-                    $(Self::$name => target.$($field).+.clone_from(&source.$($field).+)),*
+                    $( $(#[$attr])* Self::$name => target.$($field).+.clone_from(&source.$($field).+)),*
                 }
             }
             pub(crate) fn differs(self, a: &Style, b: &Style) -> bool {
-                match self { Self::Custom => false, Self::Scroll(p) => a.scroll.get(p) != b.scroll.get(p), Self::Media(p) => a.media.get(p) != b.media.get(p), Self::Layout(p) => p.differs(a,b), $(Self::$name => a.$($field).+ != b.$($field).+),* }
+                match self { Self::Custom => false, Self::Scroll(p) => a.scroll.get(p) != b.scroll.get(p), Self::Media(p) => a.media.get(p) != b.media.get(p), Self::Layout(p) => p.differs(a,b), $( $(#[$attr])* Self::$name => a.$($field).+ != b.$($field).+),* }
             }
         }
     };
@@ -256,6 +262,8 @@ FontFeatures => font_features, FontFallbacks => font_fallbacks, FontSize => font
 TextAlign => text_align, Direction => direction, TextWrap => text_wrap,
 BackgroundImage => background_image,
 BoxShadow => box_shadow,
+#[cfg(feature = "liquid-glass")]
+LiquidGlass => liquid_glass,
 AnimationName => animation_name,
 AnimationDuration => animation_duration,
 AnimationDelay => animation_delay,

@@ -952,6 +952,19 @@ impl WidgetTree {
             return Ok(());
         }
         let layout = &node.layout;
+        let draw_context = || DrawContext {
+            element: Some((entry.id, self)),
+            selection: self.selection_paint(entry.id),
+            status: node.status,
+            bounds: node.global_bounds,
+            content_bounds: self.scrolled_content_bounds(entry.id),
+            color: node.computed.text.color,
+            text_align: node
+                .computed
+                .text
+                .align
+                .resolve(node.computed.text.direction),
+        };
         if entry.phase == Phase::Box {
             paint_box(
                 painter,
@@ -961,32 +974,20 @@ impl WidgetTree {
                 &node.computed.text,
                 &node.paint_cache,
             );
-            return Ok(());
+            return node
+                .widget
+                .as_ref()
+                .expect("widget must be present while drawing")
+                .draw_background(painter, draw_context());
         }
         if entry.phase == Phase::Scrollbar {
             self.paint_scrollbars(entry.id, painter);
             return Ok(());
         }
-        let content_bounds = self.scrolled_content_bounds(entry.id);
         node.widget
             .as_ref()
             .expect("widget must be present while drawing")
-            .draw(
-                painter,
-                DrawContext {
-                    element: Some((entry.id, self)),
-                    selection: self.selection_paint(entry.id),
-                    status: node.status,
-                    bounds: node.global_bounds,
-                    content_bounds,
-                    color: node.computed.text.color,
-                    text_align: node
-                        .computed
-                        .text
-                        .align
-                        .resolve(node.computed.text.direction),
-                },
-            )?;
+            .draw(painter, draw_context())?;
         Ok(())
     }
 

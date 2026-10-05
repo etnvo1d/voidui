@@ -76,3 +76,10 @@ pub use core::children::{Children, IntoChild};
 pub use core::environment::{provide_context, try_context, use_context};
 
 pub use style::transform::{Transform, TransformFunction, TransformLength, TransformOrigin};
+
+/// Portable backdrop optics for `.liquid_glass(Some(material))`.
+#[cfg(feature = "liquid-glass")]
+pub use voidui_gpui_wgpu::GlassMaterial;
+
+#[cfg(feature = "liquid-glass")]
+pub use widgets::glass_group;

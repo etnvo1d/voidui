@@ -1,0 +1,56 @@
+#scene {
+    width: 100%; height: 100%; overflow: hidden; color: #182b40;
+    background: linear-gradient(130deg, #cedfef, #8ebbd6 48%, #d9c9e1);
+    font-family: "Helvetica Neue"; font-size: 16px;
+}
+#orb-a {
+    position: absolute; left: 340px; top: 80px; width: 500px; height: 500px;
+    border-radius: 250px;
+    background: radial-gradient(circle at 35% 32%, #ffdea2, #e79b91 42%, #9b649c 76%, #6261a0);
+}
+#orb-b {
+    position: absolute; left: -140px; top: 350px; width: 540px; height: 400px;
+    border-radius: 200px;
+    background: linear-gradient(20deg, #225f96, #448dc0 45%, #8bcbd6);
+}
+#ribbon {
+    position: absolute; left: 650px; top: 260px; width: 580px; height: 180px;
+    border-radius: 90px; transform: rotate(-36deg);
+    background: linear-gradient(180deg, #304d78, #6495b3 40%, #dfede7 47%, #99c9d6 54%, #32759c);
+}
+#grid {
+    position: absolute; left: 0; top: 285px; width: 100%; height: 260px;
+    background: repeating-linear-gradient(90deg, transparent 0px 38px, rgb(255 255 255 / .16) 38px 40px);
+}
+#header { position: absolute; left: 64px; top: 54px; }
+.eyebrow { font-size: 12px; font-weight: 600; line-height: 20px; }
+.title { font-size: 58px; font-weight: 600; line-height: 78px; }
+.subtitle { font-size: 15px; line-height: 24px; color: #344f65; }
+.glass {
+    position: absolute; border-radius: 32px; padding: 30px; box-sizing: border-box;
+    -voidui-liquid-glass: regular;
+    box-shadow: 0 16px 32px rgb(23 44 70 / .14);
+    transition: transform 350ms ease;
+}
+#regular { left: 64px; top: 255px; width: 430px; height: 270px; }
+#clear { left: 530px; top: 255px; width: 446px; height: 270px; -voidui-liquid-glass: clear; }
+#regular:hover, #clear:hover { transform: translateY(-12px); }
+.heading { font-size: 29px; line-height: 42px; font-weight: 600; margin-top: 14px; margin-bottom: 8px; }
+.body { font-size: 16px; line-height: 25px; }
+.separator { height: 1px; background: rgb(255 255 255 / .35); margin-top: 22px; margin-bottom: 16px; }
+.caption { font-size: 10px; font-weight: 600; line-height: 16px; }
+#toolbar {
+    left: 64px; top: 570px; width: 912px; height: 72px; border-radius: 36px;
+    padding: 18px 24px; display: flex; align-items: center; gap: 18px;
+}
+.badge { font-size: 12px; font-weight: 700; padding: 8px 12px; background: #254c65; color: #fff; border-radius: 18px; }
+.toolbar-label { font-size: 14px; font-weight: 500; }
+.toolbar-note { margin-left: auto; font-size: 12px; color: #39586b; }
+#footer { position: absolute; left: 64px; top: 674px; font-size: 10px; color: #3d586e; }
+
+#liquid-group { position: absolute; left: 300px; top: 686px; width: 380px; height: 116px; display: flex; gap: 6px; }
+.liquid-button { width: 148px; height: 106px; border-radius: 44px; display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: 600; }
+.moving { transform: translateX(0px); transition: transform 650ms ease; }
+#liquid-group:hover > .moving, #liquid-group.separated > .moving { transform: translateX(64px); }
+#merge-label { position: absolute; left: 300px; top: 822px; font-size: 12px; }
+#footer { top: 870px; }

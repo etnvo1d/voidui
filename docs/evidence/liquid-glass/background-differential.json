@@ -1,0 +1,79 @@
+{
+  "host": "macOS 26.5 (25F71), Apple M3",
+  "precision": "FP32 native glass_background_lpf / glass_background_no_bleed_lpf",
+  "image_size": [
+    64,
+    48
+  ],
+  "case_count": 16,
+  "pixel_count": 49152,
+  "channel_count": 196608,
+  "maximum_channel_error": 2.3841858e-07,
+  "cases": [
+    {
+      "case": "all",
+      "maximum_channel_error": 1.1920929e-07
+    },
+    {
+      "case": "coincident_blur_stops",
+      "maximum_channel_error": 1.1920929e-07
+    },
+    {
+      "case": "coincident_negative",
+      "maximum_channel_error": 1.7881393e-07
+    },
+    {
+      "case": "coincident_positive",
+      "maximum_channel_error": 1.1920929e-07
+    },
+    {
+      "case": "no_bleed",
+      "maximum_channel_error": 1.1920929e-07
+    },
+    {
+      "case": "simple",
+      "maximum_channel_error": 1.7881393e-07
+    },
+    {
+      "case": "no_outer",
+      "maximum_channel_error": 2.3841858e-07
+    },
+    {
+      "case": "no_face",
+      "maximum_channel_error": 1.1920929e-07
+    },
+    {
+      "case": "no_vibrancy",
+      "maximum_channel_error": 1.1920929e-07
+    },
+    {
+      "case": "preserve_hue",
+      "maximum_channel_error": 1.7881393e-07
+    },
+    {
+      "case": "no_holding",
+      "maximum_channel_error": 0.0
+    },
+    {
+      "case": "no_clamp",
+      "maximum_channel_error": 1.1920929e-07
+    },
+    {
+      "case": "light_bleed",
+      "maximum_channel_error": 1.7881393e-07
+    },
+    {
+      "case": "no_shadow",
+      "maximum_channel_error": 1.1920929e-07
+    },
+    {
+      "case": "tiny_shadow",
+      "maximum_channel_error": 1.1920929e-07
+    },
+    {
+      "case": "zero_blur",
+      "maximum_channel_error": 1.1920929e-07
+    }
+  ],
+  "scope": "Production compositor with controlled source mip levels and SDF input; not complete AppKit window comparison"
+}

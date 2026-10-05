@@ -6,6 +6,10 @@ license = "Apache-2.0"
 description = "Standalone GPUI-derived WGPU renderer, scene, atlas and text system for voidui"
 readme = "README.md"
 
+[features]
+default = []
+liquid-glass = []
+
 [lib]
 path = "src/lib.rs"
 
@@ -46,3 +50,7 @@ winit = "0.30.13"
 # Load the platform font service lazily; bundled-font applications and cross
 # builds do not need host fontconfig headers or link against a host library.
 fontique = { version = "=0.11.1", features = ["fontconfig-dlopen"] }
+
+[[example]]
+name = "glass_verify"
+required-features = ["liquid-glass"]

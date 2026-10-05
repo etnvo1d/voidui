@@ -72,3 +72,17 @@ pub use spatial::{Affine, ClipChain, PaintSpace, SpatialClip};
 mod frame_cache;
 
 pub mod resource_cache;
+
+#[cfg(feature = "liquid-glass")]
+mod glass;
+#[cfg(feature = "liquid-glass")]
+pub use glass::{Glass, GlassLight, GlassMaterial, GlassTone};
+#[cfg(feature = "liquid-glass")]
+mod glass_renderer;
+
+#[cfg(feature = "liquid-glass")]
+mod glass_background;
+#[cfg(feature = "liquid-glass")]
+pub use glass_background::{
+    GlassBackground, GlassBleed, GlassBlurRamp, GlassHoldingTone, GlassOpticalShadow,
+};

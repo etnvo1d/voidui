@@ -104,6 +104,10 @@ pub(crate) fn paint_box(
         }
     };
     shadow_pass(painter, false);
+    #[cfg(feature = "liquid-glass")]
+    if let Some(material) = &style.liquid_glass {
+        painter.paint_glass(box_bounds, corners, **material);
+    }
     let layered = style
         .background_image
         .iter()

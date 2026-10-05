@@ -449,3 +449,43 @@ fn sampled_geometry_can_be_laid_out_without_reading_the_wall_clock_again() {
     a.layout_computed(Size::MAX_CONTENT, &cache());
     close(a.bounds(a.root().unwrap()).size.width, 150.0);
 }
+
+#[test]
+#[cfg(feature = "liquid-glass")]
+fn glass_css_cascades_without_implicit_inheritance_or_layout_changes() {
+    let (mut tree, now) = tree(
+        ":root { -voidui-liquid-glass: regular; width: 100px; } :root.active { -voidui-liquid-glass: clear; }",
+    );
+    let root = tree.root().unwrap();
+    let child = tree.children(root)[0];
+    assert_eq!(
+        tree.paint_style(root).liquid_glass.as_deref(),
+        Some(&voidui::GlassMaterial::regular())
+    );
+    assert_eq!(tree.paint_style(child).liquid_glass, None);
+    tree.set_classes(root, "active");
+    let changes = tree.update_styles(now);
+    assert!(changes.paint);
+    assert!(!changes.layout);
+    assert_eq!(
+        tree.paint_style(root).liquid_glass.as_deref(),
+        Some(&voidui::GlassMaterial::clear())
+    );
+    tree.set_stylesheets(vec![
+        Stylesheet::parse(
+            ":root { -voidui-liquid-glass: clear; } div > div { -voidui-liquid-glass: inherit; }",
+        )
+        .unwrap(),
+    ]);
+    tree.update_styles(now);
+    assert_eq!(
+        tree.paint_style(child).liquid_glass.as_deref(),
+        Some(&voidui::GlassMaterial::clear())
+    );
+}
+
+#[cfg(not(feature = "liquid-glass"))]
+#[test]
+fn glass_css_requires_the_opt_in_feature() {
+    assert!(Stylesheet::parse("div { -voidui-liquid-glass: regular; }").is_err());
+}

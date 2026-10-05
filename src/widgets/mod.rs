@@ -24,3 +24,8 @@ pub use asset_img::asset_img;
 
 mod virtual_list;
 pub use virtual_list::{VirtualListOptions, virtual_list};
+
+#[cfg(feature = "liquid-glass")]
+pub mod glass_group;
+#[cfg(feature = "liquid-glass")]
+pub use glass_group::{GlassGroup, glass_group};

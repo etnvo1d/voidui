@@ -1,0 +1,1801 @@
+{
+  "source": "/System/Library/Frameworks/QuartzCore.framework/Versions/A/Resources/default.metallib",
+  "source_sha256": "88f8a82780d57dcabc005b62668451e3ded245d959c1afda0405ddbe602db94a",
+  "width": 64,
+  "height": 48,
+  "mip_count": 5,
+  "cases": [
+    {
+      "name": "all",
+      "function": "glass_background_lpf",
+      "parameters": {
+        "displacement_mat": [
+          0.015625,
+          0,
+          0,
+          0.020833333333333332
+        ],
+        "inner_refraction_amount": -12,
+        "inner_refraction_inv_height": 0.125,
+        "outer_refraction_amount": 9,
+        "outer_refraction_inv_height": 0.09090909090909091,
+        "refraction_threshold0": -3,
+        "refraction_threshold1": 1,
+        "refraction_opacity": 0.4,
+        "blur_radius": 3,
+        "blur_alpha0": 1,
+        "blur_alpha1": 0.5,
+        "blur_alpha2": -0.2,
+        "blur_alpha3": 0.4,
+        "blur_dist0": -20,
+        "blur_dist1": -5,
+        "blur_dist2": 2,
+        "blur_dist3": 12,
+        "face_opacity": 0.8,
+        "edge_bleed_amount": 14,
+        "edge_bleed_inv_height": 0.1,
+        "edge_bleed_blur_radius": 6,
+        "edge_bleed_dist0": 3,
+        "edge_bleed_dist1": -2,
+        "edge_bleed_opacity": 0.6,
+        "bleed_darken": [
+          1,
+          0
+        ],
+        "shadow_offset": [
+          0,
+          0.0625
+        ],
+        "shadow_amount": 6,
+        "shadow_inv_height": 0.08333333333333333,
+        "shadow_opacity": 0.5,
+        "shadow_inv_radius": 0.16666666666666666,
+        "shadow_dist_offset": -0.5,
+        "shadow_blur_radius": 2,
+        "shadow_contribution": 0.4,
+        "shadow_face_opacity": 0.2,
+        "holding_tone_opacity": 0.7,
+        "sdr_white_value": 0.85,
+        "sdr_shadow_dist0": -2,
+        "sdr_shadow_dist1": 1,
+        "clamp_limit": 1.1,
+        "preserve_hue": 0,
+        "complex_refraction": 1,
+        "face_cm0": [
+          0.7998046875,
+          0.0999755859375,
+          0.0,
+          0.1500244140625
+        ],
+        "face_cm1": [
+          0.0,
+          0.89990234375,
+          0.0999755859375,
+          0.0999755859375
+        ],
+        "face_cm2": [
+          0.0999755859375,
+          0.0,
+          0.7001953125,
+          0.199951171875
+        ],
+        "bleed_cm0": [
+          0.7001953125,
+          0.199951171875,
+          0.0,
+          0.0999755859375
+        ],
+        "bleed_cm1": [
+          0.0999755859375,
+          0.60009765625,
+          0.0999755859375,
+          0.199951171875
+        ],
+        "bleed_cm2": [
+          0.0999755859375,
+          0.0,
+          0.7998046875,
+          0.0999755859375
+        ],
+        "shadow_cm0": [
+          0.60009765625,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "shadow_cm1": [
+          0.0,
+          0.60009765625,
+          0.0,
+          0.0
+        ],
+        "shadow_cm2": [
+          0.0,
+          0.0,
+          0.60009765625,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "coincident_blur_stops",
+      "function": "glass_background_lpf",
+      "parameters": {
+        "displacement_mat": [
+          0.015625,
+          0,
+          0,
+          0.020833333333333332
+        ],
+        "inner_refraction_amount": -12,
+        "inner_refraction_inv_height": 0.125,
+        "outer_refraction_amount": 9,
+        "outer_refraction_inv_height": 0.09090909090909091,
+        "refraction_threshold0": -3,
+        "refraction_threshold1": 1,
+        "refraction_opacity": 0.4,
+        "blur_radius": 3,
+        "blur_alpha0": 1,
+        "blur_alpha1": 0.5,
+        "blur_alpha2": 0,
+        "blur_alpha3": -0.5,
+        "blur_dist0": -115,
+        "blur_dist1": -1,
+        "blur_dist2": 0,
+        "blur_dist3": 0,
+        "face_opacity": 0.8,
+        "edge_bleed_amount": 14,
+        "edge_bleed_inv_height": 0.1,
+        "edge_bleed_blur_radius": 6,
+        "edge_bleed_dist0": 3,
+        "edge_bleed_dist1": -2,
+        "edge_bleed_opacity": 0.6,
+        "bleed_darken": [
+          1,
+          0
+        ],
+        "shadow_offset": [
+          0,
+          0.0625
+        ],
+        "shadow_amount": 6,
+        "shadow_inv_height": 0.08333333333333333,
+        "shadow_opacity": 0.5,
+        "shadow_inv_radius": 0.16666666666666666,
+        "shadow_dist_offset": -0.5,
+        "shadow_blur_radius": 2,
+        "shadow_contribution": 0.4,
+        "shadow_face_opacity": 0.2,
+        "holding_tone_opacity": 0.7,
+        "sdr_white_value": 0.85,
+        "sdr_shadow_dist0": -2,
+        "sdr_shadow_dist1": 1,
+        "clamp_limit": 1.1,
+        "preserve_hue": 0,
+        "complex_refraction": 1,
+        "face_cm0": [
+          0.7998046875,
+          0.0999755859375,
+          0.0,
+          0.1500244140625
+        ],
+        "face_cm1": [
+          0.0,
+          0.89990234375,
+          0.0999755859375,
+          0.0999755859375
+        ],
+        "face_cm2": [
+          0.0999755859375,
+          0.0,
+          0.7001953125,
+          0.199951171875
+        ],
+        "bleed_cm0": [
+          0.7001953125,
+          0.199951171875,
+          0.0,
+          0.0999755859375
+        ],
+        "bleed_cm1": [
+          0.0999755859375,
+          0.60009765625,
+          0.0999755859375,
+          0.199951171875
+        ],
+        "bleed_cm2": [
+          0.0999755859375,
+          0.0,
+          0.7998046875,
+          0.0999755859375
+        ],
+        "shadow_cm0": [
+          0.60009765625,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "shadow_cm1": [
+          0.0,
+          0.60009765625,
+          0.0,
+          0.0
+        ],
+        "shadow_cm2": [
+          0.0,
+          0.0,
+          0.60009765625,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "coincident_negative",
+      "function": "glass_background_lpf",
+      "parameters": {
+        "displacement_mat": [
+          0.015625,
+          0,
+          0,
+          0.020833333333333332
+        ],
+        "inner_refraction_amount": -12,
+        "inner_refraction_inv_height": 0.125,
+        "outer_refraction_amount": 9,
+        "outer_refraction_inv_height": 0.09090909090909091,
+        "refraction_threshold0": -3,
+        "refraction_threshold1": 1,
+        "refraction_opacity": 0.4,
+        "blur_radius": 3,
+        "blur_alpha0": 1,
+        "blur_alpha1": 0.5,
+        "blur_alpha2": -0.2,
+        "blur_alpha3": 0.4,
+        "blur_dist0": -20,
+        "blur_dist1": -5,
+        "blur_dist2": -1,
+        "blur_dist3": -1,
+        "face_opacity": 0.8,
+        "edge_bleed_amount": 14,
+        "edge_bleed_inv_height": 0.1,
+        "edge_bleed_blur_radius": 6,
+        "edge_bleed_dist0": 3,
+        "edge_bleed_dist1": -2,
+        "edge_bleed_opacity": 0.6,
+        "bleed_darken": [
+          1,
+          0
+        ],
+        "shadow_offset": [
+          0,
+          0.0625
+        ],
+        "shadow_amount": 6,
+        "shadow_inv_height": 0.08333333333333333,
+        "shadow_opacity": 0.5,
+        "shadow_inv_radius": 0.16666666666666666,
+        "shadow_dist_offset": -0.5,
+        "shadow_blur_radius": 2,
+        "shadow_contribution": 0.4,
+        "shadow_face_opacity": 0.2,
+        "holding_tone_opacity": 0.7,
+        "sdr_white_value": 0.85,
+        "sdr_shadow_dist0": -2,
+        "sdr_shadow_dist1": 1,
+        "clamp_limit": 1.1,
+        "preserve_hue": 0,
+        "complex_refraction": 1,
+        "face_cm0": [
+          0.7998046875,
+          0.0999755859375,
+          0.0,
+          0.1500244140625
+        ],
+        "face_cm1": [
+          0.0,
+          0.89990234375,
+          0.0999755859375,
+          0.0999755859375
+        ],
+        "face_cm2": [
+          0.0999755859375,
+          0.0,
+          0.7001953125,
+          0.199951171875
+        ],
+        "bleed_cm0": [
+          0.7001953125,
+          0.199951171875,
+          0.0,
+          0.0999755859375
+        ],
+        "bleed_cm1": [
+          0.0999755859375,
+          0.60009765625,
+          0.0999755859375,
+          0.199951171875
+        ],
+        "bleed_cm2": [
+          0.0999755859375,
+          0.0,
+          0.7998046875,
+          0.0999755859375
+        ],
+        "shadow_cm0": [
+          0.60009765625,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "shadow_cm1": [
+          0.0,
+          0.60009765625,
+          0.0,
+          0.0
+        ],
+        "shadow_cm2": [
+          0.0,
+          0.0,
+          0.60009765625,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "coincident_positive",
+      "function": "glass_background_lpf",
+      "parameters": {
+        "displacement_mat": [
+          0.015625,
+          0,
+          0,
+          0.020833333333333332
+        ],
+        "inner_refraction_amount": -12,
+        "inner_refraction_inv_height": 0.125,
+        "outer_refraction_amount": 9,
+        "outer_refraction_inv_height": 0.09090909090909091,
+        "refraction_threshold0": -3,
+        "refraction_threshold1": 1,
+        "refraction_opacity": 0.4,
+        "blur_radius": 3,
+        "blur_alpha0": 1,
+        "blur_alpha1": 0.5,
+        "blur_alpha2": -0.2,
+        "blur_alpha3": 0.4,
+        "blur_dist0": -20,
+        "blur_dist1": -5,
+        "blur_dist2": 2,
+        "blur_dist3": 2,
+        "face_opacity": 0.8,
+        "edge_bleed_amount": 14,
+        "edge_bleed_inv_height": 0.1,
+        "edge_bleed_blur_radius": 6,
+        "edge_bleed_dist0": 3,
+        "edge_bleed_dist1": -2,
+        "edge_bleed_opacity": 0.6,
+        "bleed_darken": [
+          1,
+          0
+        ],
+        "shadow_offset": [
+          0,
+          0.0625
+        ],
+        "shadow_amount": 6,
+        "shadow_inv_height": 0.08333333333333333,
+        "shadow_opacity": 0.5,
+        "shadow_inv_radius": 0.16666666666666666,
+        "shadow_dist_offset": -0.5,
+        "shadow_blur_radius": 2,
+        "shadow_contribution": 0.4,
+        "shadow_face_opacity": 0.2,
+        "holding_tone_opacity": 0.7,
+        "sdr_white_value": 0.85,
+        "sdr_shadow_dist0": -2,
+        "sdr_shadow_dist1": 1,
+        "clamp_limit": 1.1,
+        "preserve_hue": 0,
+        "complex_refraction": 1,
+        "face_cm0": [
+          0.7998046875,
+          0.0999755859375,
+          0.0,
+          0.1500244140625
+        ],
+        "face_cm1": [
+          0.0,
+          0.89990234375,
+          0.0999755859375,
+          0.0999755859375
+        ],
+        "face_cm2": [
+          0.0999755859375,
+          0.0,
+          0.7001953125,
+          0.199951171875
+        ],
+        "bleed_cm0": [
+          0.7001953125,
+          0.199951171875,
+          0.0,
+          0.0999755859375
+        ],
+        "bleed_cm1": [
+          0.0999755859375,
+          0.60009765625,
+          0.0999755859375,
+          0.199951171875
+        ],
+        "bleed_cm2": [
+          0.0999755859375,
+          0.0,
+          0.7998046875,
+          0.0999755859375
+        ],
+        "shadow_cm0": [
+          0.60009765625,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "shadow_cm1": [
+          0.0,
+          0.60009765625,
+          0.0,
+          0.0
+        ],
+        "shadow_cm2": [
+          0.0,
+          0.0,
+          0.60009765625,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "no_bleed",
+      "function": "glass_background_no_bleed_lpf",
+      "parameters": {
+        "displacement_mat": [
+          0.015625,
+          0,
+          0,
+          0.020833333333333332
+        ],
+        "inner_refraction_amount": -12,
+        "inner_refraction_inv_height": 0.125,
+        "outer_refraction_amount": 9,
+        "outer_refraction_inv_height": 0.09090909090909091,
+        "refraction_threshold0": -3,
+        "refraction_threshold1": 1,
+        "refraction_opacity": 0.4,
+        "blur_radius": 3,
+        "blur_alpha0": 1,
+        "blur_alpha1": 0.5,
+        "blur_alpha2": -0.2,
+        "blur_alpha3": 0.4,
+        "blur_dist0": -20,
+        "blur_dist1": -5,
+        "blur_dist2": 2,
+        "blur_dist3": 12,
+        "face_opacity": 0.8,
+        "edge_bleed_amount": 14,
+        "edge_bleed_inv_height": 0.1,
+        "edge_bleed_blur_radius": 6,
+        "edge_bleed_dist0": 3,
+        "edge_bleed_dist1": -2,
+        "edge_bleed_opacity": 0.6,
+        "bleed_darken": [
+          1,
+          0
+        ],
+        "shadow_offset": [
+          0,
+          0.0625
+        ],
+        "shadow_amount": 6,
+        "shadow_inv_height": 0.08333333333333333,
+        "shadow_opacity": 0.5,
+        "shadow_inv_radius": 0.16666666666666666,
+        "shadow_dist_offset": -0.5,
+        "shadow_blur_radius": 2,
+        "shadow_contribution": 0.4,
+        "shadow_face_opacity": 0.2,
+        "holding_tone_opacity": 0.7,
+        "sdr_white_value": 0.85,
+        "sdr_shadow_dist0": -2,
+        "sdr_shadow_dist1": 1,
+        "clamp_limit": 1.1,
+        "preserve_hue": 0,
+        "complex_refraction": 1,
+        "face_cm0": [
+          0.7998046875,
+          0.0999755859375,
+          0.0,
+          0.1500244140625
+        ],
+        "face_cm1": [
+          0.0,
+          0.89990234375,
+          0.0999755859375,
+          0.0999755859375
+        ],
+        "face_cm2": [
+          0.0999755859375,
+          0.0,
+          0.7001953125,
+          0.199951171875
+        ],
+        "bleed_cm0": [
+          0.7001953125,
+          0.199951171875,
+          0.0,
+          0.0999755859375
+        ],
+        "bleed_cm1": [
+          0.0999755859375,
+          0.60009765625,
+          0.0999755859375,
+          0.199951171875
+        ],
+        "bleed_cm2": [
+          0.0999755859375,
+          0.0,
+          0.7998046875,
+          0.0999755859375
+        ],
+        "shadow_cm0": [
+          0.60009765625,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "shadow_cm1": [
+          0.0,
+          0.60009765625,
+          0.0,
+          0.0
+        ],
+        "shadow_cm2": [
+          0.0,
+          0.0,
+          0.60009765625,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "simple",
+      "function": "glass_background_lpf",
+      "parameters": {
+        "displacement_mat": [
+          0.015625,
+          0,
+          0,
+          0.020833333333333332
+        ],
+        "inner_refraction_amount": -12,
+        "inner_refraction_inv_height": 0.125,
+        "outer_refraction_amount": 9,
+        "outer_refraction_inv_height": 0.09090909090909091,
+        "refraction_threshold0": -3,
+        "refraction_threshold1": 1,
+        "refraction_opacity": 0.4,
+        "blur_radius": 3,
+        "blur_alpha0": 1,
+        "blur_alpha1": 0.5,
+        "blur_alpha2": -0.2,
+        "blur_alpha3": 0.4,
+        "blur_dist0": -20,
+        "blur_dist1": -5,
+        "blur_dist2": 2,
+        "blur_dist3": 12,
+        "face_opacity": 0.8,
+        "edge_bleed_amount": 14,
+        "edge_bleed_inv_height": 0.1,
+        "edge_bleed_blur_radius": 6,
+        "edge_bleed_dist0": 3,
+        "edge_bleed_dist1": -2,
+        "edge_bleed_opacity": 0.6,
+        "bleed_darken": [
+          1,
+          0
+        ],
+        "shadow_offset": [
+          0,
+          0.0625
+        ],
+        "shadow_amount": 6,
+        "shadow_inv_height": 0.08333333333333333,
+        "shadow_opacity": 0.5,
+        "shadow_inv_radius": 0.16666666666666666,
+        "shadow_dist_offset": -0.5,
+        "shadow_blur_radius": 2,
+        "shadow_contribution": 0.4,
+        "shadow_face_opacity": 0.2,
+        "holding_tone_opacity": 0.7,
+        "sdr_white_value": 0.85,
+        "sdr_shadow_dist0": -2,
+        "sdr_shadow_dist1": 1,
+        "clamp_limit": 1.1,
+        "preserve_hue": 0,
+        "complex_refraction": 0,
+        "face_cm0": [
+          0.7998046875,
+          0.0999755859375,
+          0.0,
+          0.1500244140625
+        ],
+        "face_cm1": [
+          0.0,
+          0.89990234375,
+          0.0999755859375,
+          0.0999755859375
+        ],
+        "face_cm2": [
+          0.0999755859375,
+          0.0,
+          0.7001953125,
+          0.199951171875
+        ],
+        "bleed_cm0": [
+          0.7001953125,
+          0.199951171875,
+          0.0,
+          0.0999755859375
+        ],
+        "bleed_cm1": [
+          0.0999755859375,
+          0.60009765625,
+          0.0999755859375,
+          0.199951171875
+        ],
+        "bleed_cm2": [
+          0.0999755859375,
+          0.0,
+          0.7998046875,
+          0.0999755859375
+        ],
+        "shadow_cm0": [
+          0.60009765625,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "shadow_cm1": [
+          0.0,
+          0.60009765625,
+          0.0,
+          0.0
+        ],
+        "shadow_cm2": [
+          0.0,
+          0.0,
+          0.60009765625,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "no_outer",
+      "function": "glass_background_lpf",
+      "parameters": {
+        "displacement_mat": [
+          0.015625,
+          0,
+          0,
+          0.020833333333333332
+        ],
+        "inner_refraction_amount": -12,
+        "inner_refraction_inv_height": 0.125,
+        "outer_refraction_amount": 9,
+        "outer_refraction_inv_height": 0.09090909090909091,
+        "refraction_threshold0": -3,
+        "refraction_threshold1": 1,
+        "refraction_opacity": 0,
+        "blur_radius": 3,
+        "blur_alpha0": 1,
+        "blur_alpha1": 0.5,
+        "blur_alpha2": -0.2,
+        "blur_alpha3": 0.4,
+        "blur_dist0": -20,
+        "blur_dist1": -5,
+        "blur_dist2": 2,
+        "blur_dist3": 12,
+        "face_opacity": 0.8,
+        "edge_bleed_amount": 14,
+        "edge_bleed_inv_height": 0.1,
+        "edge_bleed_blur_radius": 6,
+        "edge_bleed_dist0": 3,
+        "edge_bleed_dist1": -2,
+        "edge_bleed_opacity": 0.6,
+        "bleed_darken": [
+          1,
+          0
+        ],
+        "shadow_offset": [
+          0,
+          0.0625
+        ],
+        "shadow_amount": 6,
+        "shadow_inv_height": 0.08333333333333333,
+        "shadow_opacity": 0.5,
+        "shadow_inv_radius": 0.16666666666666666,
+        "shadow_dist_offset": -0.5,
+        "shadow_blur_radius": 2,
+        "shadow_contribution": 0.4,
+        "shadow_face_opacity": 0.2,
+        "holding_tone_opacity": 0.7,
+        "sdr_white_value": 0.85,
+        "sdr_shadow_dist0": -2,
+        "sdr_shadow_dist1": 1,
+        "clamp_limit": 1.1,
+        "preserve_hue": 0,
+        "complex_refraction": 1,
+        "face_cm0": [
+          0.7998046875,
+          0.0999755859375,
+          0.0,
+          0.1500244140625
+        ],
+        "face_cm1": [
+          0.0,
+          0.89990234375,
+          0.0999755859375,
+          0.0999755859375
+        ],
+        "face_cm2": [
+          0.0999755859375,
+          0.0,
+          0.7001953125,
+          0.199951171875
+        ],
+        "bleed_cm0": [
+          0.7001953125,
+          0.199951171875,
+          0.0,
+          0.0999755859375
+        ],
+        "bleed_cm1": [
+          0.0999755859375,
+          0.60009765625,
+          0.0999755859375,
+          0.199951171875
+        ],
+        "bleed_cm2": [
+          0.0999755859375,
+          0.0,
+          0.7998046875,
+          0.0999755859375
+        ],
+        "shadow_cm0": [
+          0.60009765625,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "shadow_cm1": [
+          0.0,
+          0.60009765625,
+          0.0,
+          0.0
+        ],
+        "shadow_cm2": [
+          0.0,
+          0.0,
+          0.60009765625,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "no_face",
+      "function": "glass_background_lpf",
+      "parameters": {
+        "displacement_mat": [
+          0.015625,
+          0,
+          0,
+          0.020833333333333332
+        ],
+        "inner_refraction_amount": -12,
+        "inner_refraction_inv_height": 0.125,
+        "outer_refraction_amount": 9,
+        "outer_refraction_inv_height": 0.09090909090909091,
+        "refraction_threshold0": -3,
+        "refraction_threshold1": 1,
+        "refraction_opacity": 0.4,
+        "blur_radius": 3,
+        "blur_alpha0": 1,
+        "blur_alpha1": 0.5,
+        "blur_alpha2": -0.2,
+        "blur_alpha3": 0.4,
+        "blur_dist0": -20,
+        "blur_dist1": -5,
+        "blur_dist2": 2,
+        "blur_dist3": 12,
+        "face_opacity": 0,
+        "edge_bleed_amount": 14,
+        "edge_bleed_inv_height": 0.1,
+        "edge_bleed_blur_radius": 6,
+        "edge_bleed_dist0": 3,
+        "edge_bleed_dist1": -2,
+        "edge_bleed_opacity": 0.6,
+        "bleed_darken": [
+          1,
+          0
+        ],
+        "shadow_offset": [
+          0,
+          0.0625
+        ],
+        "shadow_amount": 6,
+        "shadow_inv_height": 0.08333333333333333,
+        "shadow_opacity": 0.5,
+        "shadow_inv_radius": 0.16666666666666666,
+        "shadow_dist_offset": -0.5,
+        "shadow_blur_radius": 2,
+        "shadow_contribution": 0.4,
+        "shadow_face_opacity": 0.2,
+        "holding_tone_opacity": 0.7,
+        "sdr_white_value": 0.85,
+        "sdr_shadow_dist0": -2,
+        "sdr_shadow_dist1": 1,
+        "clamp_limit": 1.1,
+        "preserve_hue": 0,
+        "complex_refraction": 1,
+        "face_cm0": [
+          0.7998046875,
+          0.0999755859375,
+          0.0,
+          0.1500244140625
+        ],
+        "face_cm1": [
+          0.0,
+          0.89990234375,
+          0.0999755859375,
+          0.0999755859375
+        ],
+        "face_cm2": [
+          0.0999755859375,
+          0.0,
+          0.7001953125,
+          0.199951171875
+        ],
+        "bleed_cm0": [
+          0.7001953125,
+          0.199951171875,
+          0.0,
+          0.0999755859375
+        ],
+        "bleed_cm1": [
+          0.0999755859375,
+          0.60009765625,
+          0.0999755859375,
+          0.199951171875
+        ],
+        "bleed_cm2": [
+          0.0999755859375,
+          0.0,
+          0.7998046875,
+          0.0999755859375
+        ],
+        "shadow_cm0": [
+          0.60009765625,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "shadow_cm1": [
+          0.0,
+          0.60009765625,
+          0.0,
+          0.0
+        ],
+        "shadow_cm2": [
+          0.0,
+          0.0,
+          0.60009765625,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "no_vibrancy",
+      "function": "glass_background_lpf",
+      "parameters": {
+        "displacement_mat": [
+          0.015625,
+          0,
+          0,
+          0.020833333333333332
+        ],
+        "inner_refraction_amount": -12,
+        "inner_refraction_inv_height": 0.125,
+        "outer_refraction_amount": 9,
+        "outer_refraction_inv_height": 0.09090909090909091,
+        "refraction_threshold0": -3,
+        "refraction_threshold1": 1,
+        "refraction_opacity": 0.4,
+        "blur_radius": 3,
+        "blur_alpha0": 1,
+        "blur_alpha1": 0.5,
+        "blur_alpha2": -0.2,
+        "blur_alpha3": 0.4,
+        "blur_dist0": -20,
+        "blur_dist1": -5,
+        "blur_dist2": 2,
+        "blur_dist3": 12,
+        "face_opacity": 0.8,
+        "edge_bleed_amount": 14,
+        "edge_bleed_inv_height": 0.1,
+        "edge_bleed_blur_radius": 6,
+        "edge_bleed_dist0": 3,
+        "edge_bleed_dist1": -2,
+        "edge_bleed_opacity": 0.6,
+        "bleed_darken": [
+          1,
+          0
+        ],
+        "shadow_offset": [
+          0,
+          0.0625
+        ],
+        "shadow_amount": 6,
+        "shadow_inv_height": 0.08333333333333333,
+        "shadow_opacity": 0.5,
+        "shadow_inv_radius": 0.16666666666666666,
+        "shadow_dist_offset": -0.5,
+        "shadow_blur_radius": 2,
+        "shadow_contribution": 0,
+        "shadow_face_opacity": 0.2,
+        "holding_tone_opacity": 0.7,
+        "sdr_white_value": 0.85,
+        "sdr_shadow_dist0": -2,
+        "sdr_shadow_dist1": 1,
+        "clamp_limit": 1.1,
+        "preserve_hue": 0,
+        "complex_refraction": 1,
+        "face_cm0": [
+          0.7998046875,
+          0.0999755859375,
+          0.0,
+          0.1500244140625
+        ],
+        "face_cm1": [
+          0.0,
+          0.89990234375,
+          0.0999755859375,
+          0.0999755859375
+        ],
+        "face_cm2": [
+          0.0999755859375,
+          0.0,
+          0.7001953125,
+          0.199951171875
+        ],
+        "bleed_cm0": [
+          0.7001953125,
+          0.199951171875,
+          0.0,
+          0.0999755859375
+        ],
+        "bleed_cm1": [
+          0.0999755859375,
+          0.60009765625,
+          0.0999755859375,
+          0.199951171875
+        ],
+        "bleed_cm2": [
+          0.0999755859375,
+          0.0,
+          0.7998046875,
+          0.0999755859375
+        ],
+        "shadow_cm0": [
+          0.60009765625,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "shadow_cm1": [
+          0.0,
+          0.60009765625,
+          0.0,
+          0.0
+        ],
+        "shadow_cm2": [
+          0.0,
+          0.0,
+          0.60009765625,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "preserve_hue",
+      "function": "glass_background_lpf",
+      "parameters": {
+        "displacement_mat": [
+          0.015625,
+          0,
+          0,
+          0.020833333333333332
+        ],
+        "inner_refraction_amount": -12,
+        "inner_refraction_inv_height": 0.125,
+        "outer_refraction_amount": 9,
+        "outer_refraction_inv_height": 0.09090909090909091,
+        "refraction_threshold0": -3,
+        "refraction_threshold1": 1,
+        "refraction_opacity": 0.4,
+        "blur_radius": 3,
+        "blur_alpha0": 1,
+        "blur_alpha1": 0.5,
+        "blur_alpha2": -0.2,
+        "blur_alpha3": 0.4,
+        "blur_dist0": -20,
+        "blur_dist1": -5,
+        "blur_dist2": 2,
+        "blur_dist3": 12,
+        "face_opacity": 0.8,
+        "edge_bleed_amount": 14,
+        "edge_bleed_inv_height": 0.1,
+        "edge_bleed_blur_radius": 6,
+        "edge_bleed_dist0": 3,
+        "edge_bleed_dist1": -2,
+        "edge_bleed_opacity": 0.6,
+        "bleed_darken": [
+          1,
+          0
+        ],
+        "shadow_offset": [
+          0,
+          0.0625
+        ],
+        "shadow_amount": 6,
+        "shadow_inv_height": 0.08333333333333333,
+        "shadow_opacity": 0.5,
+        "shadow_inv_radius": 0.16666666666666666,
+        "shadow_dist_offset": -0.5,
+        "shadow_blur_radius": 2,
+        "shadow_contribution": 0.4,
+        "shadow_face_opacity": 0.2,
+        "holding_tone_opacity": 0.7,
+        "sdr_white_value": 0.85,
+        "sdr_shadow_dist0": -2,
+        "sdr_shadow_dist1": 1,
+        "clamp_limit": 0.7,
+        "preserve_hue": 1,
+        "complex_refraction": 1,
+        "face_cm0": [
+          0.7998046875,
+          0.0999755859375,
+          0.0,
+          0.1500244140625
+        ],
+        "face_cm1": [
+          0.0,
+          0.89990234375,
+          0.0999755859375,
+          0.0999755859375
+        ],
+        "face_cm2": [
+          0.0999755859375,
+          0.0,
+          0.7001953125,
+          0.199951171875
+        ],
+        "bleed_cm0": [
+          0.7001953125,
+          0.199951171875,
+          0.0,
+          0.0999755859375
+        ],
+        "bleed_cm1": [
+          0.0999755859375,
+          0.60009765625,
+          0.0999755859375,
+          0.199951171875
+        ],
+        "bleed_cm2": [
+          0.0999755859375,
+          0.0,
+          0.7998046875,
+          0.0999755859375
+        ],
+        "shadow_cm0": [
+          0.60009765625,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "shadow_cm1": [
+          0.0,
+          0.60009765625,
+          0.0,
+          0.0
+        ],
+        "shadow_cm2": [
+          0.0,
+          0.0,
+          0.60009765625,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "no_holding",
+      "function": "glass_background_lpf",
+      "parameters": {
+        "displacement_mat": [
+          0.015625,
+          0,
+          0,
+          0.020833333333333332
+        ],
+        "inner_refraction_amount": -12,
+        "inner_refraction_inv_height": 0.125,
+        "outer_refraction_amount": 9,
+        "outer_refraction_inv_height": 0.09090909090909091,
+        "refraction_threshold0": -3,
+        "refraction_threshold1": 1,
+        "refraction_opacity": 0.4,
+        "blur_radius": 3,
+        "blur_alpha0": 1,
+        "blur_alpha1": 0.5,
+        "blur_alpha2": -0.2,
+        "blur_alpha3": 0.4,
+        "blur_dist0": -20,
+        "blur_dist1": -5,
+        "blur_dist2": 2,
+        "blur_dist3": 12,
+        "face_opacity": 0.8,
+        "edge_bleed_amount": 14,
+        "edge_bleed_inv_height": 0.1,
+        "edge_bleed_blur_radius": 6,
+        "edge_bleed_dist0": 3,
+        "edge_bleed_dist1": -2,
+        "edge_bleed_opacity": 0.6,
+        "bleed_darken": [
+          1,
+          0
+        ],
+        "shadow_offset": [
+          0,
+          0.0625
+        ],
+        "shadow_amount": 6,
+        "shadow_inv_height": 0.08333333333333333,
+        "shadow_opacity": 0.5,
+        "shadow_inv_radius": 0.16666666666666666,
+        "shadow_dist_offset": -0.5,
+        "shadow_blur_radius": 2,
+        "shadow_contribution": 0.4,
+        "shadow_face_opacity": 0.2,
+        "holding_tone_opacity": 0,
+        "sdr_white_value": 0.85,
+        "sdr_shadow_dist0": -2,
+        "sdr_shadow_dist1": 1,
+        "clamp_limit": 1.1,
+        "preserve_hue": 0,
+        "complex_refraction": 1,
+        "face_cm0": [
+          0.7998046875,
+          0.0999755859375,
+          0.0,
+          0.1500244140625
+        ],
+        "face_cm1": [
+          0.0,
+          0.89990234375,
+          0.0999755859375,
+          0.0999755859375
+        ],
+        "face_cm2": [
+          0.0999755859375,
+          0.0,
+          0.7001953125,
+          0.199951171875
+        ],
+        "bleed_cm0": [
+          0.7001953125,
+          0.199951171875,
+          0.0,
+          0.0999755859375
+        ],
+        "bleed_cm1": [
+          0.0999755859375,
+          0.60009765625,
+          0.0999755859375,
+          0.199951171875
+        ],
+        "bleed_cm2": [
+          0.0999755859375,
+          0.0,
+          0.7998046875,
+          0.0999755859375
+        ],
+        "shadow_cm0": [
+          0.60009765625,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "shadow_cm1": [
+          0.0,
+          0.60009765625,
+          0.0,
+          0.0
+        ],
+        "shadow_cm2": [
+          0.0,
+          0.0,
+          0.60009765625,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "no_clamp",
+      "function": "glass_background_lpf",
+      "parameters": {
+        "displacement_mat": [
+          0.015625,
+          0,
+          0,
+          0.020833333333333332
+        ],
+        "inner_refraction_amount": -12,
+        "inner_refraction_inv_height": 0.125,
+        "outer_refraction_amount": 9,
+        "outer_refraction_inv_height": 0.09090909090909091,
+        "refraction_threshold0": -3,
+        "refraction_threshold1": 1,
+        "refraction_opacity": 0.4,
+        "blur_radius": 3,
+        "blur_alpha0": 1,
+        "blur_alpha1": 0.5,
+        "blur_alpha2": -0.2,
+        "blur_alpha3": 0.4,
+        "blur_dist0": -20,
+        "blur_dist1": -5,
+        "blur_dist2": 2,
+        "blur_dist3": 12,
+        "face_opacity": 0.8,
+        "edge_bleed_amount": 14,
+        "edge_bleed_inv_height": 0.1,
+        "edge_bleed_blur_radius": 6,
+        "edge_bleed_dist0": 3,
+        "edge_bleed_dist1": -2,
+        "edge_bleed_opacity": 0.6,
+        "bleed_darken": [
+          1,
+          0
+        ],
+        "shadow_offset": [
+          0,
+          0.0625
+        ],
+        "shadow_amount": 6,
+        "shadow_inv_height": 0.08333333333333333,
+        "shadow_opacity": 0.5,
+        "shadow_inv_radius": 0.16666666666666666,
+        "shadow_dist_offset": -0.5,
+        "shadow_blur_radius": 2,
+        "shadow_contribution": 0.4,
+        "shadow_face_opacity": 0.2,
+        "holding_tone_opacity": 0.7,
+        "sdr_white_value": 0.85,
+        "sdr_shadow_dist0": -2,
+        "sdr_shadow_dist1": 1,
+        "clamp_limit": 0,
+        "preserve_hue": 0,
+        "complex_refraction": 1,
+        "face_cm0": [
+          0.7998046875,
+          0.0999755859375,
+          0.0,
+          0.1500244140625
+        ],
+        "face_cm1": [
+          0.0,
+          0.89990234375,
+          0.0999755859375,
+          0.0999755859375
+        ],
+        "face_cm2": [
+          0.0999755859375,
+          0.0,
+          0.7001953125,
+          0.199951171875
+        ],
+        "bleed_cm0": [
+          0.7001953125,
+          0.199951171875,
+          0.0,
+          0.0999755859375
+        ],
+        "bleed_cm1": [
+          0.0999755859375,
+          0.60009765625,
+          0.0999755859375,
+          0.199951171875
+        ],
+        "bleed_cm2": [
+          0.0999755859375,
+          0.0,
+          0.7998046875,
+          0.0999755859375
+        ],
+        "shadow_cm0": [
+          0.60009765625,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "shadow_cm1": [
+          0.0,
+          0.60009765625,
+          0.0,
+          0.0
+        ],
+        "shadow_cm2": [
+          0.0,
+          0.0,
+          0.60009765625,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "light_bleed",
+      "function": "glass_background_lpf",
+      "parameters": {
+        "displacement_mat": [
+          0.015625,
+          0,
+          0,
+          0.020833333333333332
+        ],
+        "inner_refraction_amount": -12,
+        "inner_refraction_inv_height": 0.125,
+        "outer_refraction_amount": 9,
+        "outer_refraction_inv_height": 0.09090909090909091,
+        "refraction_threshold0": -3,
+        "refraction_threshold1": 1,
+        "refraction_opacity": 0.4,
+        "blur_radius": 3,
+        "blur_alpha0": 1,
+        "blur_alpha1": 0.5,
+        "blur_alpha2": -0.2,
+        "blur_alpha3": 0.4,
+        "blur_dist0": -20,
+        "blur_dist1": -5,
+        "blur_dist2": 2,
+        "blur_dist3": 12,
+        "face_opacity": 0.8,
+        "edge_bleed_amount": 14,
+        "edge_bleed_inv_height": 0.1,
+        "edge_bleed_blur_radius": 6,
+        "edge_bleed_dist0": 3,
+        "edge_bleed_dist1": -2,
+        "edge_bleed_opacity": 0.6,
+        "bleed_darken": [
+          -1,
+          1
+        ],
+        "shadow_offset": [
+          0,
+          0.0625
+        ],
+        "shadow_amount": 6,
+        "shadow_inv_height": 0.08333333333333333,
+        "shadow_opacity": 0.5,
+        "shadow_inv_radius": 0.16666666666666666,
+        "shadow_dist_offset": -0.5,
+        "shadow_blur_radius": 2,
+        "shadow_contribution": 0.4,
+        "shadow_face_opacity": 0.2,
+        "holding_tone_opacity": 0.7,
+        "sdr_white_value": 0.85,
+        "sdr_shadow_dist0": -2,
+        "sdr_shadow_dist1": 1,
+        "clamp_limit": 1.1,
+        "preserve_hue": 0,
+        "complex_refraction": 1,
+        "face_cm0": [
+          0.7998046875,
+          0.0999755859375,
+          0.0,
+          0.1500244140625
+        ],
+        "face_cm1": [
+          0.0,
+          0.89990234375,
+          0.0999755859375,
+          0.0999755859375
+        ],
+        "face_cm2": [
+          0.0999755859375,
+          0.0,
+          0.7001953125,
+          0.199951171875
+        ],
+        "bleed_cm0": [
+          0.7001953125,
+          0.199951171875,
+          0.0,
+          0.0999755859375
+        ],
+        "bleed_cm1": [
+          0.0999755859375,
+          0.60009765625,
+          0.0999755859375,
+          0.199951171875
+        ],
+        "bleed_cm2": [
+          0.0999755859375,
+          0.0,
+          0.7998046875,
+          0.0999755859375
+        ],
+        "shadow_cm0": [
+          0.60009765625,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "shadow_cm1": [
+          0.0,
+          0.60009765625,
+          0.0,
+          0.0
+        ],
+        "shadow_cm2": [
+          0.0,
+          0.0,
+          0.60009765625,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "no_shadow",
+      "function": "glass_background_lpf",
+      "parameters": {
+        "displacement_mat": [
+          0.015625,
+          0,
+          0,
+          0.020833333333333332
+        ],
+        "inner_refraction_amount": -12,
+        "inner_refraction_inv_height": 0.125,
+        "outer_refraction_amount": 9,
+        "outer_refraction_inv_height": 0.09090909090909091,
+        "refraction_threshold0": -3,
+        "refraction_threshold1": 1,
+        "refraction_opacity": 0.4,
+        "blur_radius": 3,
+        "blur_alpha0": 1,
+        "blur_alpha1": 0.5,
+        "blur_alpha2": -0.2,
+        "blur_alpha3": 0.4,
+        "blur_dist0": -20,
+        "blur_dist1": -5,
+        "blur_dist2": 2,
+        "blur_dist3": 12,
+        "face_opacity": 0.8,
+        "edge_bleed_amount": 14,
+        "edge_bleed_inv_height": 0.1,
+        "edge_bleed_blur_radius": 6,
+        "edge_bleed_dist0": 3,
+        "edge_bleed_dist1": -2,
+        "edge_bleed_opacity": 0.6,
+        "bleed_darken": [
+          1,
+          0
+        ],
+        "shadow_offset": [
+          0,
+          0.0625
+        ],
+        "shadow_amount": 6,
+        "shadow_inv_height": 0.08333333333333333,
+        "shadow_opacity": 0,
+        "shadow_inv_radius": 0.16666666666666666,
+        "shadow_dist_offset": -0.5,
+        "shadow_blur_radius": 2,
+        "shadow_contribution": 0.4,
+        "shadow_face_opacity": 0.2,
+        "holding_tone_opacity": 0.7,
+        "sdr_white_value": 0.85,
+        "sdr_shadow_dist0": -2,
+        "sdr_shadow_dist1": 1,
+        "clamp_limit": 1.1,
+        "preserve_hue": 0,
+        "complex_refraction": 1,
+        "face_cm0": [
+          0.7998046875,
+          0.0999755859375,
+          0.0,
+          0.1500244140625
+        ],
+        "face_cm1": [
+          0.0,
+          0.89990234375,
+          0.0999755859375,
+          0.0999755859375
+        ],
+        "face_cm2": [
+          0.0999755859375,
+          0.0,
+          0.7001953125,
+          0.199951171875
+        ],
+        "bleed_cm0": [
+          0.7001953125,
+          0.199951171875,
+          0.0,
+          0.0999755859375
+        ],
+        "bleed_cm1": [
+          0.0999755859375,
+          0.60009765625,
+          0.0999755859375,
+          0.199951171875
+        ],
+        "bleed_cm2": [
+          0.0999755859375,
+          0.0,
+          0.7998046875,
+          0.0999755859375
+        ],
+        "shadow_cm0": [
+          0.60009765625,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "shadow_cm1": [
+          0.0,
+          0.60009765625,
+          0.0,
+          0.0
+        ],
+        "shadow_cm2": [
+          0.0,
+          0.0,
+          0.60009765625,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "tiny_shadow",
+      "function": "glass_background_lpf",
+      "parameters": {
+        "displacement_mat": [
+          0.015625,
+          0,
+          0,
+          0.020833333333333332
+        ],
+        "inner_refraction_amount": -12,
+        "inner_refraction_inv_height": 0.125,
+        "outer_refraction_amount": 9,
+        "outer_refraction_inv_height": 0.09090909090909091,
+        "refraction_threshold0": -3,
+        "refraction_threshold1": 1,
+        "refraction_opacity": 0.4,
+        "blur_radius": 3,
+        "blur_alpha0": 1,
+        "blur_alpha1": 0.5,
+        "blur_alpha2": -0.2,
+        "blur_alpha3": 0.4,
+        "blur_dist0": -20,
+        "blur_dist1": -5,
+        "blur_dist2": 2,
+        "blur_dist3": 12,
+        "face_opacity": 0.8,
+        "edge_bleed_amount": 14,
+        "edge_bleed_inv_height": 0.1,
+        "edge_bleed_blur_radius": 6,
+        "edge_bleed_dist0": 3,
+        "edge_bleed_dist1": -2,
+        "edge_bleed_opacity": 0.6,
+        "bleed_darken": [
+          1,
+          0
+        ],
+        "shadow_offset": [
+          0,
+          0.0625
+        ],
+        "shadow_amount": 6,
+        "shadow_inv_height": 0.08333333333333333,
+        "shadow_opacity": 1e-08,
+        "shadow_inv_radius": 0.16666666666666666,
+        "shadow_dist_offset": -0.5,
+        "shadow_blur_radius": 2,
+        "shadow_contribution": 0.4,
+        "shadow_face_opacity": 0.2,
+        "holding_tone_opacity": 0.7,
+        "sdr_white_value": 0.85,
+        "sdr_shadow_dist0": -2,
+        "sdr_shadow_dist1": 1,
+        "clamp_limit": 1.1,
+        "preserve_hue": 0,
+        "complex_refraction": 1,
+        "face_cm0": [
+          0.7998046875,
+          0.0999755859375,
+          0.0,
+          0.1500244140625
+        ],
+        "face_cm1": [
+          0.0,
+          0.89990234375,
+          0.0999755859375,
+          0.0999755859375
+        ],
+        "face_cm2": [
+          0.0999755859375,
+          0.0,
+          0.7001953125,
+          0.199951171875
+        ],
+        "bleed_cm0": [
+          0.7001953125,
+          0.199951171875,
+          0.0,
+          0.0999755859375
+        ],
+        "bleed_cm1": [
+          0.0999755859375,
+          0.60009765625,
+          0.0999755859375,
+          0.199951171875
+        ],
+        "bleed_cm2": [
+          0.0999755859375,
+          0.0,
+          0.7998046875,
+          0.0999755859375
+        ],
+        "shadow_cm0": [
+          0.60009765625,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "shadow_cm1": [
+          0.0,
+          0.60009765625,
+          0.0,
+          0.0
+        ],
+        "shadow_cm2": [
+          0.0,
+          0.0,
+          0.60009765625,
+          0.0
+        ]
+      }
+    },
+    {
+      "name": "zero_blur",
+      "function": "glass_background_lpf",
+      "parameters": {
+        "displacement_mat": [
+          0.015625,
+          0,
+          0,
+          0.020833333333333332
+        ],
+        "inner_refraction_amount": -12,
+        "inner_refraction_inv_height": 0.125,
+        "outer_refraction_amount": 9,
+        "outer_refraction_inv_height": 0.09090909090909091,
+        "refraction_threshold0": -3,
+        "refraction_threshold1": 1,
+        "refraction_opacity": 0.4,
+        "blur_radius": 0,
+        "blur_alpha0": 1,
+        "blur_alpha1": 0.5,
+        "blur_alpha2": -0.2,
+        "blur_alpha3": 0.4,
+        "blur_dist0": -20,
+        "blur_dist1": -5,
+        "blur_dist2": 2,
+        "blur_dist3": 12,
+        "face_opacity": 0.8,
+        "edge_bleed_amount": 14,
+        "edge_bleed_inv_height": 0.1,
+        "edge_bleed_blur_radius": 0,
+        "edge_bleed_dist0": 3,
+        "edge_bleed_dist1": -2,
+        "edge_bleed_opacity": 0.6,
+        "bleed_darken": [
+          1,
+          0
+        ],
+        "shadow_offset": [
+          0,
+          0.0625
+        ],
+        "shadow_amount": 6,
+        "shadow_inv_height": 0.08333333333333333,
+        "shadow_opacity": 0.5,
+        "shadow_inv_radius": 0.16666666666666666,
+        "shadow_dist_offset": -0.5,
+        "shadow_blur_radius": 0,
+        "shadow_contribution": 0.4,
+        "shadow_face_opacity": 0.2,
+        "holding_tone_opacity": 0.7,
+        "sdr_white_value": 0.85,
+        "sdr_shadow_dist0": -2,
+        "sdr_shadow_dist1": 1,
+        "clamp_limit": 1.1,
+        "preserve_hue": 0,
+        "complex_refraction": 1,
+        "face_cm0": [
+          0.7998046875,
+          0.0999755859375,
+          0.0,
+          0.1500244140625
+        ],
+        "face_cm1": [
+          0.0,
+          0.89990234375,
+          0.0999755859375,
+          0.0999755859375
+        ],
+        "face_cm2": [
+          0.0999755859375,
+          0.0,
+          0.7001953125,
+          0.199951171875
+        ],
+        "bleed_cm0": [
+          0.7001953125,
+          0.199951171875,
+          0.0,
+          0.0999755859375
+        ],
+        "bleed_cm1": [
+          0.0999755859375,
+          0.60009765625,
+          0.0999755859375,
+          0.199951171875
+        ],
+        "bleed_cm2": [
+          0.0999755859375,
+          0.0,
+          0.7998046875,
+          0.0999755859375
+        ],
+        "shadow_cm0": [
+          0.60009765625,
+          0.0,
+          0.0,
+          0.0
+        ],
+        "shadow_cm1": [
+          0.0,
+          0.60009765625,
+          0.0,
+          0.0
+        ],
+        "shadow_cm2": [
+          0.0,
+          0.0,
+          0.60009765625,
+          0.0
+        ]
+      }
+    }
+  ]
+}

@@ -4,6 +4,8 @@ use crate::style::color::{Color, Rgba8};
 /// even when explicitly inherited, it uses the receiving element's own color.
 #[derive(Debug, Clone, PartialEq)]
 pub struct PaintStyle {
+    #[cfg(feature = "liquid-glass")]
+    pub liquid_glass: Option<std::sync::Arc<voidui_gpui_wgpu::GlassMaterial>>,
     pub background: Color,
     pub background_image: super::gradient::BackgroundImages,
     pub box_shadow: super::shadow::BoxShadows,
@@ -14,6 +16,8 @@ pub struct PaintStyle {
 impl Default for PaintStyle {
     fn default() -> Self {
         Self {
+            #[cfg(feature = "liquid-glass")]
+            liquid_glass: None,
             background_image: Default::default(),
             box_shadow: Default::default(),
             background: Rgba8::new(0, 0, 0, 0).into(),

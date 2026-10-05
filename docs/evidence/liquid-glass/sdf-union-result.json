@@ -1,0 +1,9 @@
+{
+  "source_ir": "target/liquid-glass/reverse/quartzcore/fixed_frag_lpf_cpf.ll",
+  "extracted_function_sha256": "57c4fca653b77dbf3f393b19248c755f45e43c219449d1d9ea6895191242ed8f",
+  "random_seed": 2605,
+  "cases_checked": 10000,
+  "maximum_channel_error": 7.993275730200367e-06,
+  "tolerance": 5e-05,
+  "scope": "FP32 algebra checked against extracted IR with host AIR intrinsic shims; positive effective smoothing only; not GPU equivalence"
+}

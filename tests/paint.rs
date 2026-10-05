@@ -301,3 +301,82 @@ fn gradient_ramp_is_variable_length_and_scene_replay_remaps_it() {
     replay.clear();
     assert!(replay.gradient_data.is_empty());
 }
+
+#[test]
+#[cfg(feature = "liquid-glass")]
+fn glass_scales_once_and_precedes_its_own_background_and_children() {
+    let material = voidui::GlassMaterial::regular();
+    let scene = paint(
+        div()
+            .width(200)
+            .height(120)
+            .border_radius(20.)
+            .liquid_glass(Some(material))
+            .background(Rgba8::new(255, 255, 255, 20))
+            .child(
+                div()
+                    .width(20)
+                    .height(20)
+                    .background(Rgba8::new(255, 0, 0, 255)),
+            ),
+        2.,
+    );
+    assert_eq!(scene.glasses.len(), 1);
+    let glass = &scene.glasses[0];
+    assert_eq!(glass.material.blur, material.blur * 2.);
+    assert_eq!(glass.material.refraction, material.refraction * 2.);
+    assert_eq!(glass.quad.bounds.size.width.0, 400.);
+    assert_eq!(glass.quad.corner_radii.top_left.0, 40.);
+    assert!(scene.quads.iter().all(|q| q.order > glass.quad.order));
+}
+
+#[test]
+#[cfg(feature = "liquid-glass")]
+fn disabled_and_culled_glass_records_no_optical_work() {
+    let scene = paint(
+        div()
+            .width(100)
+            .height(100)
+            .liquid_glass(Some(voidui::GlassMaterial {
+                opacity: 0.,
+                ..Default::default()
+            })),
+        1.,
+    );
+    assert!(scene.glasses.is_empty());
+}
+
+#[test]
+#[cfg(feature = "liquid-glass")]
+fn glass_group_captures_before_descendant_content_and_uses_layout_shapes() {
+    let scene = paint(
+        voidui::glass_group(voidui::GlassMaterial::clear(), 24.)
+            .flex()
+            .gap(6.)
+            .width(300.)
+            .height(100.)
+            .child(
+                div().width(80.).height(80.).border_radius(24.).child(
+                    div()
+                        .width(20.)
+                        .height(20.)
+                        .background(Rgba8::new(255, 0, 0, 255)),
+                ),
+            )
+            .child(div().width(80.).height(80.).border_radius(24.)),
+        1.,
+    );
+    assert_eq!(scene.glasses.len(), 2);
+    assert_eq!(scene.glasses[0].quad.order, scene.glasses[1].quad.order);
+    assert!(scene.glasses.iter().all(|g| g.merge && g.smoothing == 24.));
+    assert!(
+        scene
+            .quads
+            .iter()
+            .all(|q| q.order > scene.glasses[1].quad.order)
+    );
+    assert_eq!(
+        scene.glasses[1].quad.bounds.origin.x.0 - scene.glasses[0].quad.bounds.origin.x.0,
+        86.
+    );
+}

@@ -41,6 +41,8 @@ pub struct Style {
     pub border_color: CssValue<Color>,
     pub border_radius: CssValue<f32>,
     pub background_image: CssValue<crate::style::gradient::BackgroundImages>,
+    #[cfg(feature = "liquid-glass")]
+    pub liquid_glass: CssValue<Option<std::sync::Arc<voidui_gpui_wgpu::GlassMaterial>>>,
     pub box_shadow: CssValue<crate::style::shadow::BoxShadows>,
     pub animation_name:
         CssValue<crate::style::list::StyleList<crate::style::animation::AnimationName>>,
@@ -102,6 +104,8 @@ impl Default for Style {
             border_color: CssValue::Unset,
             border_radius: CssValue::Unset,
             background_image: CssValue::Unset,
+            #[cfg(feature = "liquid-glass")]
+            liquid_glass: CssValue::Unset,
             box_shadow: CssValue::Unset,
             animation_name: CssValue::Unset,
             animation_duration: CssValue::Unset,
@@ -284,6 +288,12 @@ impl Style {
     pub fn resolve_paint(&self, parent: &PaintStyle) -> PaintStyle {
         let initial = PaintStyle::default();
         PaintStyle {
+            #[cfg(feature = "liquid-glass")]
+            liquid_glass: self.liquid_glass.resolve(
+                &parent.liquid_glass,
+                &initial.liquid_glass,
+                false,
+            ),
             background_image: self.background_image.resolve(
                 &parent.background_image,
                 &initial.background_image,

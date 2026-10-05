@@ -104,6 +104,13 @@ pub trait Widget: std::any::Any {
         true
     }
 
+    /// Paint a surface after this widget's CSS box and before descendant boxes
+    /// and content. Backdrop-reading containers use this phase so child text can
+    /// never enter their background capture. Foreground ink belongs in `draw`.
+    fn draw_background(&self, _painter: &mut Painter<'_>, _ctx: DrawContext) -> Result<()> {
+        Ok(())
+    }
+
     /// Override to paint widget-specific content inside the computed bounds.
     fn draw(&self, _painter: &mut Painter<'_>, _ctx: DrawContext) -> Result<()> {
         Ok(())

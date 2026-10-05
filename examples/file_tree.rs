@@ -1,8 +1,8 @@
 //! Lazy disk tree: cargo run --example file_tree -- [directory]
 use std::{fmt::Write, path::PathBuf};
 use voidui::{
-    Application, Callback, IntoElement, List, Read, Selection, Store, WindowOptions, capture,
-    component, div, resource, selection, store, tasks::workers, text,
+    Application, Callback, IntoElement, List, Read, Selection, Store, WindowOptions, button,
+    capture, component, div, resource, selection, store, tasks::workers, text,
 };
 
 struct Node {
@@ -60,12 +60,9 @@ fn directory(path: PathBuf, tree: TreeState, on_open: Callback<PathBuf>) -> impl
         return div().child("Loading…");
     }
     if let Some(error) = entries.error() {
-        return div().child(error.to_string()).child(
-            div()
-                .tag("button")
-                .child("Retry")
-                .on_click(move || entries.reload()),
-        );
+        return div()
+            .child(error.to_string())
+            .child(button().child("Retry").on_click(move || entries.reload()));
     }
     div().children(entries.with(|nodes| {
         nodes
@@ -80,8 +77,7 @@ fn directory(path: PathBuf, tree: TreeState, on_open: Callback<PathBuf>) -> impl
 fn file_row(node: Read<Node>, tree: TreeState, on_open: Callback<PathBuf>) -> impl IntoElement {
     let open = node.is_dir && tree.expanded.contains_key(&node.path);
     let selected = tree.selected.is_selected(&node.path);
-    let row = div()
-        .tag("button")
+    let row = button()
         .class(if selected {
             "tree-row selected"
         } else {

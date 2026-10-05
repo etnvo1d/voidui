@@ -58,14 +58,14 @@ fn main() -> anyhow::Result<()> {
         ("Clear", StylePatch::clear()),
     ] {
         let editor = editor.clone();
-        toolbar = toolbar.child(div().tag("button").child(label).on_click(move || {
+        toolbar = toolbar.child(button().child(label).on_click(move || {
             if let Err(error) = editor.update(|s| s.format_selections(patch.clone())) {
                 eprintln!("{error}");
             }
         }));
     }
     let undo = editor.clone();
-    toolbar = toolbar.child(div().tag("button").child("Undo").on_click(move || {
+    toolbar = toolbar.child(button().child("Undo").on_click(move || {
         if let Err(error) = undo.update(|s| s.undo()) {
             eprintln!("{error}");
         }

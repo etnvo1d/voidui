@@ -4,7 +4,7 @@ use std::{
     rc::Rc,
 };
 use voidui::{
-    Callback, Children, Read, State, component, core::widget_tree::WidgetTree, div,
+    Callback, Children, Read, State, button, component, core::widget_tree::WidgetTree, div,
     provide_context, state, text, try_context, use_context,
 };
 
@@ -93,9 +93,7 @@ fn scope(out: Handle<bool>, children: Children, #[prop(default = true)] default_
 #[component(memo)]
 fn trigger() {
     let Sidebar(open) = use_context();
-    div()
-        .tag("button")
-        .on_click(move || open.update(|value| *value = !*value))
+    button().on_click(move || open.update(|value| *value = !*value))
 }
 #[component(memo)]
 fn content(renders: Rc<Cell<usize>>) {

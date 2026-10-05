@@ -1,6 +1,7 @@
 //! Document-selection semantics over real shaped text; no window or OS clipboard.
 use std::{borrow::Cow, sync::Arc, time::Instant};
 use voidui::{
+    button,
     core::{
         element::IntoElement,
         geometry::Point,
@@ -9,7 +10,7 @@ use voidui::{
         widget::WidgetId,
         widget_tree::WidgetTree,
     },
-    div,
+    dialog, div,
     render::{ParleyTextSystem, TextLayoutCache, TextSystem},
     style::{css::Stylesheet, selection::UserSelect},
     text,
@@ -237,10 +238,9 @@ fn select_all_obeys_modality_visibility_and_ua_controls() {
     let mut tree = build(
         div()
             .child(text("page"))
-            .child(div().tag("button").child("button"))
+            .child(button().child("button"))
             .child(
-                div()
-                    .tag("dialog")
+                dialog()
                     .id("m")
                     .width(200)
                     .height(100)
@@ -713,14 +713,7 @@ fn cursor_inherits_and_backdrop_cursor_uses_its_own_css() {
         div()
             .cursor(Cursor::Icon(CursorIcon::Crosshair))
             .child(text("hover").id("a"))
-            .child(
-                div()
-                    .tag("dialog")
-                    .id("modal")
-                    .width(200)
-                    .height(100)
-                    .child("modal"),
-            ),
+            .child(dialog().id("modal").width(200).height(100).child("modal")),
         "dialog::backdrop{cursor:not-allowed}",
     );
     let a = id(&tree, "a");

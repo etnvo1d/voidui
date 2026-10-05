@@ -81,10 +81,9 @@ fn scene(probe: Rc<Probe>) -> impl IntoElement {
         .child(text("Unified events and drag capture").class("heading"))
         .child(text(status.get()).id("status"))
         .child(
-            div()
+            button()
                 .id("handle")
                 .class("handle")
-                .tag("button")
                 .on_mouse_enter(move || enter_status.set("Pointer entered the handle".into()))
                 .on_mouse_leave(move || {
                     leave_status.set("Pointer left the handle; capture continues while held".into())

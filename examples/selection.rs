@@ -3,7 +3,7 @@
 use anyhow::Result;
 use std::{borrow::Cow, path::Path, sync::Arc, time::Duration};
 use voidui::{
-    Application, WindowOptions,
+    Application, WindowOptions, button,
     core::{
         geometry::{Point, Size},
         selection::SelectionPoint as P,
@@ -45,7 +45,7 @@ fn main() -> Result<()> {
         .child(div().id("all").child(text("user-select: all — select this entire block atomically.").id("atomic")))
         .child(div().id("contain").child(text("user-select: contain — a drag started here stays inside this block.").id("contained")))
         .child(text("Unicode: 中文 · Cafe\u{301} · 👩‍💻 · abc אבג xyz").id("unicode"))
-        .child(div().tag("button").id("copy").child("Copy selection"));
+        .child(button().id("copy").child("Copy selection"));
     let mut cursor = None;
     let app = Application::new()
         .css(include_str!("styles/selection.css"))?

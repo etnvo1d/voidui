@@ -2,8 +2,8 @@
 //! Run: cargo run --example resources -- [--smoke] README.md
 use std::path::PathBuf;
 use voidui::{
-    Application, IntoElement, Read, TaskRuntime, WindowOptions, component, div, files, input,
-    resource, state, text,
+    Application, IntoElement, Read, TaskRuntime, WindowOptions, button, component, div, files,
+    input, resource, state, text,
 };
 
 #[component]
@@ -18,8 +18,7 @@ fn reader(initial_path: Read<String>) -> impl IntoElement {
         .padding(24)
         .child(input(path).placeholder("Text file path"))
         .child(
-            div()
-                .tag("button")
+            button()
                 .id("reload")
                 .child("Reload")
                 .on_click(move || content.reload()),

@@ -166,7 +166,7 @@ Publish a typed controller from an ancestor and resolve it in descendant compone
 Intermediate components do not need forwarding parameters.
 
 ```rust
-use voidui::{component, div, state, text, Children, State,
+use voidui::{button, component, div, state, text, Children, State,
              provide_context, use_context};
 
 #[derive(Clone, Copy, PartialEq)]
@@ -186,7 +186,7 @@ fn sidebar_scope(#[prop(default = true)] default_open: bool, children: Children)
 #[component]
 fn iconbar() {
     let sidebar = use_context::<SidebarController>();
-    div().tag("button")
+    button()
         .child("Toggle sidebar")
         .on_click(move || sidebar.toggle())
 }

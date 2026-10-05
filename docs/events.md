@@ -7,18 +7,17 @@ already converted `Element` values support the same event methods without adding
 CSS/layout nodes.
 
 ```rust
-use voidui::{div, files, state, component};
+use voidui::{button, files, state, component};
 use std::path::PathBuf;
 
 let view = component(|| {
     let output = state(|| None);
     let path = PathBuf::from("README.md");
-    div()
+    button()
         .on_click(async move || -> anyhow::Result<()> {
             output.set(Some(files::read_text(&path).await?));
             Ok(())
         })
-        .tag("button")
         .child("Read")
 });
 ```

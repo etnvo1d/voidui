@@ -1,9 +1,10 @@
 //! An ordinary CSS container with delegated background focus. Addons are real
 //! children and never enter the editor's document, clipboard, or undo history.
+use super::container::Container;
 use crate::{
     core::{
         context::LayoutContext,
-        element::{ElementProps, IntoElement},
+        element::ElementProps,
         layout::{Display, LayoutInput, LayoutOutput},
         widget::{Widget, WidgetBuilder, WidgetUpdate},
     },
@@ -21,17 +22,7 @@ pub fn input_group() -> WidgetBuilder<InputGroup> {
     .class("input-group")
     .attr("role", "group")
 }
-impl WidgetBuilder<InputGroup> {
-    pub fn child(mut self, child: impl IntoElement) -> Self {
-        self.children.push(child.into_element());
-        self
-    }
-    pub fn children(mut self, children: impl IntoIterator<Item = impl IntoElement>) -> Self {
-        self.children
-            .extend(children.into_iter().map(IntoElement::into_element));
-        self
-    }
-}
+impl Container for InputGroup {}
 impl Widget for InputGroup {
     fn tag_name(&self) -> &'static str {
         "div"

@@ -9,7 +9,7 @@ use std::{
 use voidui::{
     ClickEvent, ClickSource, DragEvent, DragPhase, EventHandler, EventResponse as R, IntoElement,
     KeyEvent, KeyEventType, MouseButton as B, MouseButtons, MouseEvent, MouseEventType as M,
-    MouseWheel, TaskRuntime, WheelUnit, component,
+    MouseWheel, TaskRuntime, WheelUnit, button, component,
     core::{
         event::{Key, ModifiersState as Mods, NamedKey},
         geometry::Point,
@@ -17,7 +17,7 @@ use voidui::{
         widget::WidgetId,
         widget_tree::WidgetTree,
     },
-    div,
+    dialog, div,
     render::{ParleyTextSystem, TextLayoutCache, TextSystem},
     style::{css::Stylesheet, selection::Cursor},
     tasks::time,
@@ -232,9 +232,8 @@ fn propagation_and_default_prevention_are_independent_synchronous_decisions() {
                 out.set(out.get() + 1);
             })
             .child(
-                div()
+                button()
                     .id("button")
-                    .tag("button")
                     .width(100.0)
                     .height(100.0)
                     .on_mouse_down(|| R::PREVENT_DEFAULT),
@@ -256,9 +255,8 @@ fn propagation_and_default_prevention_are_independent_synchronous_decisions() {
                 out.set(out.get() + 1);
             })
             .child(
-                div()
+                button()
                     .id("button")
-                    .tag("button")
                     .width(100.0)
                     .height(100.0)
                     .on_mouse_down(|| R::STOP_PROPAGATION),
@@ -915,7 +913,7 @@ fn a_new_modal_cancels_background_drag_capture() {
                         out.borrow_mut().push(e.phase);
                     },
                 ))
-                .child(div().tag("dialog").id("modal").width(100.0).height(100.0)),
+                .child(dialog().id("modal").width(100.0).height(100.0)),
         );
     tree.pointer_moved(point(50.0, 50.0));
     tree.pointer_pressed(true);

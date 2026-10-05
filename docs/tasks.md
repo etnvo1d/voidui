@@ -10,13 +10,13 @@ Use resource for loading data. Pass an explicit input value and an async loader;
 read State inputs with get() so the component subscribes to their changes.
 
 ```rust
-use voidui::{component, div, files, resource, state};
+use voidui::{button, component, div, files, resource, state};
 let view = component(|| {
     let path = state(|| String::from("README.md"));
     let content = resource(path.get(), async |path| files::read_text(path).await);
     div()
         .child(if content.is_loading() { "Loading" } else { "Ready" })
-        .child(div().tag("button").child("Reload").on_click(move || content.reload()))
+        .child(button().child("Reload").on_click(move || content.reload()))
 });
 ```
 
@@ -53,7 +53,7 @@ Run `cargo run --example resources -- README.md` for editable file loading.
 
 ```rust
 use std::path::PathBuf;
-use voidui::{component, div, files, state, text, IntoElement};
+use voidui::{button, component, div, files, state, text, IntoElement};
 
 #[component]
 fn reader(path: PathBuf) -> impl IntoElement {
@@ -61,7 +61,7 @@ fn reader(path: PathBuf) -> impl IntoElement {
     div()
         .child(text(content.get()))
         .child(
-            div().tag("button").child("Read")
+            button().child("Read")
                 .on_click(async move || -> anyhow::Result<()> {
                     content.set(files::read_text(&path).await?);
                     Ok(())
@@ -90,12 +90,12 @@ A return annotation such as `-> anyhow::Result<()>` also makes `?` inference cle
 ## General execution and task results
 
 ```rust
-use voidui::{component, div, task_scope};
+use voidui::{button, component, task_scope};
 use voidui::tasks::time;
 
 let view = component(|| {
     let tasks = task_scope();
-    div().tag("button").child("Start")
+    button().child("Start")
         .on_click(move || {
             tasks.spawn(async {
                 for _ in 0..3 {
@@ -264,11 +264,11 @@ parameter. The caller chooses whether to await it in an existing task or submit 
 to a scope. Domain errors and result types remain under the component's control.
 
 ```rust
-use voidui::{AsyncCallback, component, div, IntoElement};
+use voidui::{button, AsyncCallback, component, IntoElement};
 
 #[component]
 fn confirm(on_confirm: AsyncCallback<(), anyhow::Result<()>>) -> impl IntoElement {
-    div().tag("button").child("Confirm")
+    button().child("Confirm")
         .on_click(async move || -> anyhow::Result<()> {
             on_confirm.call(()).await
         })

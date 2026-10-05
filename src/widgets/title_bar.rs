@@ -84,8 +84,7 @@ fn control(button: WindowButton, state: &WindowState) -> impl IntoElement {
     let source = format!(
         r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="{path}" fill="none" stroke="currentColor" stroke-width="1"/></svg>"#
     );
-    div()
-        .tag("button")
+    crate::button()
         .class("window-control")
         .attr("data-window-button", button.name())
         .attr("aria-label", label)

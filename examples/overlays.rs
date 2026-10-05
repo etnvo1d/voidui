@@ -1,4 +1,4 @@
-//! Ordinary div/text elements + standard CSS + Rust top-layer lifecycle.
+//! Dialog/button containers + standard CSS + Rust top-layer lifecycle.
 //! `cargo run --example overlays [--smoke directory]`
 use anyhow::Result;
 use std::{
@@ -8,13 +8,13 @@ use std::{
     time::{Duration, Instant},
 };
 use voidui::{
-    Application, WindowOptions,
+    Application, WindowOptions, button,
     core::{
         geometry::{Point, Size},
         top_layer::HitTarget,
         widget::WidgetId,
     },
-    div,
+    dialog, div,
     render::{ParleyTextSystem, TextSystem},
     text,
 };
@@ -26,8 +26,7 @@ fn open(window: &mut voidui::AppWindow, number: &mut usize) -> Result<WidgetId> 
         .tree()
         .active_modal()
         .unwrap_or(window.tree().find_by_id("clip").unwrap());
-    let element = div()
-        .tag("dialog")
+    let element = dialog()
         .id(format!("dialog-{number}"))
         .child(text(format!("Modal {number}")).class("heading"))
         .child(
@@ -38,19 +37,13 @@ fn open(window: &mut voidui::AppWindow, number: &mut usize) -> Result<WidgetId> 
             div()
                 .class("row")
                 .child(
-                    div()
-                        .tag("button")
+                    button()
                         .class("spawn")
                         .attr("autofocus", "")
                         .attr("data-action", "open")
                         .child("Open another"),
                 )
-                .child(
-                    div()
-                        .tag("button")
-                        .attr("data-action", "close")
-                        .child("Close"),
-                ),
+                .child(button().attr("data-action", "close").child("Close")),
         );
     let id = window.tree_mut().append_child(parent, element)?;
     window.show_modal(id)?;
@@ -89,9 +82,9 @@ fn main() -> Result<()> {
     let content=div().id("app").child(text("Stacking without components.").class("title"))
         .child(text("Standard CSS for appearance. Rust for modal/popover lifecycle. Tab stays inside the active modal.").class("subtitle"))
         .child(div().class("row")
-            .child(div().class("trigger").id("trigger").child(div().tag("button").attr("data-action","open").child("Open modal / hover for tooltip"))
+            .child(div().class("trigger").id("trigger").child(button().attr("data-action","open").child("Open modal / hover for tooltip"))
                 .child(div().class("tooltip").id("tooltip").child("This tooltip uses only :hover, visibility, positioning and z-index.")))
-            .child(div().tag("button").attr("data-action","popover").child("Manual popover")))
+            .child(button().attr("data-action","popover").child("Manual popover")))
         .child(div().id("clip").child(div().id("popover").attr("popover","manual").child("Outside ancestor clipping. Press Escape to dismiss.")))
         .child(div().id("high").child("z-index: 2147483647 / still below the top layer"));
     let mut cursor = None;
@@ -218,7 +211,7 @@ fn verify_pixels() -> Result<()> {
     let mut stage = 0;
     Application::new().text_system(text).css("#page{width:220px;height:180px;background:white}#high{position:fixed;inset:0;z-index:2147483647;background:lime}dialog{position:fixed;margin:0;left:20px;top:20px;right:auto;bottom:auto;width:100px;height:80px;background:red}#inner{left:30px;top:30px;width:40px;height:20px;background:blue;z-index:-200}dialog::backdrop{background:rgb(0 0 0 / .5)}")?
         .window(WindowOptions {title:"voidui overlay pixels".into(),size:Size::new(220.0,180.0),..Default::default()},
-            div().id("page").child(div().id("outer").tag("dialog").child(div().id("inner").tag("dialog"))).child(div().id("high")))
+            div().id("page").child(dialog().id("outer").child(dialog().id("inner"))).child(div().id("high")))
         .on_frame(move|window| {
             if stage==0 {window.show_modal(window.tree().find_by_id("outer").unwrap())?;window.show_modal(window.tree().find_by_id("inner").unwrap())?;stage=1;return Ok(());}
             let (size,pixels)=window.snapshot()?;let scale=size.width as f32/window.logical_size().width;

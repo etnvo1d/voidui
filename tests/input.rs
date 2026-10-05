@@ -346,7 +346,7 @@ fn inputgroup_delegates_background_focus_but_preserves_button_focus() {
             .id("group")
             .child(text("USD").id("addon"))
             .child(input(&editor).id("edit"))
-            .child(div().tag("button").on_click(|| {}).id("button")),
+            .child(button().on_click(|| {}).id("button")),
         "#group{padding:10px;gap:8px;width:400px}#button{width:20px;height:20px}input{width:200px}",
     );
     let addon = tree.bounds(id(&tree, "addon"));

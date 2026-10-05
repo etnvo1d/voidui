@@ -8,7 +8,9 @@ pub use core::rich_text::{Inline, InlineStyle, RichText, StyleSpan, StyleSpanBui
 #[cfg(feature = "editing")]
 pub use editing::Editor;
 pub use voidui_gpui_wgpu as render;
-pub use widgets::{VirtualListOptions, asset_img, div, img, rich_text, text, virtual_list};
+pub use widgets::{
+    VirtualListOptions, asset_img, button, dialog, div, img, rich_text, text, virtual_list,
+};
 #[cfg(feature = "editing")]
 pub use widgets::{input, input_group, rich_editor, textarea};
 

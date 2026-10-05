@@ -149,8 +149,7 @@ fn main() -> anyhow::Result<()> {
         })
         .register(ViewId(10002), || {
             Box::new(WidgetView::new(|| {
-                div()
-                    .tag("button")
+                button()
                     .background(style::color::Rgba8::from_rgb8(225, 220, 245))
                     .padding(6.0)
                     .child("Run")

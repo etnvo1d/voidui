@@ -44,7 +44,7 @@ flex layout; author CSS can replace it with grid, block or another layout.
 No private CSS properties or parser syntax are required.
 
 ```rust
-use voidui::{component, div, input, input_group, state, text, IntoElement};
+use voidui::{button, component, div, input, input_group, state, text, IntoElement};
 
 #[component]
 fn search() -> impl IntoElement {
@@ -53,7 +53,7 @@ fn search() -> impl IntoElement {
     input_group()
         .child(text("Search").class("addon"))
         .child(input(query).placeholder("Find a document"))
-        .child(div().tag("button").child("Clear")
+        .child(button().child("Clear")
             .on_click(move || clear.set(String::new())))
 }
 ```

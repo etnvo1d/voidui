@@ -351,7 +351,7 @@ fn focus_reveals_offscreen_controls_and_keys_scroll_the_focused_container() {
             .size(100, 100)
             .overflow(Overflow::Auto)
             .child(div().size(50, 250))
-            .child(div().id("button").tag("button").size(50, 30)),
+            .child(button().id("button").size(50, 30)),
         "",
     );
     let p = id(&tree, "p");

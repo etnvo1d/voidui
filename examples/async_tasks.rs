@@ -11,7 +11,7 @@ use std::{
     time::Duration,
 };
 use voidui::{
-    Application, State, TaskRuntime, WindowOptions, component, div, files, on_mount,
+    Application, State, TaskRuntime, WindowOptions, button, component, div, files, on_mount,
     render::SharedString,
     state,
     tasks::{time, workers},
@@ -48,11 +48,11 @@ fn demo(path: PathBuf, probe: Rc<Probe>) -> impl voidui::IntoElement {
         .child(text("Scoped async tasks").class("heading"))
         .child("File I/O and computation run in the background. State updates resume on the UI thread.")
         .child(div().class("actions")
-            .child(div().tag("button").child("Read file").on_click(async move || -> anyhow::Result<()> {
+            .child(button().child("Read file").on_click(async move || -> anyhow::Result<()> {
                 read_status.set(files::read_text(&path).await?);
                 Ok(())
             }))
-            .child(div().tag("button").child("Compute checksum").on_click(async move || -> anyhow::Result<()> {
+            .child(button().child("Compute checksum").on_click(async move || -> anyhow::Result<()> {
                 let bytes = files::read(&compute_path).await?;
                 let checksum = workers::compute(move || {
                     // This demonstration checksum is not a cryptographic digest.

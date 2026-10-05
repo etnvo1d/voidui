@@ -71,7 +71,8 @@ pub trait Widget: std::any::Any {
         self.on_click();
     }
 
-    /// Element name used by CSS type selectors; custom widgets may override it.
+    /// Element name used by CSS type selectors and built-in element semantics.
+    /// Custom widgets declare their name here; builders cannot override it.
     fn tag_name(&self) -> &'static str {
         "widget"
     }
@@ -187,6 +188,14 @@ impl WidgetStatus {
     }
 }
 
+/// Configure a widget's content, styles, and events without changing its type.
+/// Choose `button()`, `dialog()`, or another constructor for element semantics.
+///
+/// ```compile_fail
+/// use voidui::div;
+///
+/// let action = div().tag("button");
+/// ```
 pub struct WidgetBuilder<W> {
     pub events: super::interaction::EventBindings,
     pub widget: W,
@@ -219,11 +228,6 @@ impl<W> WidgetBuilder<W> {
         }
     }
 
-    /// Override the CSS element name (normalized to ASCII lowercase).
-    pub fn tag(mut self, tag: impl Into<SmolStr>) -> Self {
-        self.props.tag = tag.into().to_ascii_lowercase().into();
-        self
-    }
     /// Set a selector-visible attribute. id/class use their canonical fields.
     pub fn attr(mut self, name: impl Into<SmolStr>, value: impl Into<SmolStr>) -> Self {
         let name = name.into().to_ascii_lowercase();
@@ -271,9 +275,9 @@ where
     W: Widget + 'static,
 {
     fn into_element(mut self) -> Element {
-        if self.props.tag == "widget" {
-            self.props.tag = self.widget.tag_name().into();
-        }
+        // The widget owns its element name, so selector identity and interaction
+        // defaults cannot be changed independently through the builder.
+        self.props.tag = self.widget.tag_name().into();
         Element {
             events: self.events,
             kind: super::element::ElementKind::Widget(Box::new(self.widget)),

@@ -4,12 +4,12 @@ use std::{
     rc::Rc,
 };
 use voidui::{
-    State, component,
+    State, button, component,
     core::{
         element::{Element, IntoElement},
         widget_tree::WidgetTree,
     },
-    div, state, text,
+    dialog, div, state, text,
 };
 
 type Handle<T> = Rc<RefCell<Option<State<T>>>>;
@@ -286,13 +286,12 @@ fn reusable_closure_can_retain_nonclone_inputs_and_generic_macro_works() {
 fn clickable(step: usize, out: Handle<usize>, reports: Rc<RefCell<Vec<usize>>>) {
     let value = state(|| 0usize);
     *out.borrow_mut() = Some(value.clone());
-    div()
+    button()
         .child(text(value.get().to_string()).id("label"))
         .on_click(move || {
             value.update(|n| *n += step);
             reports.borrow_mut().push(value.get());
         })
-        .tag("button")
         .id("button")
 }
 #[test]
@@ -510,7 +509,7 @@ fn bulk_unmount_preserves_live_boundaries_and_closes_overlays() {
         div().children((0..count).map(|i| {
             component(move || {
                 let _ = state(|| i);
-                div().tag("dialog").child("entry")
+                dialog().child("entry")
             })
             .key(i.to_string())
         }))

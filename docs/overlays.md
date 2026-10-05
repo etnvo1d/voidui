@@ -1,8 +1,9 @@
 # Stacking, top layer, and CSS-only tooltips
 
 Run `cargo run --example overlays` to try nested modals, manual popovers and a
-CSS-only tooltip. The library supplies no Modal, Dialog or Tooltip component.
-Build ordinary `div`/`text` elements and use Rust to manage their lifecycle.
+CSS-only tooltip. Use `dialog()` for a dialog container and `button()` for its
+actions. Manage modal/popover lifecycle with Rust and compose tooltips from
+ordinary elements and CSS.
 
 ## CSS stacking and positioning
 
@@ -68,13 +69,13 @@ CSS positioning mode. There is no `position: overlay`, `overlay: modal`, custom
 selector or reserved high-z band in voidui.
 
 ```rust,no_run
-use voidui::{div, AppWindow};
+use voidui::{dialog, AppWindow};
 
 fn open_another(window: &mut AppWindow) -> anyhow::Result<()> {
     let parent = window.tree().active_modal()
         .or_else(|| window.tree().root()).unwrap();
     let id = window.tree_mut().append_child(parent,
-        div().tag("dialog").class("panel")
+        dialog().class("panel")
             .child("A modal, built from ordinary elements"))?;
     window.show_modal(id)?;
     Ok(())
@@ -182,9 +183,9 @@ pseudo-element interaction states remain unsupported.
 ```
 
 ```rust
-use voidui::div;
+use voidui::{button, div};
 let element = div().class("trigger")
-    .child(div().tag("button").child("Help"))
+    .child(button().child("Help"))
     .child(div().class("tooltip").child("Additional information"));
 ```
 

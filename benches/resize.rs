@@ -5,7 +5,7 @@ mod arguments;
 
 use std::{borrow::Cow, cell::Cell, rc::Rc, sync::Arc, time::Instant};
 use voidui::{
-    Read, component,
+    Read, button, component,
     core::{
         layout::{AvailableSpace, Size},
         widget_tree::WidgetTree,
@@ -26,8 +26,7 @@ fn file_list(names: Read<Vec<String>>, document: Read<SvgDocument>) {
         .min_w_full()
         .children(names.iter().map(|name| {
             div().child(
-                div()
-                    .tag("button")
+                button()
                     .w_full()
                     .h_6()
                     .pl(8)

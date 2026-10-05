@@ -10,8 +10,8 @@ use voidui::render::{ParleyTextSystem, TextLayoutCache, TextSystem};
 use voidui::style::css::Stylesheet;
 use voidui::{
     EventResponse, IntoElement, MouseButton, WindowAction as Action, WindowButton as Button,
-    WindowButtonLayout, WindowControlArea as Area, WindowDecorations, WindowState, component, div,
-    text, title_bar, window_context,
+    WindowButtonLayout, WindowControlArea as Area, WindowDecorations, WindowState, component,
+    dialog, div, text, title_bar, window_context,
 };
 use winit::keyboard::ModifiersState;
 fn layout(tree: &mut WidgetTree) {
@@ -130,7 +130,7 @@ fn modal_blocks_underlying_drag_even_with_pointer_transparent_backdrop() {
     let mut tree = build(
         div()
             .window_control_area(Area::Drag)
-            .child(div().tag("dialog").id("modal").child("Modal")),
+            .child(dialog().id("modal").child("Modal")),
         "dialog{width:80px;height:40px}dialog::backdrop{pointer-events:none}",
     );
     tree.show_modal(tree.find_by_id("modal").unwrap()).unwrap();

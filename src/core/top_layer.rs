@@ -1,5 +1,6 @@
 //! Low-level top-layer lifecycle. Callers build ordinary elements and style them
-//! with CSS; no modal, popover or tooltip component is supplied.
+//! with CSS. `dialog()` supplies a dialog container; modal/popover lifecycle and
+//! tooltip composition remain explicit application responsibilities.
 #![doc = include_str!("../../docs/overlays.md")]
 use super::{widget::WidgetId, widget_tree::WidgetTree};
 

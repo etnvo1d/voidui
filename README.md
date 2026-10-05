@@ -1,6 +1,6 @@
 # voidui
 
-A Rust UI library with Taffy layout, retained div/text widgets, and a Winit/WGPU
+A Rust UI library with Taffy layout, retained widgets, and a Winit/WGPU
 desktop runtime. Static windows sleep between changes instead of drawing continuously.
 
 ```sh
@@ -40,6 +40,28 @@ been removed. Use `hello`, `cargo test --test layout`, and `file_tree` respectiv
 CI runs the workspace tests on macOS and checks all targets on Linux and Windows.
 Native window, input, and GPU behavior still require platform-specific validation. See the window documentation
 for implemented adaptations, source references, tests, and remaining limitations.
+
+## Built-in elements
+
+Use constructors to select an element's behavior and CSS name:
+`div()` for containers, `text(...)` for labels, `button()` for actions, and
+`dialog()` for dialog containers. The default `editing` feature also provides
+`input(value)` and `textarea(value)` for editable text. Buttons, dialogs, and divs
+share `.child(...)`, `.children(...)`, styles, and event methods.
+
+```rust
+use voidui::{button, div};
+
+let view = div().child(
+    button().child("Save").on_click(|| println!("Saved"))
+);
+```
+
+Buttons receive pointer and Tab focus and suppress text selection by default.
+Use `div().attr("tabindex", "0")` for a focusable generic container.
+Dialogs start hidden; call `AppWindow::show_modal` for modal lifecycle or set the
+`open` attribute for a non-modal dialog. Custom widget names are declared through
+`Widget::tag_name`; CSS classes provide reusable styling across widget types.
 
 ## Rich text
 

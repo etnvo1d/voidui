@@ -1,5 +1,6 @@
 use std::sync::Arc;
 use voidui::{
+    button,
     core::{
         element::IntoElement,
         layout::{Display, LengthPercentageAuto, Size, TaffyMaxContent},
@@ -262,7 +263,7 @@ fn native_pointer_state_matches_ancestors_and_stops_when_unchanged() {
     let mut tree = build(
         div()
             .size(200, 100)
-            .child(div().tag("button").size(50, 30).child(div().size(20, 10))),
+            .child(button().size(50, 30).child(div().size(20, 10))),
         "button:hover {color:red;} button:active {padding:3px;} button:focus {margin-top:2px;}",
     );
     let root = tree.root().unwrap();

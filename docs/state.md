@@ -4,12 +4,12 @@ Use `#[component]` on an ordinary synchronous function. Calls create deferred
 component descriptions; the body first runs when the description is mounted.
 
 ```rust
-use voidui::{component, state, div, text, IntoElement};
+use voidui::{button, component, state, div, text, IntoElement};
 
 #[component]
 fn counter(title: impl Into<String>, step: usize) -> impl IntoElement {
     let count = state(|| 0usize);
-    div().tag("button")
+    button()
         .child(text(format!("{}: {}", title.into(), count.get())))
         .on_click(move || count.update(|value| *value += step))
 }
@@ -220,7 +220,7 @@ type. Surviving wrapper state remains valid in either case.
 
 Matching widget IDs, focus, selection, and top-layer membership survive updates.
 Removed subtrees use the existing lifecycle cleanup. Selection boundaries adjust
-when text or children are removed. `Div` and `Text` apply new descriptions in place;
+when text or children are removed. `Div`, `Button`, `Dialog`, and `Text` apply new descriptions in place;
 unchanged text retains prepared shaping data. Custom `Widget` implementations can
 implement `reconcile` and return `WidgetUpdate::{Unchanged, Changed, Replace}`.
 The safe default replaces unknown widget data and invalidates layout and painting.
@@ -228,7 +228,7 @@ The safe default replaces unknown widget data and invalidates layout and paintin
 `on_click` accepts sync or async callbacks and keeps the original builder type;
 register it before or after children. Pointer press/release activates an enabled
 handler and bubbles to its ancestors. See [Events and dragging](events.md);
-focused handlers also accept Enter/Space. Use `.tag("button")` for button focus and
+focused handlers also accept Enter/Space. Use `button()` for button focus and
 CSS behavior. `WidgetTree::click(id)` provides programmatic/headless activation.
 
 ## Scheduling and cost

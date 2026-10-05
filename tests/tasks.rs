@@ -13,7 +13,8 @@ use std::{
     time::{Duration, Instant},
 };
 use voidui::{
-    AsyncCallback, Task, TaskError, TaskOptions, TaskRuntime, TaskScope, app_task_scope, component,
+    AsyncCallback, Task, TaskError, TaskOptions, TaskRuntime, TaskScope, app_task_scope, button,
+    component,
     core::widget_tree::WidgetTree,
     div, files, on_mount, state, task_scope,
     tasks::{time, workers},
@@ -440,7 +441,7 @@ fn async_events_can_borrow_captures_and_update_state_after_await() {
         let count = state(|| 0);
         div()
             .child(text(count.get().to_string()).id("count"))
-            .child(div().tag("button").id("button").on_click(async move || {
+            .child(button().id("button").on_click(async move || {
                 time::yield_now().await;
                 count.update(|value| *value += 1);
             }))

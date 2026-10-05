@@ -493,13 +493,6 @@ impl WidgetTree {
             .as_deref()
             .unwrap_or(&self.nodes[id].props.style)
     }
-    pub fn set_tag(&mut self, id: WidgetId, tag: &str) {
-        let tag = tag.to_ascii_lowercase();
-        if self.nodes[id].props.tag != tag {
-            self.nodes[id].props.tag = tag.into();
-            self.css_dirty = true;
-        }
-    }
     pub fn set_id(&mut self, id: WidgetId, value: Option<&str>) {
         let value = value.map(Into::into);
         if self.nodes[id].props.id != value {

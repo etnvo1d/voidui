@@ -1,6 +1,12 @@
+pub mod button;
+pub mod container;
+pub mod dialog;
 pub mod div;
 pub mod text;
 
+pub use button::{Button, button};
+pub use container::Container;
+pub use dialog::{Dialog, dialog};
 pub use div::{Div, div};
 pub use text::{Text, rich_text, text};
 

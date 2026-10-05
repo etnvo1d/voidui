@@ -45,11 +45,15 @@ or regular expressions. It supports type, universal, ID, class, attribute select
 sibling combinators, selector lists, :root, :scope, :empty, structural nth/first/last/
 only selectors, :not(), :is(), :where(), :has(), and nth-child(... of ...).
 
-Widget names default to `div`, `text`, or `widget` for custom widgets. A custom
-widget can override `Widget::tag_name`; `.tag("button")` provides an explicit name.
+Element names come from the widget type: `div()`, `text()`, `button()`, and
+`dialog()` match their corresponding CSS type selectors. Under the `editing`
+feature, `input(...)` and `textarea(...)` provide real text controls named `input`
+and `textarea`. Custom widgets default to `widget` and can declare a name through
+`Widget::tag_name`. Element names cannot be overridden on a builder or mounted node;
+use a different constructor to change the widget type, or classes for custom styling.
 `.class("a b")` adds two classes and deduplicates them. `.attr(...)` exposes other
 attributes. ID/class attribute selectors use the same canonical values as `.id`
-and `.class`. Call `tree.set_id`, `set_classes`, `set_tag`, or `set_attribute` to
+and `.class`. Call `tree.set_id`, `set_classes`, or `set_attribute` to
 change selector identity and invalidate matches.
 
 This is a widget tree, not an HTML DOM: each Text widget is an element named `text`
@@ -80,8 +84,8 @@ Supported states include :hover, :active, :focus, :focus-within, :enabled, :disa
 lifecycle behind modal/popover state and ::backdrop styling.
 Enabled/disabled use the widget's `disabled` attribute. Native pointer movement
 updates the hit widget and its ancestors; moving within the same hit widget does
-not recascade. Primary-button press/release drives active state. Widgets tagged
-button/input/textarea or carrying `tabindex` can receive pointer focus. Programmatic focus
+not recascade. Primary-button press/release drives active state. Buttons, text controls,
+and widgets carrying `tabindex` can receive pointer focus. Programmatic focus
 uses `tree.set_focused`; `set_status` is available for custom state integration.
 Native Tab/Shift+Tab traversal supports modal focus scope. General pointer/key
 handlers can prevent these defaults; see [Events and dragging](events.md).

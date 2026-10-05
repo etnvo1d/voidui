@@ -1,13 +1,14 @@
 //! Stacking and positioning share assertions for pixels/scene order and hit order.
 use std::{borrow::Cow, sync::Arc, time::Instant};
 use voidui::{
+    button,
     core::{
         geometry::{Point, Rect},
         layout::{self, AvailableSpace, Size},
         top_layer::HitTarget,
         widget_tree::WidgetTree,
     },
-    div,
+    dialog, div,
     render::{
         self, AtlasKey, AtlasTile, DevicePixels, Painter, ParleyTextSystem, PlatformAtlas, Scene,
         TextLayoutCache, TextSystem, px, size,
@@ -209,12 +210,9 @@ fn modal_top_layer_ignores_z_index_escapes_clips_and_restores_focus() {
             .id("root")
             .child(div().id("button").attr("tabindex", "0"))
             .child(
-                div().id("clip").child(
-                    div()
-                        .id("first")
-                        .tag("dialog")
-                        .child(div().id("second").tag("dialog")),
-                ),
+                div()
+                    .id("clip")
+                    .child(dialog().id("first").child(dialog().id("second"))),
             )
             .child(div().id("huge")),
         "#root{width:400px;height:300px}#clip{position:relative;overflow:hidden;width:10px;height:10px}dialog{width:100px;height:80px}#first{background:red}#second{background:blue;z-index:-999}#huge{position:fixed;inset:0;z-index:2147483647;background:green}dialog::backdrop{background:rgb(0 0 0 / .2)}",
@@ -314,10 +312,7 @@ fn dynamic_nested_modals_keep_ids_and_focus_scope_without_a_depth_limit() {
         let modal = tree
             .append_child(
                 parent,
-                div()
-                    .tag("dialog")
-                    .id(format!("modal-{depth}"))
-                    .child(div().tag("button")),
+                dialog().id(format!("modal-{depth}")).child(button()),
             )
             .unwrap();
         tree.show_modal(modal).unwrap();
@@ -345,7 +340,7 @@ fn pseudo_styles_do_not_leak_and_backdrop_layout_is_independent() {
     let mut tree = build(
         div()
             .color("red".parse::<Color>().unwrap())
-            .child(div().tag("dialog").id("m")),
+            .child(dialog().id("m")),
         "dialog{width:80px;height:40px;background:blue;color:green}dialog:modal::backdrop{inset:10px;background:currentColor}",
     );
     let m = tree.find_by_id("m").unwrap();
@@ -412,12 +407,11 @@ fn z_index_integer_rounding_and_visibility_follow_css_transition_rules() {
 fn opening_modal_during_pointer_dispatch_does_not_erase_autofocus() {
     let mut tree = build(
         div()
-            .child(div().tag("button").id("launch").width(100).height(40))
+            .child(button().id("launch").width(100).height(40))
             .child(
-                div()
-                    .tag("dialog")
+                dialog()
                     .id("m")
-                    .child(div().tag("button").id("focus").attr("autofocus", "")),
+                    .child(button().id("focus").attr("autofocus", "")),
             ),
         "dialog{width:120px;height:80px}",
     );
@@ -481,7 +475,7 @@ fn geometry_updates_refresh_clips_without_sorting_stacking_contexts_again() {
 #[test]
 fn disabling_backdrop_hit_testing_does_not_remove_modality() {
     let mut tree = build(
-        div().id("root").child(div().id("modal").tag("dialog")),
+        div().id("root").child(dialog().id("modal")),
         "#root{width:400px;height:300px}dialog{width:100px;height:80px}dialog::backdrop{pointer-events:none}",
     );
     let modal = tree.find_by_id("modal").unwrap();
@@ -493,7 +487,7 @@ fn disabling_backdrop_hit_testing_does_not_remove_modality() {
 #[test]
 fn modal_escapes_ancestor_inert_but_explicit_self_inert_remains_effective() {
     let mut tree = build(
-        div().attr("inert", "").child(div().tag("dialog").id("m")),
+        div().attr("inert", "").child(dialog().id("m")),
         "dialog{width:100px;height:80px}",
     );
     let m = tree.find_by_id("m").unwrap();
@@ -507,8 +501,8 @@ fn modal_escapes_ancestor_inert_but_explicit_self_inert_remains_effective() {
 fn top_layer_order_is_open_order_not_dom_order_or_numeric_z_order() {
     let mut tree = build(
         div()
-            .child(div().tag("dialog").id("first"))
-            .child(div().tag("dialog").id("second")),
+            .child(dialog().id("first"))
+            .child(dialog().id("second")),
         "dialog{width:100px;height:80px}#first{z-index:-100}#second{z-index:100}",
     );
     let first = tree.find_by_id("first").unwrap();
@@ -523,9 +517,8 @@ fn top_layer_order_is_open_order_not_dom_order_or_numeric_z_order() {
 #[test]
 fn focus_navigation_respects_positive_tabindex_and_reverse_order_in_modal() {
     let mut tree = build(
-        div().child(div().tag("button").id("outside")).child(
-            div()
-                .tag("dialog")
+        div().child(button().id("outside")).child(
+            dialog()
                 .id("m")
                 .child(div().id("zero").attr("tabindex", "0"))
                 .child(div().id("one").attr("tabindex", "1"))
@@ -592,7 +585,7 @@ fn explicit_position_unset_overrides_a_low_level_absolute_preset() {
 #[test]
 fn backdrop_variables_and_viewport_units_follow_the_window() {
     let mut tree = build(
-        div().child(div().tag("dialog").id("m")),
+        div().child(dialog().id("m")),
         ":root{--ink:red;font-size:10px}dialog{width:80px;height:40px}dialog::backdrop{inset:10vw;background:var(--ink)}",
     );
     let m = tree.find_by_id("m").unwrap();

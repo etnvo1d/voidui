@@ -119,15 +119,9 @@ fn form(code: Editor) -> impl IntoElement {
                 .class("search")
                 .child(text("Search").class("addon"))
                 .child(input(name).id("search").placeholder("Type a name…"))
-                .child(
-                    div()
-                        .tag("button")
-                        .class("clear")
-                        .child("Clear")
-                        .on_click(move || {
-                            clear.set(String::new());
-                        }),
-                ),
+                .child(button().class("clear").child("Clear").on_click(move || {
+                    clear.set(String::new());
+                })),
         )
         .child(text("MESSAGE").class("label"))
         .child(

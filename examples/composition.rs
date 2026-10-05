@@ -2,8 +2,8 @@
 //! Run with --smoke to verify the button-to-sidebar flow in a native window.
 use std::{borrow::Cow, sync::Arc};
 use voidui::{
-    Application, Children, State, WindowOptions, component, div, provide_context, state, text,
-    use_context,
+    Application, Children, State, WindowOptions, button, component, div, provide_context, state,
+    text, use_context,
 };
 
 #[derive(Clone, Copy, PartialEq)]
@@ -31,8 +31,7 @@ fn sidebar_scope(#[prop(default = true)] default_open: bool, children: Children)
 #[component]
 fn sidebar_trigger(#[prop(default)] controller: Option<SidebarController>, children: Children) {
     let sidebar = controller.unwrap_or_else(use_context);
-    div()
-        .tag("button")
+    button()
         .class("toggle")
         .on_click(move || sidebar.toggle())
         .children(children)

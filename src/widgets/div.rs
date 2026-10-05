@@ -1,12 +1,10 @@
-use crate::{
-    core::{
-        context::LayoutContext,
-        element::{ElementProps, IntoElement},
-        layout::{LayoutInput, LayoutOutput},
-        widget::{Widget, WidgetBuilder},
-    },
-    style::style::Style,
+use crate::core::{
+    context::LayoutContext,
+    layout::{LayoutInput, LayoutOutput},
+    widget::{Widget, WidgetBuilder},
 };
+
+use super::container::Container;
 
 /// A CSS container. Layout settings live in the element's style, not the widget.
 #[derive(Default)]
@@ -31,26 +29,11 @@ impl Default for WidgetBuilder<Div> {
 
 impl WidgetBuilder<Div> {
     pub fn new() -> Self {
-        Self {
-            widget: Div::new(),
-            events: Default::default(),
-            props: ElementProps::new(Style::default()),
-            children: Vec::new(),
-        }
-    }
-
-    /// Append children in iterator order. Give moving component instances a key.
-    pub fn children(mut self, children: impl IntoIterator<Item = impl IntoElement>) -> Self {
-        self.children
-            .extend(children.into_iter().map(IntoElement::into_element));
-        self
-    }
-
-    pub fn child(mut self, child: impl IntoElement) -> Self {
-        self.children.push(child.into_element());
-        self
+        Self::from_widget(Div::new())
     }
 }
+
+impl Container for Div {}
 
 impl Widget for Div {
     fn reconcile(&mut self, _next: &dyn Widget) -> crate::core::widget::WidgetUpdate {
@@ -72,6 +55,7 @@ impl Widget for Div {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::IntoElement;
     use crate::core::layout::{Display, length};
 
     #[test]

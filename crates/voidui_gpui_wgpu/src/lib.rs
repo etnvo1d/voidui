@@ -76,7 +76,7 @@ pub mod resource_cache;
 #[cfg(feature = "liquid-glass")]
 mod glass;
 #[cfg(feature = "liquid-glass")]
-pub use glass::{Glass, GlassLight, GlassMaterial, GlassTone};
+pub use glass::{Glass, GlassBackdropResolution, GlassLight, GlassMaterial, GlassTone};
 #[cfg(feature = "liquid-glass")]
 mod glass_renderer;
 

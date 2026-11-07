@@ -1,6 +1,24 @@
 //! Portable backdrop material. Lengths are logical pixels at the painter API.
 use crate::Quad;
 
+/// Resolution of the backdrop before the blur pyramid is built. Lower resolutions
+/// save filtering work but discard fine detail even when the blur radius is zero.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GlassBackdropResolution {
+    Full,
+    Half,
+    Quarter,
+}
+impl GlassBackdropResolution {
+    pub(crate) const fn divisor(self) -> u32 {
+        match self {
+            Self::Full => 1,
+            Self::Half => 2,
+            Self::Quarter => 4,
+        }
+    }
+}
+
 /// An experimental distance-field glass material, independent of native window effects.
 /// Core SDF/refraction formulas follow recovered native AIR. Full AppKit color
 /// and compositing parity is still under validation.
@@ -10,7 +28,10 @@ use crate::Quad;
 pub struct GlassMaterial {
     /// Use the complete recovered background compositor; None preserves backdrop alpha.
     pub background: Option<crate::GlassBackground>,
-    /// Blur-pyramid radius in logical pixels. Zero samples the full-resolution source.
+    /// Base backdrop resolution, independent of the optical blur radius.
+    pub backdrop_resolution: GlassBackdropResolution,
+    /// Blur-pyramid radius in logical pixels. With `background: None`, zero
+    /// samples the full-resolution source regardless of backdrop resolution.
     pub blur: f32,
     /// Maximum inward background displacement, in logical pixels.
     pub refraction: f32,
@@ -43,6 +64,7 @@ impl GlassMaterial {
     pub const fn regular() -> Self {
         Self {
             background: Some(crate::GlassBackground::regular()),
+            backdrop_resolution: GlassBackdropResolution::Quarter,
             blur: 4.,
             refraction: 60.,
             thickness: 20.,
@@ -76,6 +98,7 @@ impl GlassMaterial {
     pub const fn clear() -> Self {
         Self {
             background: Some(crate::GlassBackground::clear()),
+            backdrop_resolution: GlassBackdropResolution::Half,
             blur: 1.,
             tone: Some(GlassTone {
                 white: 1.15,
@@ -85,6 +108,40 @@ impl GlassMaterial {
             }),
             ..Self::regular()
         }
+    }
+    /// Full-resolution, unblurred glass with a neutral face and a refractive rim.
+    /// The zero-blur/identity-face policy follows the observed iOS 26 text loupe.
+    /// This material does not magnify or relocate text like UIKit's portal layer.
+    /// Geometry remains adjustable; use CSS box-shadow for an authored shadow.
+    pub const fn unblurred() -> Self {
+        Self {
+            background: Some(crate::GlassBackground::unblurred()),
+            backdrop_resolution: GlassBackdropResolution::Full,
+            blur: 0.,
+            tone: None,
+            // Observed 115x85-point system loupe: rim displacement and height.
+            refraction: 25.5,
+            thickness: 8.075,
+            ovalization: 0.,
+            curvature: 0.8,
+            key_light: GlassLight {
+                spread: std::f32::consts::FRAC_PI_2,
+                ..Self::clear().key_light
+            },
+            fill_light: GlassLight {
+                spread: std::f32::consts::FRAC_PI_2,
+                ..Self::clear().fill_light
+            },
+            ..Self::clear()
+        }
+    }
+    /// An unfiltered source can bind the existing sharp capture directly. Do not
+    /// infer this from face blur alone: bleed and shadow may still need mips.
+    pub(crate) fn samples_sharp_backdrop(self) -> bool {
+        self.background.map_or(self.blur == 0., |background| {
+            self.backdrop_resolution == GlassBackdropResolution::Full
+                && background.max_blur(self.blur) == 0.
+        })
     }
     /// Observed active dark material endpoints on macOS 26.5.
     pub const fn regular_dark() -> Self {

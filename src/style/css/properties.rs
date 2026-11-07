@@ -480,7 +480,10 @@ pub(crate) fn parse_static_property(name: &str, raw: &str) -> Result<Vec<Declara
                     voidui_gpui_wgpu::GlassMaterial::regular(),
                 )),
                 "clear" => Some(std::sync::Arc::new(voidui_gpui_wgpu::GlassMaterial::clear())),
-                _ => return Err("expected none, regular, or clear glass".into()),
+                "unblurred" => Some(std::sync::Arc::new(
+                    voidui_gpui_wgpu::GlassMaterial::unblurred(),
+                )),
+                _ => return Err("expected none, regular, clear, or unblurred glass".into()),
             };
             material.into()
         }),

@@ -1871,20 +1871,22 @@ impl WgpuRenderer {
         #[cfg(feature = "liquid-glass")]
         {
             let dimensions = (self.surface_config.width, self.surface_config.height);
+            let divisor = crate::glass_renderer::GlassRenderer::resolution_divisor(scene);
             let use_glass = !scene.glasses.is_empty()
-                && crate::glass_renderer::GlassRenderer::required_bytes(dimensions)
+                && crate::glass_renderer::GlassRenderer::required_bytes(dimensions, divisor)
                     <= self.glass_budget;
             if use_glass {
                 if self
                     .resources()
                     .glass
                     .as_ref()
-                    .is_none_or(|g| g.size != dimensions)
+                    .is_none_or(|g| g.size != dimensions || g.divisor != divisor)
                 {
                     let glass = crate::glass_renderer::GlassRenderer::new(
                         &self.resources().device,
                         self.surface_config.format,
                         dimensions,
+                        divisor,
                     );
                     self.resources_mut().glass = Some(glass);
                 }

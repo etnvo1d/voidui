@@ -489,3 +489,15 @@ fn glass_css_cascades_without_implicit_inheritance_or_layout_changes() {
 fn glass_css_requires_the_opt_in_feature() {
     assert!(Stylesheet::parse("div { -voidui-liquid-glass: regular; }").is_err());
 }
+
+#[cfg(feature = "liquid-glass")]
+#[test]
+fn unblurred_glass_css_keeps_full_resolution_without_layout_changes() {
+    let (tree, _) = tree(":root { -voidui-liquid-glass: unblurred; }");
+    assert_eq!(
+        tree.paint_style(tree.root().unwrap())
+            .liquid_glass
+            .as_deref(),
+        Some(&voidui::GlassMaterial::unblurred())
+    );
+}

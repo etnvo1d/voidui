@@ -1,4 +1,4 @@
-// Recovered variable-blur downsample on a reduced backdrop. All levels share a padded region;
+// Recovered variable-blur downsample on a material-resolution backdrop. All levels share a padded region;
 // clamping keeps unwritten scratch texels out of samples near viewport edges.
 struct FilterParams {
     viewport: vec2<f32>,
@@ -15,8 +15,16 @@ struct FilterParams {
 }
 @fragment fn downsample(@builtin(position) p: vec4<f32>) -> @location(0) vec4<f32> {
     let uv = p.xy / params.viewport;
+    // A full-resolution base must not prefilter text when optical blur is zero.
+    if all(vec2<f32>(textureDimensions(source)) == params.viewport) {
+        return textureLoad(source, vec2<i32>(p.xy), 0);
+    }
+    // At exactly half resolution one bilinear fetch already averages 2x2 texels.
+    if all(vec2<f32>(textureDimensions(source)) == params.viewport * 2.0) {
+        return textureSampleLevel(source, linear_sampler, uv, 0.0);
+    }
     let offset = 0.25 / params.viewport;
-    // Four bilinear samples cover the source footprint at quarter resolution.
+    // Four bilinear samples cover half- or quarter-resolution source footprints.
     return 0.25 * (textureSampleLevel(source, linear_sampler, uv + offset, 0.0)
         + textureSampleLevel(source, linear_sampler, uv - offset, 0.0)
         + textureSampleLevel(source, linear_sampler, uv + offset * vec2<f32>(1.0, -1.0), 0.0)

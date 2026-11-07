@@ -1,5 +1,5 @@
 //! Native GPU pixel checks and synchronized timings. No screenshot permission needed.
-//! Run with `cargo run --release -p voidui_gpui_wgpu --example glass_verify`.
+//! Run with `cargo run --release -p voidui_gpui_wgpu --features liquid-glass --example glass_verify`.
 use std::{sync::Arc, time::Instant};
 use voidui_gpui_wgpu::*;
 use winit::{
@@ -85,7 +85,207 @@ fn near(actual: [u8; 4], expected: [u8; 4], tolerance: u8) {
         "{actual:?} != {expected:?}"
     );
 }
+// Two-pixel stems expose irreversible detail loss before the optical shader.
+// Sample deep inside the lens so refraction and highlights cannot affect it.
+fn clear_stem_scene(renderer: &WgpuRenderer, material: GlassMaterial) -> Result<Scene> {
+    let mut scene = Scene::default();
+    let text = Arc::new(TextSystem::new(Arc::new(
+        ParleyTextSystem::new_without_system_fonts("unused"),
+    )));
+    let mut painter = Painter::new(
+        &mut scene,
+        renderer.sprite_atlas().as_ref(),
+        text,
+        size(px(640.), px(360.)),
+        1.,
+    )?;
+    painter.paint_quad(fill(rect(0., 0., 640., 360.), white()));
+    for x in (0..640).step_by(4) {
+        painter.paint_quad(fill(rect(x as f32, 0., 2., 360.), black()));
+    }
+    painter.paint_glass(rect(80., 60., 480., 240.), Corners::all(px(24.)), material);
+    drop(painter);
+    scene.finish();
+    Ok(scene)
+}
+fn verify_clear_stems(renderer: &mut WgpuRenderer) -> Result<()> {
+    let pixels = renderer.render_to_rgba(&clear_stem_scene(renderer, GlassMaterial::clear())?)?;
+    let values: Vec<_> = (300..340).map(|x| pixel(&pixels, x, 180)[0]).collect();
+    let contrast = *values.iter().max().unwrap() - *values.iter().min().unwrap();
+    // Recreate the old forced-quarter source without changing any optical values.
+    let coarse = renderer.render_to_rgba(&clear_stem_scene(
+        renderer,
+        GlassMaterial {
+            backdrop_resolution: GlassBackdropResolution::Quarter,
+            ..GlassMaterial::clear()
+        },
+    )?)?;
+    let coarse_values: Vec<_> = (300..340).map(|x| pixel(&coarse, x, 180)[0]).collect();
+    let coarse_contrast =
+        *coarse_values.iter().max().unwrap() - *coarse_values.iter().min().unwrap();
+    assert!(contrast > coarse_contrast + 40);
+    println!(
+        "Clear two-pixel stem contrast: half={contrast}/255, forced quarter={coarse_contrast}/255"
+    );
+    assert!(
+        contrast > 40,
+        "clear backdrop erased two-pixel text stems: {contrast}/255"
+    );
+    Ok(())
+}
+
+// Optional images use bundled glyphs, identical geometry and unchanged material
+// formulas. Only the backdrop resolution differs between the two glass renders.
+fn snapshot_clear_text(renderer: &mut WgpuRenderer) -> Result<()> {
+    let Some(directory) = std::env::var_os("VOIDUI_GLASS_SNAPSHOT_DIR") else {
+        return Ok(());
+    };
+    std::fs::create_dir_all(&directory)?;
+    let backend = ParleyTextSystem::new_without_system_fonts("IBM Plex Sans");
+    backend.add_fonts(vec![std::borrow::Cow::Borrowed(include_bytes!(
+        "../tests/fonts/IBMPlexSans-Regular.ttf"
+    ))])?;
+    let text = Arc::new(TextSystem::new(Arc::new(backend)));
+    let cache = TextLayoutCache::new(text.clone());
+    let label = "The quick brown fox jumps over the lazy dog.";
+    let line = cache.prepare(label.into(), &font("IBM Plex Sans"), 18., 28., None, None)?;
+    for (name, material) in [
+        ("text-source", None),
+        (
+            "text-quarter",
+            Some(GlassMaterial {
+                backdrop_resolution: GlassBackdropResolution::Quarter,
+                ..GlassMaterial::clear()
+            }),
+        ),
+        ("text-half", Some(GlassMaterial::clear())),
+        ("text-unblurred", Some(GlassMaterial::unblurred())),
+    ] {
+        let mut scene = Scene::default();
+        let mut painter = Painter::new(
+            &mut scene,
+            renderer.sprite_atlas().as_ref(),
+            text.clone(),
+            size(px(640.), px(360.)),
+            1.,
+        )?;
+        painter.paint_quad(fill(rect(0., 0., 640., 360.), white()));
+        for y in (28..340).step_by(28) {
+            line.paint_glyphs(&mut painter, point(20., y as f32), Some(black()))?;
+        }
+        if let Some(material) = material {
+            painter.paint_liquid_glass_group(
+                &[(rect(80., 60., 280., 240.), Corners::all(px(80.)))],
+                material,
+                32.,
+            );
+        }
+        drop(painter);
+        scene.finish();
+        let pixels = renderer.render_to_rgba(&scene)?;
+        let path = std::path::Path::new(&directory).join(format!("{name}.png"));
+        let mut encoder = png::Encoder::new(std::fs::File::create(path)?, 640, 360);
+        encoder.set_color(png::ColorType::Rgba);
+        encoder.set_depth(png::BitDepth::Eight);
+        encoder.write_header()?.write_image_data(&pixels)?;
+    }
+    Ok(())
+}
+
+// Check physical one-pixel detail at both logical DPI scales. The optical face
+// must preserve every RGB channel; its edge is allowed (and expected) to refract.
+fn verify_unblurred_detail(renderer: &mut WgpuRenderer) -> Result<()> {
+    for scale in [1., 2.] {
+        let make_scene = |material: Option<GlassMaterial>, mixed: bool| -> Result<Scene> {
+            let mut scene = Scene::default();
+            let text = Arc::new(TextSystem::new(Arc::new(
+                ParleyTextSystem::new_without_system_fonts("unused"),
+            )));
+            let mut painter = Painter::new(
+                &mut scene,
+                renderer.sprite_atlas().as_ref(),
+                text,
+                size(px(640. / scale), px(360. / scale)),
+                scale,
+            )?;
+            for x in 0..640 {
+                let color = [rgb(0x000000), rgb(0xffffff), rgb(0x124a93), rgb(0xf0b72c)][x % 4];
+                painter.paint_quad(fill(
+                    rect(x as f32 / scale, 0., 1. / scale, 360. / scale),
+                    color,
+                ));
+            }
+            if let Some(material) = material {
+                painter.paint_glass(
+                    rect(80. / scale, 60. / scale, 480. / scale, 240. / scale),
+                    Corners::all(px(24. / scale)),
+                    material,
+                );
+            }
+            if mixed {
+                painter.paint_glass(
+                    rect(570. / scale, 20. / scale, 60. / scale, 60. / scale),
+                    Corners::all(px(12. / scale)),
+                    GlassMaterial::regular(),
+                );
+            }
+            drop(painter);
+            scene.finish();
+            Ok(scene)
+        };
+        let plain_scene = make_scene(None, false)?;
+        let lens_scene = make_scene(Some(GlassMaterial::unblurred()), false)?;
+        let mixed_scene = make_scene(Some(GlassMaterial::unblurred()), true)?;
+        let quarter = GlassMaterial {
+            backdrop_resolution: GlassBackdropResolution::Quarter,
+            ..GlassMaterial::clear()
+        };
+        let mixed_blurred = make_scene(Some(quarter), true)?;
+        let source = renderer.render_to_rgba(&plain_scene)?;
+        let before = renderer.stats();
+        let glass = renderer.render_to_rgba(&lens_scene)?;
+        let after = renderer.stats();
+        for y in 140..220 {
+            for x in 260..380 {
+                near(pixel(&glass, x, y), pixel(&source, x, y), 1);
+            }
+        }
+        assert_eq!(
+            after.glass_filter_pixels, before.glass_filter_pixels,
+            "unblurred face ran a blur pass"
+        );
+        assert_eq!(after.glass_captures, before.glass_captures + 1);
+        assert_eq!(
+            after.glass_bytes,
+            8 * 640 * 360,
+            "unblurred scene allocated a pyramid"
+        );
+        assert!(
+            (81..96).any(|x| pixel(&glass, x, 180) != pixel(&source, x, 180)),
+            "refraction disappeared"
+        );
+        // Keep the same quarter-resolution pyramid allocated while slot zero
+        // changes from sharp to filtered and back. Binding reuse must follow it.
+        let mixed_pixels = renderer.render_to_rgba(&mixed_scene)?;
+        renderer.render_to_rgba(&mixed_blurred)?;
+        let mixed_again = renderer.render_to_rgba(&mixed_scene)?;
+        for y in 140..220 {
+            for x in 260..380 {
+                near(pixel(&mixed_pixels, x, y), pixel(&source, x, y), 1);
+                near(pixel(&mixed_again, x, y), pixel(&source, x, y), 1);
+            }
+        }
+        println!(
+            "PASS unblurred: one-pixel RGB detail, DPI={scale}, zero filter pixels, no pyramid allocation"
+        );
+    }
+    Ok(())
+}
+
 fn verify(renderer: &mut WgpuRenderer) -> Result<()> {
+    verify_unblurred_detail(renderer)?;
+    snapshot_clear_text(renderer)?;
+    verify_clear_stems(renderer)?;
     let baseline = renderer.render_to_rgba(&scene(renderer, None, false, 0, 1.))?;
     let neutral = renderer.render_to_rgba(&scene(renderer, Some(identity()), false, 1, 1.))?;
     for (a, b) in baseline.iter().zip(&neutral) {

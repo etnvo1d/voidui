@@ -40,11 +40,11 @@ let panel = div()
     .child("Foreground content stays sharp");
 ```
 
-Use `GlassMaterial::clear()` for a lower blur radius and different face transfer,
+Use `GlassMaterial::clear()` for a half-resolution backdrop, lower blur radius and different face transfer,
 or `regular_dark()` for the observed dark face endpoints. Materials are explicit;
 system theme or activation changes do not silently rewrite application styles.
 Set `.liquid_glass(None)` to remove the material. The CSS equivalent is
-`-voidui-liquid-glass: regular | clear | none`; CSS-wide values and ordinary
+`-voidui-liquid-glass: regular | clear | unblurred | none`; CSS-wide values and ordinary
 cascade precedence are supported. The property is not implicitly inherited.
 An opaque CSS background painted over the glass will cover its optical effect.
 
@@ -58,10 +58,32 @@ and encoded EDR scale. `working_gamma`, `headroom`, `max_headroom` and
 `sdr_shadow_opacity` expose the recovered host transfer controls. The presets are captured material inputs, not a dynamic
 implementation of AppKit's geometry/activation/accessibility policy.
 
+`GlassMaterial.backdrop_resolution` can select `GlassBackdropResolution::{Full,
+Half, Quarter}`. This controls detail retained before optical blur; reducing
+`blur` cannot restore pixels discarded by backdrop downsampling. The scratch
+budget includes the chosen resolution. Selecting `Full` increases memory and
+filtering cost; it does not disable the material's optical blur.
+
 Native composition makes the face opaque after sampling and unpremultiplying its
 background. For custom transparent lenses use `background: None`; that mode
 preserves source alpha and does not apply the additional native background
 branches. Finite-value and coefficient checks reject unusable GPU inputs.
+
+## Unblurred glass
+
+Use `GlassMaterial::unblurred()` (CSS: `-voidui-liquid-glass: unblurred`) when text
+behind a lens must retain its fine detail. This preset follows the zero-blur,
+full-resolution, neutral-face policy observed in the iOS 26.5 text loupe. It
+retains a refractive rim and supports the same shape groups. It does not implement
+the loupe's source relocation, magnification, extra shadow or chromatic edge
+layers; it is not a complete UIKit magnifier or a Notification Center preset.
+
+Unblurred captures bind the full-resolution source directly. They do not run a
+filter pass or allocate a blur pyramid unless another material in the scene
+needs one. The example uses this preset; `clear()` still models the earlier
+half-resolution Clear material and remains optically softened. One-pixel RGB
+regressions verify the flat interior at 1x/2x DPI, including mixed-material
+capture reuse. The memory budget still includes the full-size capture textures.
 
 ## Liquid adhesion between controls
 
@@ -113,8 +135,11 @@ previously composed lenses, preserving their layer order.
 
 - Unchanged windows retain the existing demand-driven scheduling and frame cache.
 - A capture copies only a padded optical region; pyramid passes use scissor
-  regions. Full-size working/capture textures and a quarter-resolution RGBA16F
-  mip chain are reused across revisions.
+  regions. Full-size working/capture textures and one RGBA16F mip chain are
+  reused across revisions. Regular uses a quarter-resolution base; Clear uses a
+  half-resolution base to retain fine text. Mixed scenes allocate the finest
+  requested base and give each capture its own mip view. They do not allocate a
+  separate pyramid per lens.
 - Materials retain their own uniform buffers/bind groups. Unchanged parameters
   are not uploaded again. Ordinary styles store glass parameters behind an
   optional shared allocation, keeping large optics records out of every widget.
@@ -133,15 +158,16 @@ bounds textures, not scene records or all driver allocation overhead.
 
 ```sh
 cargo run --release --features liquid-glass --example liquid_glass
-cargo run --release --features liquid-glass --example liquid_glass -- --smoke target/liquid-glass/smoke
 cargo run --release -p voidui_gpui_wgpu --features liquid-glass --example glass_verify
 cargo test -p voidui_gpui_wgpu --features liquid-glass --test glass_math --test glass_background -- --nocapture
 cargo test --workspace --all-features --locked
 ```
 
-Hover over A/B in the demo to separate and reunite the lenses. The smoke run saves
-merged, separated and rejoined images, verifies animation produced multiple
-frames, and checks no additional layout passes occurred during translation.
+Move the pointer over the text to position the unblurred lens and use the wheel
+to adjust its diameter. Move it close to the lower-left surface to inspect
+adhesion. The `glass_verify` example checks separation, shared captures, text
+detail and memory fallback. Set `VOIDUI_GLASS_SNAPSHOT_DIR` when running it to
+save the source, quarter-resolution, half-resolution and unblurred text images.
 
 GPU arithmetic fixtures compare the portable functions with extracted native
 arithmetic and actual native GPU outputs. They distinguish those reference types

@@ -174,6 +174,23 @@ impl GlassBackground {
             ..Self::regular()
         }
     }
+    /// Neutral, zero-blur face; the full-resolution source is selected by the material.
+    /// Optional native loupe shadow/vibrancy layers are not part of this preset.
+    pub const fn unblurred() -> Self {
+        Self {
+            outer_amount: 0.,
+            blur_ramp: GlassBlurRamp {
+                opacities: [0.; 4],
+                distances: [-10., 0., 0., 0.],
+            },
+            // The native face matrix is identity. Bypass it to avoid adding
+            // YCbCr coefficient-rounding error to an otherwise untouched texel.
+            face_opacity: 0.,
+            holding: None,
+            clamp: 0.,
+            ..Self::clear()
+        }
+    }
     pub fn is_valid(self) -> bool {
         let finite = |values: &[f32]| values.iter().all(|v| v.is_finite());
         let unit = |v: f32| v.is_finite() && (0. ..=1.).contains(&v);
@@ -389,6 +406,29 @@ impl GlassBackgroundGpu {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn unblurred_face_follows_observed_ios_loupe_policy() {
+        let reference: serde_json::Value =
+            serde_json::from_str(include_str!("../tests/fixtures/glass-ios-loupe.json")).unwrap();
+        let filter = &reference["refractive_backdrop"]["filter"];
+        let value = |name: &str| filter[name].as_str().unwrap().parse::<f32>().unwrap();
+        let material = GlassMaterial::unblurred();
+        assert!(material.is_valid());
+        assert!(material.samples_sharp_backdrop());
+        assert_eq!(reference["refractive_backdrop"]["backdrop_scale"], 1.);
+        assert_eq!(material.blur, value("inputBlurRadius"));
+        assert_eq!(material.refraction, -value("inputInnerRefractionAmount"));
+        assert_eq!(material.thickness, value("inputInnerRefractionHeight"));
+        let gpu = GlassBackgroundGpu::new(material, Affine::IDENTITY, (640, 360), 1.).0;
+        assert_eq!(gpu[3][0], 0.);
+        assert_eq!(gpu[4], [0.; 4]);
+        assert_eq!(gpu[6], [1., 0., 0., 0.]);
+        assert_eq!(gpu[7], [0., 1., 0., 0.]);
+        assert_eq!(gpu[8], [0., 0., 1., 0.]);
+        assert_eq!(gpu[19][0], 0., "holding tone changes source pixels");
+        assert_eq!(gpu[20][0], 0., "clamping changes source pixels");
+    }
+
     #[test]
     fn uniform_layout_and_native_difference_weights() {
         assert_eq!(std::mem::size_of::<GlassBackgroundGpu>(), 336);

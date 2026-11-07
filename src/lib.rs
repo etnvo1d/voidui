@@ -81,7 +81,7 @@ pub use style::transform::{Transform, TransformFunction, TransformLength, Transf
 
 /// Portable backdrop optics for `.liquid_glass(Some(material))`.
 #[cfg(feature = "liquid-glass")]
-pub use voidui_gpui_wgpu::GlassMaterial;
+pub use voidui_gpui_wgpu::{GlassBackdropResolution, GlassMaterial};
 
 #[cfg(feature = "liquid-glass")]
 pub use widgets::glass_group;

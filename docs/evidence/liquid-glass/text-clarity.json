@@ -1,0 +1,39 @@
+{
+  "scope": "Same supplied text raster in a local CARenderer clone; not WindowServer or full parity. Interior RGB8 absolute error, x=120..319, y=110..249.",
+  "reference": "native-text/frame.png",
+  "comparisons": {
+    "text-quarter": {
+      "mean_absolute_error": 6.995642857142857,
+      "max_absolute_error": 72
+    },
+    "text-half": {
+      "mean_absolute_error": 1.610654761904762,
+      "max_absolute_error": 20
+    }
+  },
+  "os": "macOS 26.5 (25F71)",
+  "gpu": "Apple M3",
+  "date": "2026-10-06",
+  "width": 640,
+  "height": 360,
+  "font": "Bundled IBM Plex Sans, 18px, line step 28px",
+  "glass_bounds": [
+    80,
+    60,
+    280,
+    240
+  ],
+  "corner_radius": 80,
+  "interior_crop": [
+    120,
+    110,
+    200,
+    140
+  ],
+  "clear_scale": 0.5,
+  "regular_scale": 0.25,
+  "stem_contrast_rgb8": {
+    "quarter": 0,
+    "half": 91
+  }
+}

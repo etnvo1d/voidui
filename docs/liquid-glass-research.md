@@ -363,3 +363,122 @@ The workspace and all targets were cross-checked locally for
 `x86_64-pc-windows-gnu` and `x86_64-unknown-linux-gnu`, in addition to macOS.
 These checks compile the shared renderer but do not execute D3D/Vulkan shaders
 or establish cross-vendor pixel parity. Current runtime GPU validation is M3.
+
+## Clear backdrop text regression (2026-10-06)
+
+The interactive text example exposed a source-resolution error: both presets
+previously captured a quarter-resolution backdrop. The installed native Clear
+layer reports `scale = 0.5`, while Regular reports `scale = 0.25`. A fresh trace
+also records the textures bound to the background fragment, rather than inferring
+the source from the authored blur radius. The Clear pair bound a 192 x 128,
+two-level source at slot 3 and a 384 x 192 SDF at slot 4. The dimensions include
+native capture padding; they are not the dimensions of the whole window.
+
+A controlled 2-pixel black/white stem grid reproduces the bug end-to-end. With
+unchanged Clear optical parameters, quarter-resolution capture yields zero
+interior RGB8 contrast; half resolution yields 91/255. The GPU base-mip test
+checks the exact black/white half-float texels, full-resolution identity, capture
+slot rebinding, mixed resolutions, odd viewport sizes and one-pixel surfaces.
+The fix leaves optical formulas and authored blur values unchanged. One shared
+pyramid uses per-capture base-mip views; adding a Clear lens cannot silently
+change the Regular lens's texel grid. Full-resolution capture skips prefiltering,
+and exact 2:1 downsampling needs only one bilinear fetch.
+
+For a visual native comparison, the same bundled-font text raster is supplied to
+the diagnostic window as an owned image layer. The clone retains only that
+explicitly named image, not arbitrary NSView backing contents. It renders native
+Clear through CARenderer, not WindowServer. In the specified interior crop, mean
+absolute RGB8 error decreases from 6.996 (quarter) to 1.611 (half); this is evidence
+for the resolution correction, not complete AppKit parity. The fixture parameters
+and results are in `evidence/liquid-glass/text-clarity.json`.
+
+```sh
+VOIDUI_GLASS_SNAPSHOT_DIR=target/liquid-glass/text-clarity \
+  cargo run --release -p voidui_gpui_wgpu --features liquid-glass --example glass_verify
+xcrun clang -fobjc-arc -DGLASS_TRACE -framework AppKit -framework QuartzCore \
+  -framework Metal scripts/diagnostics/native-glass-probe.m \
+  scripts/diagnostics/native-glass-trace.m -o target/liquid-glass/native-glass-trace
+GLASS_PROBE_BACKDROP_IMAGE=target/liquid-glass/text-clarity/text-source.png \
+GLASS_TRACE_OUTPUT=target/liquid-glass/text-clarity/native-text \
+  target/liquid-glass/native-glass-trace clear light active
+cargo test -p voidui_gpui_wgpu --features liquid-glass glass_renderer::tests
+```
+
+At 640 x 360, texture payload is 1,996,504 bytes for a Regular-only frame and
+2,457,304 bytes when a half-resolution source is required. The original memory
+budget and fallback still apply. All raw native buffers and generated PNGs stay
+under ignored `target/`.
+
+## iOS text loupe: clear detail without blur (2026-10-21)
+
+A dedicated iPhone 17 Pro simulator runs iOS 26.5 (23F77), device scale 3. The
+UIKit probe first reproduced the ordinary `UIGlassEffectStyleClear` material:
+its backdrop scale is 0.5 and fine background strokes visibly soften. This is
+not evidence for Notification Center's material. That reference remains unverified.
+
+A `UITextView` long press creates `_UITextMagnifiedGlassLoupeView`. Holding the
+same system loupe open with the public `UITextLoupeSession` API makes the
+observation repeatable after animation settles. Its 115 x 85-point refractive
+layer is visible (`hidden = 0`, `opacity = 1`) and reports:
+
+- Backdrop scale 1; blur radius 0; all four blur weights 0.
+- Face white 1, black 0, saturation 1, fill alpha 0 (identity transfer).
+- Inner refraction amount -25.5, height 8.075; no outer refraction or bleed.
+- Continuous geometry, gradient ovalization 0; highlight curvature 0.8,
+  key/fill spreads pi/2, amounts 0.5.
+- A separate `CAPortalLayer` chain supplies the relocated source. The system
+  loupe visibly magnifies text; this is not equivalent to setting blur to zero.
+
+The address-free captured parameter summary is
+`../crates/voidui_gpui_wgpu/tests/fixtures/glass-ios-loupe.json`.
+The preset tests reconstruct only the implemented face/refraction subset.
+The native shadow has zero refraction height and additional compositor layers;
+these are deliberately not claimed as ported by `unblurred()`.
+
+The installed iOS simulator QuartzCore `default.metallib` SHA-256 is
+`b950c5de8aab6a269d64e1061cb11c5887d2c43844f4b03b05f29161a6dc066c`.
+Extracted FP32 `glass_background_lpf` and `glass_background_no_bleed_lpf` code
+matches the installed macOS 26.5 code after removing module-path comments,
+normalizing the generated uniform-struct suffix and removing alias/TBAA metadata
+references. Their raw bitcode hashes differ. This supports reuse of the FP32
+arithmetic; it does not establish native FP16, texture or full-frame parity.
+All extracted native code stays under ignored `target/`.
+
+### Portable implementation and verification
+
+`GlassMaterial::unblurred()` selects the full-resolution sharp capture, neutral
+face and observed rim parameters. The optical shader remains the same. No
+mip pyramid is allocated for a sharp-only scene, and the capture returns before
+filter passes. A scene mixing blurred and unblurred lenses allocates only the
+resolution required by the blurred materials. Bindings are recreated when a
+capture slot switches between sharp and filtered sources, even if the shared
+pyramid configuration is unchanged.
+
+The native scene includes a portal, shadows and extra edge processing that are
+not reproduced by this material. Text must remain sharp in the flat interior;
+edge refraction intentionally changes its location. `glass_verify` checks
+one-physical-pixel RGB stripes at 1x and 2x DPI (per-channel tolerance 1/255),
+zero filtered pixels, retained edge displacement, no mip allocation and mixed
+capture-slot reuse. At 640 x 360 a sharp-only scene retains 1,843,200 texture
+bytes, versus 2,457,304 for half-resolution Clear. These are allocation/workload
+checks, not GPU timings or a guarantee for every driver.
+
+### Replay on a dedicated simulator
+
+```sh
+scripts/diagnostics/build-ios-glass-probe.sh
+# DEVICE is the identifier of a booted research simulator, not a personal device.
+xcrun simctl install "$DEVICE" target/liquid-glass/ios26/GlassProbe.app
+xcrun simctl launch "$DEVICE" dev.voidui.ios-glass-probe --magnifier yes --hold-loupe yes
+# After the loupe settles, collect only this app's diagnostic output.
+DATA=$(xcrun simctl get_app_container "$DEVICE" dev.voidui.ios-glass-probe data)
+cp "$DATA/Documents/magnifier-active.txt" target/liquid-glass/ios26/loupe-stable.txt
+python3 scripts/diagnostics/summarize-ios-glass.py \
+  target/liquid-glass/ios26/loupe-stable.txt target/liquid-glass/ios26/loupe-summary.json
+VOIDUI_GLASS_SNAPSHOT_DIR=target/liquid-glass/ios26/portable \
+  cargo run --release -p voidui_gpui_wgpu --features liquid-glass --example glass_verify
+```
+
+The probe runs in its own app/process and inspects only its own layers. No
+SpringBoard instrumentation, user notifications or physical-device data were
+used for these findings. The simulator is not evidence of iPhone GPU behavior.

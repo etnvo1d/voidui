@@ -73,17 +73,33 @@ int main(int argc, char **argv) { @autoreleasepool {
     BOOL clear=argc>1 && strcmp(argv[1],"clear")==0;
     BOOL light=argc>2 && strcmp(argv[2],"light")==0;
     BOOL inactive=argc>3 && strcmp(argv[3],"inactive")==0;
+    // Supply a known raster to compare text detail through the native compositor.
+    const char *backdropPath=getenv("GLASS_PROBE_BACKDROP_IMAGE");
+    NSImage *backdrop=backdropPath ? [[NSImage alloc] initWithContentsOfFile:@(backdropPath)] : nil;
+    NSSize dimensions=backdrop ? backdrop.size : NSMakeSize(640,420);
     NSApplication *app=NSApplication.sharedApplication;
     [app setActivationPolicy:inactive ? NSApplicationActivationPolicyAccessory : NSApplicationActivationPolicyRegular];
-    NSWindow *window=[[NSWindow alloc] initWithContentRect:NSMakeRect(0,0,640,420)
+    NSWindow *window=[[NSWindow alloc] initWithContentRect:NSMakeRect(0,0,dimensions.width,dimensions.height)
         styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable backing:NSBackingStoreBuffered defer:NO];
     window.appearance=[NSAppearance appearanceNamed:light ? NSAppearanceNameAqua : NSAppearanceNameDarkAqua];
     window.contentView.wantsLayer=YES;
     window.contentView.layer.backgroundColor=NSColor.systemBlueColor.CGColor;
+    if(backdrop) {
+        CALayer *source=[CALayer layer];source.frame=window.contentView.bounds;
+        source.name=@"glass-probe-backdrop";
+        source.contents=(__bridge id)[backdrop CGImageForProposedRect:NULL context:nil hints:nil];
+        // The fixture is exported in top-left raster coordinates.
+        source.affineTransform=CGAffineTransformMakeScale(1,-1);
+        [window.contentView.layer addSublayer:source];
+    }
     NSGlassEffectView *glass=[[NSGlassEffectView alloc] initWithFrame:NSMakeRect(70,80,400,230)];
     glass.cornerRadius=40;
     glass.style=clear ? NSGlassEffectViewStyleClear : NSGlassEffectViewStyleRegular;
     glass.contentView=[NSTextField labelWithString:@"Native glass runtime probe"];
+    if(backdrop) {
+        glass.frame=NSMakeRect(80,60,280,240);glass.cornerRadius=80;
+        glass.contentView=[[NSView alloc] initWithFrame:glass.bounds];
+    }
     if (argc > 5) {
         CGFloat spacing=strtod(argv[4],NULL), gap=strtod(argv[5],NULL);
         NSGlassEffectContainerView *container=[[NSGlassEffectContainerView alloc] initWithFrame:NSMakeRect(0,0,640,420)];
